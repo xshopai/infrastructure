@@ -1,0 +1,53 @@
+# ==============================================================================
+# xshopai Infrastructure Repository
+# ==============================================================================
+
+# Environment files
+*.env
+*.env.*
+!*.env.example
+
+# Secrets
+secrets/
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform.lock.hcl
+
+# Bicep
+*.json.bak
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node (if any scripts use it)
+node_modules/
+
+# Python (if any scripts use it)
+__pycache__/
+*.pyc
+.venv/
+venv/

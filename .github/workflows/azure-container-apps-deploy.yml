@@ -1,0 +1,259 @@
+# ==============================================================================
+# Deploy Azure Container Apps Infrastructure
+# ==============================================================================
+# This workflow deploys the shared infrastructure for xshopai platform:
+# - Resource Group (created via Bicep at subscription scope)
+# - Container Apps Environment with Dapr
+# - Azure Service Bus (pub/sub)
+# - Azure Cache for Redis (Dapr state store for cart-service)
+# - Azure Cosmos DB (MongoDB API)
+# - Azure SQL Server (for .NET services)
+# - Azure PostgreSQL Flexible Server (for Java/Node services)
+# - Azure MySQL Flexible Server (for Python services)
+# - Azure Key Vault (secrets)
+# - Azure Container Registry
+# ==============================================================================
+
+name: Deploy Azure Container Apps Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+        default: 'dev'
+      location:
+        description: 'Azure region'
+        required: false
+        type: string
+        default: 'uksouth'
+      createResourceGroup:
+        description: 'Create resource group via Bicep (subscription deployment)'
+        required: false
+        type: boolean
+        default: true
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'azure/container-apps/bicep/**'
+      - '.github/workflows/azure-container-apps-deploy.yml'
+
+permissions:
+  id-token: write  # Required for OIDC authentication
+  contents: read
+
+env:
+  AZURE_RESOURCE_GROUP: rg-xshopai-${{ github.event.inputs.environment || 'dev' }}
+
+jobs:
+  validate:
+    name: Validate Bicep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate Bicep template
+        run: |
+          az bicep build --file azure/container-apps/bicep/deploy.bicep
+          az bicep build --file azure/container-apps/bicep/main.bicep
+          echo "✅ Bicep validation passed"
+
+  deploy:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    outputs:
+      containerAppsEnvName: ${{ steps.deploy.outputs.containerAppsEnvName }}
+      acrLoginServer: ${{ steps.deploy.outputs.acrLoginServer }}
+      keyVaultUri: ${{ steps.deploy.outputs.keyVaultUri }}
+      resourceGroupName: ${{ steps.deploy.outputs.resourceGroupName }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy via Subscription Scope (creates Resource Group)
+        if: ${{ github.event.inputs.createResourceGroup == 'true' || github.event.inputs.createResourceGroup == '' }}
+        id: deploy-sub
+        run: |
+          DEPLOYMENT_NAME="xshopai-infra-${{ github.run_number }}"
+          
+          az deployment sub create \
+            --name $DEPLOYMENT_NAME \
+            --location ${{ github.event.inputs.location || 'uksouth' }} \
+            --template-file ./azure/container-apps/bicep/deploy.bicep \
+            --parameters environment=${{ github.event.inputs.environment || 'dev' }} \
+            --parameters location=${{ github.event.inputs.location || 'uksouth' }} \
+            --parameters postgresAdminLogin=xshopaiadmin \
+            --parameters postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }} \
+            --parameters sqlServerAdminLogin=xshopaiadmin \
+            --parameters sqlServerAdminPassword=${{ secrets.SQL_SERVER_ADMIN_PASSWORD }} \
+            --parameters mysqlAdminLogin=xshopaiadmin \
+            --parameters mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }}
+          
+          # Get outputs
+          RG_NAME=$(az deployment sub show \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.resourceGroupName.value -o tsv)
+          
+          CAE_NAME=$(az deployment sub show \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.containerAppsEnvName.value -o tsv)
+          
+          ACR_SERVER=$(az deployment sub show \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.acrLoginServer.value -o tsv)
+          
+          KV_URI=$(az deployment sub show \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.keyVaultUri.value -o tsv)
+          
+          CAE_DOMAIN=$(az deployment sub show \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.containerAppsEnvDomain.value -o tsv)
+          
+          # Set outputs
+          echo "resourceGroupName=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "containerAppsEnvName=$CAE_NAME" >> $GITHUB_OUTPUT
+          echo "acrLoginServer=$ACR_SERVER" >> $GITHUB_OUTPUT
+          echo "keyVaultUri=$KV_URI" >> $GITHUB_OUTPUT
+          echo "containerAppsEnvDomain=$CAE_DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Deploy via Resource Group Scope (existing RG)
+        if: ${{ github.event.inputs.createResourceGroup == 'false' }}
+        id: deploy-rg
+        uses: azure/arm-deploy@v2
+        with:
+          resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
+          template: ./azure/container-apps/bicep/main.bicep
+          parameters: >
+            environment=${{ github.event.inputs.environment || 'dev' }}
+            location=${{ github.event.inputs.location || 'uksouth' }}
+            postgresAdminLogin=xshopaiadmin
+            postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+            sqlServerAdminLogin=xshopaiadmin
+            sqlServerAdminPassword=${{ secrets.SQL_SERVER_ADMIN_PASSWORD }}
+            mysqlAdminLogin=xshopaiadmin
+            mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }}
+          deploymentName: xshopai-infra-${{ github.run_number }}
+          failOnStdErr: false
+
+      - name: Get Outputs (Resource Group Deployment)
+        if: ${{ github.event.inputs.createResourceGroup == 'false' }}
+        id: outputs-rg
+        run: |
+          DEPLOYMENT_NAME="xshopai-infra-${{ github.run_number }}"
+          
+          CAE_NAME=$(az deployment group show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.containerAppsEnvName.value -o tsv)
+          
+          ACR_SERVER=$(az deployment group show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.acrLoginServer.value -o tsv)
+          
+          KV_URI=$(az deployment group show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.keyVaultUri.value -o tsv)
+          
+          CAE_DOMAIN=$(az deployment group show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name $DEPLOYMENT_NAME \
+            --query properties.outputs.containerAppsEnvDomain.value -o tsv)
+          
+          echo "resourceGroupName=${{ env.AZURE_RESOURCE_GROUP }}" >> $GITHUB_OUTPUT
+          echo "containerAppsEnvName=$CAE_NAME" >> $GITHUB_OUTPUT
+          echo "acrLoginServer=$ACR_SERVER" >> $GITHUB_OUTPUT
+          echo "keyVaultUri=$KV_URI" >> $GITHUB_OUTPUT
+          echo "containerAppsEnvDomain=$CAE_DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Consolidate Outputs
+        id: deploy
+        run: |
+          # Use subscription deployment outputs if available, otherwise resource group outputs
+          if [ -n "${{ steps.deploy-sub.outputs.containerAppsEnvName }}" ]; then
+            echo "resourceGroupName=${{ steps.deploy-sub.outputs.resourceGroupName }}" >> $GITHUB_OUTPUT
+            echo "containerAppsEnvName=${{ steps.deploy-sub.outputs.containerAppsEnvName }}" >> $GITHUB_OUTPUT
+            echo "acrLoginServer=${{ steps.deploy-sub.outputs.acrLoginServer }}" >> $GITHUB_OUTPUT
+            echo "keyVaultUri=${{ steps.deploy-sub.outputs.keyVaultUri }}" >> $GITHUB_OUTPUT
+            CAE_DOMAIN="${{ steps.deploy-sub.outputs.containerAppsEnvDomain }}"
+            RG_NAME="${{ steps.deploy-sub.outputs.resourceGroupName }}"
+            CAE_NAME="${{ steps.deploy-sub.outputs.containerAppsEnvName }}"
+            ACR_SERVER="${{ steps.deploy-sub.outputs.acrLoginServer }}"
+            KV_URI="${{ steps.deploy-sub.outputs.keyVaultUri }}"
+          else
+            echo "resourceGroupName=${{ steps.outputs-rg.outputs.resourceGroupName }}" >> $GITHUB_OUTPUT
+            echo "containerAppsEnvName=${{ steps.outputs-rg.outputs.containerAppsEnvName }}" >> $GITHUB_OUTPUT
+            echo "acrLoginServer=${{ steps.outputs-rg.outputs.acrLoginServer }}" >> $GITHUB_OUTPUT
+            echo "keyVaultUri=${{ steps.outputs-rg.outputs.keyVaultUri }}" >> $GITHUB_OUTPUT
+            CAE_DOMAIN="${{ steps.outputs-rg.outputs.containerAppsEnvDomain }}"
+            RG_NAME="${{ steps.outputs-rg.outputs.resourceGroupName }}"
+            CAE_NAME="${{ steps.outputs-rg.outputs.containerAppsEnvName }}"
+            ACR_SERVER="${{ steps.outputs-rg.outputs.acrLoginServer }}"
+            KV_URI="${{ steps.outputs-rg.outputs.keyVaultUri }}"
+          fi
+          
+          # Summary
+          echo "### 🚀 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ github.event.inputs.environment || 'dev' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Resource Group** | $RG_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Container Apps Env** | $CAE_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Container Apps Domain** | $CAE_DOMAIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Container Registry** | $ACR_SERVER |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Key Vault** | $KV_URI |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Azure Logout
+        if: always()
+        run: az logout
+
+  notify:
+    name: Notify Completion
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    steps:
+      - name: Post Summary
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Infrastructure deployment completed successfully!"
+            echo ""
+            echo "Next steps:"
+            echo "1. Deploy services using their respective workflows"
+            echo "2. Configure DNS if custom domain is needed"
+            echo "3. Verify Dapr components are working"
+          else
+            echo "❌ Infrastructure deployment failed!"
+            echo "Check the deploy job logs for details."
+            exit 1
+          fi

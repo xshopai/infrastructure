@@ -1,0 +1,62 @@
+# ==============================================================================
+# Validate Bicep Templates
+# ==============================================================================
+# Runs on PRs to validate Bicep syntax and best practices
+# ==============================================================================
+
+name: Validate Bicep
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**/*.bicep'
+      - '**/*.bicepparam'
+
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.bicep'
+      - '**/*.bicepparam'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bicep
+        run: |
+          az bicep install
+          az bicep version
+
+      - name: Validate Azure Container Apps Bicep
+        run: |
+          echo "Validating Azure Container Apps templates..."
+          az bicep build --file azure/container-apps/bicep/main.bicep --stdout > /dev/null
+          echo "✅ Azure Container Apps templates are valid"
+
+      - name: Lint Bicep (if bicep-linter available)
+        continue-on-error: true
+        run: |
+          # Run linter if available
+          if command -v bicep &> /dev/null; then
+            bicep lint azure/container-apps/bicep/main.bicep
+          else
+            echo "Bicep linter not available, skipping..."
+          fi
+
+      - name: Post validation summary
+        run: |
+          echo "### ✅ Bicep Validation Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All Bicep templates are syntactically valid." >> $GITHUB_STEP_SUMMARY

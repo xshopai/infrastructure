@@ -1,0 +1,466 @@
+# ==============================================================================
+# xshopai Services Configuration
+# ==============================================================================
+# This file defines all microservices in the xshopai platform.
+# Used by deployment scripts and infrastructure configuration.
+# ==============================================================================
+
+services:
+  # ============================================================================
+  # Backend Services - Node.js
+  # ============================================================================
+  
+  - name: user-service
+    repository: xshopai/user-service
+    language: nodejs
+    port: 1002
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: user-service
+      appPort: 1002
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 100
+    databases:
+      - type: mongodb
+        name: user-service-db
+    pubsub:
+      publishes:
+        - user.created
+        - user.updated
+        - user.deleted
+      subscribes: []
+    ingress:
+      external: false
+
+  - name: auth-service
+    repository: xshopai/auth-service
+    language: nodejs
+    port: 1001
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: auth-service
+      appPort: 1001
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 100
+    databases:
+      - type: redis
+        purpose: sessions
+    pubsub:
+      publishes:
+        - user.logged_in
+        - user.logged_out
+      subscribes: []
+    ingress:
+      external: false
+
+  - name: admin-service
+    repository: xshopai/admin-service
+    language: nodejs
+    port: 1003
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: admin-service
+      appPort: 1003
+    resources:
+      cpu: 0.25
+      memory: 512Mi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 5
+      httpConcurrency: 50
+    ingress:
+      external: false
+
+  - name: audit-service
+    repository: xshopai/audit-service
+    language: nodejs
+    port: 1004
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: audit-service
+      appPort: 1004
+    resources:
+      cpu: 0.25
+      memory: 512Mi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 5
+      httpConcurrency: 50
+    databases:
+      - type: postgresql
+        name: audit_service
+    pubsub:
+      publishes: []
+      subscribes:
+        - user.*
+        - order.*
+        - product.*
+        - payment.*
+    ingress:
+      external: false
+
+  - name: notification-service
+    repository: xshopai/notification-service
+    language: nodejs
+    port: 1005
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: notification-service
+      appPort: 1005
+    resources:
+      cpu: 0.25
+      memory: 512Mi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 5
+      httpConcurrency: 50
+    databases:
+      - type: mongodb
+        name: notification-service-db
+    pubsub:
+      publishes:
+        - notification.sent
+      subscribes:
+        - order.created
+        - order.shipped
+        - user.created
+    ingress:
+      external: false
+
+  - name: review-service
+    repository: xshopai/review-service
+    language: nodejs
+    port: 1006
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: review-service
+      appPort: 1006
+    resources:
+      cpu: 0.25
+      memory: 512Mi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 5
+      httpConcurrency: 50
+    databases:
+      - type: mongodb
+        name: review-service-db
+    pubsub:
+      publishes:
+        - review.created
+        - review.updated
+        - review.deleted
+      subscribes: []
+    ingress:
+      external: false
+
+  - name: chat-service
+    repository: xshopai/chat-service
+    language: nodejs
+    port: 1007
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: chat-service
+      appPort: 1007
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 100
+    ingress:
+      external: false
+
+  # ============================================================================
+  # Backend Services - Java (Quarkus)
+  # ============================================================================
+
+  - name: cart-service
+    repository: xshopai/cart-service
+    language: java
+    framework: quarkus
+    port: 1008
+    healthPath: /health
+    readinessPath: /readiness
+    dapr:
+      enabled: true
+      appId: cart-service
+      appPort: 1008
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 100
+    databases:
+      - type: redis
+        purpose: state-store
+    pubsub:
+      publishes:
+        - cart.updated
+        - cart.checkout
+      subscribes:
+        - inventory.reserved
+    ingress:
+      external: false
+
+  - name: order-processor-service
+    repository: xshopai/order-processor-service
+    language: java
+    framework: spring-boot
+    port: 8080
+    healthPath: /actuator/health
+    readinessPath: /actuator/health/readiness
+    dapr:
+      enabled: true
+      appId: order-processor-service
+      appPort: 8080
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 50
+    databases:
+      - type: postgresql
+        name: order_processor_service
+    pubsub:
+      publishes:
+        - order.processed
+        - order.failed
+      subscribes:
+        - order.created
+        - payment.completed
+    ingress:
+      external: false
+
+  # ============================================================================
+  # Backend Services - Python (FastAPI)
+  # ============================================================================
+
+  - name: product-service
+    repository: xshopai/product-service
+    language: python
+    framework: fastapi
+    port: 8003
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: product-service
+      appPort: 8003
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 100
+    databases:
+      - type: mongodb
+        name: product-service-db
+    pubsub:
+      publishes:
+        - product.created
+        - product.updated
+        - product.deleted
+      subscribes:
+        - review.created
+        - inventory.updated
+    ingress:
+      external: false
+
+  - name: inventory-service
+    repository: xshopai/inventory-service
+    language: python
+    framework: fastapi
+    port: 8004
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: inventory-service
+      appPort: 8004
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 100
+    databases:
+      - type: mysql
+        name: inventory_service
+    pubsub:
+      publishes:
+        - inventory.updated
+        - inventory.reserved
+        - inventory.released
+      subscribes:
+        - order.created
+        - order.cancelled
+    ingress:
+      external: false
+
+  # ============================================================================
+  # Backend Services - .NET
+  # ============================================================================
+
+  - name: order-service
+    repository: xshopai/order-service
+    language: dotnet
+    framework: aspnetcore
+    port: 80
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: order-service
+      appPort: 80
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 100
+    databases:
+      - type: sqlserver
+        name: order_service_db
+    pubsub:
+      publishes:
+        - order.created
+        - order.updated
+        - order.cancelled
+        - order.shipped
+      subscribes:
+        - payment.completed
+        - payment.failed
+    ingress:
+      external: false
+
+  - name: payment-service
+    repository: xshopai/payment-service
+    language: dotnet
+    framework: aspnetcore
+    port: 80
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: payment-service
+      appPort: 80
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 10
+      httpConcurrency: 100
+    databases:
+      - type: sqlserver
+        name: payment_service_db
+    pubsub:
+      publishes:
+        - payment.initiated
+        - payment.completed
+        - payment.failed
+        - payment.refunded
+      subscribes:
+        - order.created
+    ingress:
+      external: false
+
+  # ============================================================================
+  # BFF (Backend for Frontend)
+  # ============================================================================
+
+  - name: web-bff
+    repository: xshopai/web-bff
+    language: nodejs
+    port: 3000
+    healthPath: /health
+    readinessPath: /health/ready
+    dapr:
+      enabled: true
+      appId: web-bff
+      appPort: 3000
+    resources:
+      cpu: 0.5
+      memory: 1Gi
+    scaling:
+      minReplicas: 2
+      maxReplicas: 20
+      httpConcurrency: 200
+    ingress:
+      external: true
+      corsAllowOrigins:
+        - https://xshopai.com
+        - https://www.xshopai.com
+
+  # ============================================================================
+  # Frontend Applications
+  # ============================================================================
+
+  - name: customer-ui
+    repository: xshopai/customer-ui
+    language: static
+    framework: react
+    port: 80
+    dapr:
+      enabled: false
+    resources:
+      cpu: 0.25
+      memory: 256Mi
+    scaling:
+      minReplicas: 2
+      maxReplicas: 10
+      httpConcurrency: 500
+    ingress:
+      external: true
+      customDomain: www.xshopai.com
+
+  - name: admin-ui
+    repository: xshopai/admin-ui
+    language: static
+    framework: react
+    port: 80
+    dapr:
+      enabled: false
+    resources:
+      cpu: 0.25
+      memory: 256Mi
+    scaling:
+      minReplicas: 1
+      maxReplicas: 5
+      httpConcurrency: 200
+    ingress:
+      external: true
+      customDomain: admin.xshopai.com
