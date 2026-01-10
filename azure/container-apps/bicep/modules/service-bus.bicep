@@ -3,7 +3,7 @@
 // Message broker for Dapr pub/sub component
 // ============================================================================
 
-@description('Name of the Service Bus namespace')
+@description('Name of the Service Bus namespace (avoid -sb suffix as it is reserved)')
 param name string
 
 @description('Azure region')

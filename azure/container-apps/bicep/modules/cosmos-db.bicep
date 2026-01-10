@@ -29,8 +29,11 @@ param tags object
 @description('Key Vault name for storing connection credentials')
 param keyVaultName string = ''
 
-@description('Enable free tier (only one per subscription)')
+@description('Enable free tier (only one per subscription, not available on internal subscriptions)')
 param enableFreeTier bool = false
+
+@description('Enable serverless capacity mode (alternative to free tier for internal subscriptions)')
+param enableServerless bool = false
 
 @description('Default consistency level')
 @allowed(['Eventual', 'ConsistentPrefix', 'Session', 'BoundedStaleness', 'Strong'])
@@ -53,7 +56,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
   kind: 'MongoDB'
   properties: {
     databaseAccountOfferType: 'Standard'
-    enableFreeTier: enableFreeTier
+    enableFreeTier: enableFreeTier && !enableServerless
     enableAutomaticFailover: enableAutomaticFailover
     enableMultipleWriteLocations: enableMultipleWriteLocations
     apiProperties: {
@@ -69,14 +72,14 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
         isZoneRedundant: false
       }
     ]
-    capabilities: [
+    capabilities: concat([
       {
         name: 'EnableMongo'
       }
       {
         name: 'DisableRateLimitingResponses'
       }
-    ]
+    ], enableServerless ? [{ name: 'EnableServerless' }] : [])
     backupPolicy: {
       type: 'Periodic'
       periodicModeProperties: {

@@ -65,6 +65,20 @@ param mysqlAdminLogin string
 @secure()
 param mysqlAdminPassword string
 
+// Azure AD Configuration for SQL Server (required for MCAPS compliance)
+@description('Azure AD admin object ID for SQL Server (required for MCAPS corporate policy)')
+param sqlAzureAdAdminObjectId string = ''
+
+@description('Azure AD admin login name for SQL Server')
+param sqlAzureAdAdminLogin string = ''
+
+@description('Use Azure AD-only authentication for SQL Server (required by MCAPS policy)')
+param sqlAzureAdOnlyAuthentication bool = true
+
+// Optional resource deployment flags
+@description('Deploy MySQL Flexible Server (set to false if region not supported)')
+param deployMySQL bool = true
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -129,7 +143,7 @@ module containerRegistry 'modules/container-registry.bicep' = {
 module serviceBus 'modules/service-bus.bicep' = {
   name: 'deploy-service-bus'
   params: {
-    name: '${resourcePrefix}-sb'
+    name: '${resourcePrefix}-servicebus'
     location: location
     tags: tags
     sku: environment == 'prod' ? 'Standard' : 'Basic'
@@ -151,13 +165,15 @@ module redis 'modules/redis.bicep' = {
 
 // Cosmos DB (MongoDB API) for user-service, product-service, etc.
 // Note: Only creates account. Services create their own databases/collections.
+// Note: Free tier not available on internal/MCAPS subscriptions, use serverless instead
 module cosmosDb 'modules/cosmos-db.bicep' = {
   name: 'deploy-cosmos-db'
   params: {
     name: '${resourcePrefix}-cosmos'
     location: location
     tags: tags
-    enableFreeTier: environment == 'dev'
+    enableFreeTier: false
+    enableServerless: environment == 'dev'
     keyVaultName: keyVault.outputs.name
   }
 }
@@ -180,6 +196,7 @@ module postgresql 'modules/postgresql.bicep' = {
 
 // Azure SQL Server (for order-service, payment-service - .NET services)
 // Note: Only creates server. Services create their own databases.
+// Note: MCAPS corporate policy requires Azure AD-only authentication
 module sqlServer 'modules/sql-server.bicep' = {
   name: 'deploy-sql-server'
   params: {
@@ -190,12 +207,16 @@ module sqlServer 'modules/sql-server.bicep' = {
     administratorLogin: sqlServerAdminLogin
     administratorLoginPassword: sqlServerAdminPassword
     keyVaultName: keyVault.outputs.name
+    azureAdAdminObjectId: sqlAzureAdAdminObjectId
+    azureAdAdminLogin: sqlAzureAdAdminLogin
+    azureAdOnlyAuthentication: sqlAzureAdOnlyAuthentication
   }
 }
 
 // Azure MySQL Flexible Server (for inventory-service - Python service)
 // Note: Only creates server. Services create their own databases.
-module mysql 'modules/mysql.bicep' = {
+// Note: MySQL may not be available in all regions for internal subscriptions
+module mysql 'modules/mysql.bicep' = if (deployMySQL) {
   name: 'deploy-mysql'
   params: {
     environment: environment
@@ -298,5 +319,5 @@ output postgresqlFqdn string = postgresql.outputs.fqdn
 @description('SQL Server FQDN')
 output sqlServerFqdn string = sqlServer.outputs.serverFqdn
 
-@description('MySQL Server FQDN')
-output mysqlFqdn string = mysql.outputs.fqdn
+@description('MySQL Server FQDN (empty if not deployed)')
+output mysqlFqdn string = deployMySQL ? mysql!.outputs.fqdn : ''

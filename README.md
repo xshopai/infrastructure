@@ -59,17 +59,134 @@ infrastructure/
 
 ### Prerequisites
 
-1. Azure CLI installed and logged in
-2. Bicep CLI (comes with Azure CLI)
-3. GitHub repository secrets configured
+1. **Azure CLI** installed ([Install Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli))
+2. **GitHub CLI** installed ([Install GitHub CLI](https://cli.github.com/))
+3. **Bicep CLI** (included with Azure CLI 2.20+)
+4. **Azure Subscription** with Contributor access
+5. **GitHub repository** with Actions enabled
 
-### Deploy to Azure Container Apps
+### Step 1: Login to Azure
 
 ```bash
-# 1. Login to Azure
 az login
+az account set --subscription "<your-subscription-id>"
+```
 
-# 2. Deploy infrastructure (creates resource group + all resources)
+### Step 2: Create Service Principal for GitHub Actions
+
+```bash
+# Create the Azure AD application
+az ad app create --display-name "xshopai-github-actions"
+
+# Get the app ID
+APP_ID=$(az ad app list --display-name "xshopai-github-actions" --query "[0].appId" -o tsv)
+echo "AZURE_CLIENT_ID: $APP_ID"
+
+# Create service principal
+az ad sp create --id $APP_ID
+
+# Get tenant ID and subscription ID
+TENANT_ID=$(az account show --query tenantId -o tsv)
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+echo "AZURE_TENANT_ID: $TENANT_ID"
+echo "AZURE_SUBSCRIPTION_ID: $SUBSCRIPTION_ID"
+
+# Get service principal object ID
+OBJECT_ID=$(az ad sp show --id $APP_ID --query "id" -o tsv)
+
+# Create federated credential for GitHub Actions (main branch - for push triggers)
+az ad app federated-credential create \
+  --id $APP_ID \
+  --parameters '{
+    "name": "github-actions-main",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:xshopai/infrastructure:ref:refs/heads/main",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+
+# Create federated credential for 'dev' environment (REQUIRED for workflow_dispatch)
+az ad app federated-credential create \
+  --id $APP_ID \
+  --parameters '{
+    "name": "github-actions-dev-environment",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:xshopai/infrastructure:environment:dev",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+
+# Assign Contributor role to subscription
+az role assignment create \
+  --assignee $OBJECT_ID \
+  --role "Contributor" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
+
+# Assign User Access Administrator role (required for creating role assignments for managed identity)
+az role assignment create \
+  --assignee $OBJECT_ID \
+  --role "User Access Administrator" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
+```
+
+> **Note for Git Bash (Windows MINGW64)**: If the `az role assignment create` commands fail with path errors, prefix with `MSYS_NO_PATHCONV=1`:
+> ```bash
+> MSYS_NO_PATHCONV=1 az role assignment create --assignee $OBJECT_ID --role "Contributor" --scope "/subscriptions/$SUBSCRIPTION_ID"
+> ```
+
+### Step 3: Configure GitHub Repository Secrets
+
+**Option A: Using GitHub CLI (Recommended)**
+
+```bash
+# Install GitHub CLI if not already installed: https://cli.github.com/
+
+# Login to GitHub CLI
+gh auth login
+
+# Navigate to your repository (or use -R owner/repo flag)
+cd /path/to/infrastructure
+
+# Set Azure OIDC secrets (from Step 2 output)
+gh secret set AZURE_CLIENT_ID --body "$APP_ID"
+gh secret set AZURE_TENANT_ID --body "$TENANT_ID"
+gh secret set AZURE_SUBSCRIPTION_ID --body "$SUBSCRIPTION_ID"
+
+# Set database admin passwords (use strong passwords!)
+gh secret set POSTGRES_ADMIN_PASSWORD --body "YourSecurePostgresPassword123!"
+gh secret set SQL_SERVER_ADMIN_PASSWORD --body "YourSecureSqlPassword456!"
+gh secret set MYSQL_ADMIN_PASSWORD --body "YourSecureMysqlPassword789!"
+
+# Verify secrets are set
+gh secret list
+```
+
+**Option B: Using GitHub UI**
+
+Go to **GitHub → Repository → Settings → Secrets and variables → Actions** and add:
+
+| Secret | Value | Description |
+|--------|-------|-------------|
+| `AZURE_CLIENT_ID` | `$APP_ID` from Step 2 | Service Principal Client ID |
+| `AZURE_TENANT_ID` | `$TENANT_ID` from Step 2 | Azure AD Tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | `$SUBSCRIPTION_ID` from Step 2 | Azure Subscription ID |
+| `POSTGRES_ADMIN_PASSWORD` | Your secure password | PostgreSQL admin password |
+| `SQL_SERVER_ADMIN_PASSWORD` | Your secure password | SQL Server admin password |
+| `MYSQL_ADMIN_PASSWORD` | Your secure password | MySQL admin password |
+
+> **Password Requirements**: Use strong passwords (12+ chars, mixed case, numbers, symbols)
+
+### Step 4: Deploy Infrastructure
+
+**Option A: GitHub Actions (Recommended)**
+
+1. Go to **Actions** → **"Deploy Azure Container Apps Infrastructure"**
+2. Click **"Run workflow"**
+3. Select branch: `main`
+4. Select environment: `dev`
+5. Click **"Run workflow"**
+
+**Option B: Azure CLI (Manual)**
+
+```bash
 az deployment sub create \
   --location uksouth \
   --template-file azure/container-apps/bicep/deploy.bicep \
@@ -90,12 +207,6 @@ az deployment group create \
   --parameters sqlServerAdminPassword=<your-sqlserver-password> \
   --parameters mysqlAdminPassword=<your-mysql-password>
 ```
-
-Or use GitHub Actions (recommended):
-
-1. Go to Actions → "Deploy Azure Container Apps Infrastructure"
-2. Select environment (dev/staging/prod)
-3. Click "Run workflow"
 
 ## 📦 What Gets Deployed
 
@@ -206,49 +317,43 @@ Each database module stores credentials in Key Vault:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 🔐 GitHub Secrets Required
+## 🔐 GitHub Secrets Reference
 
-Configure these in your GitHub repository settings:
+All secrets are configured in **Step 3** of Quick Start. Here's a complete reference:
 
-| Secret | Description |
-|--------|-------------|
-| `AZURE_CLIENT_ID` | Service Principal Client ID |
-| `AZURE_TENANT_ID` | Azure AD Tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID |
-| `POSTGRES_ADMIN_PASSWORD` | PostgreSQL admin password |
-| `SQL_SERVER_ADMIN_PASSWORD` | Azure SQL Server admin password |
-| `MYSQL_ADMIN_PASSWORD` | MySQL Flexible Server admin password |
+| Secret | Description | Required For |
+|--------|-------------|-------------|
+| `AZURE_CLIENT_ID` | Service Principal Client ID | OIDC Authentication |
+| `AZURE_TENANT_ID` | Azure AD Tenant ID | OIDC Authentication |
+| `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | OIDC Authentication |
+| `POSTGRES_ADMIN_PASSWORD` | PostgreSQL admin password | Database Creation |
+| `SQL_SERVER_ADMIN_PASSWORD` | Azure SQL Server admin password | Database Creation |
+| `MYSQL_ADMIN_PASSWORD` | MySQL Flexible Server admin password | Database Creation |
 
-### Setting up Azure OIDC Authentication
+### Adding Federated Credentials for Other Branches
+
+If you need to deploy from other branches (staging, releases), add additional federated credentials:
 
 ```bash
-# Create service principal with OIDC
-az ad app create --display-name "xshopai-github-actions"
-
-# Get the app ID
-APP_ID=$(az ad app list --display-name "xshopai-github-actions" --query "[0].appId" -o tsv)
-
-# Create service principal
-az ad sp create --id $APP_ID
-
-# Get object ID
-OBJECT_ID=$(az ad sp show --id $APP_ID --query "id" -o tsv)
-
-# Create federated credential for GitHub Actions
+# For staging branch
 az ad app federated-credential create \
   --id $APP_ID \
   --parameters '{
-    "name": "github-actions-main",
+    "name": "github-actions-staging",
     "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:xshopai/infrastructure:ref:refs/heads/main",
+    "subject": "repo:xshopai/infrastructure:ref:refs/heads/staging",
     "audiences": ["api://AzureADTokenExchange"]
   }'
 
-# Assign Contributor role
-az role assignment create \
-  --assignee $OBJECT_ID \
-  --role "Contributor" \
-  --scope "/subscriptions/<subscription-id>"
+# For pull requests (optional)
+az ad app federated-credential create \
+  --id $APP_ID \
+  --parameters '{
+    "name": "github-actions-pr",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:xshopai/infrastructure:pull_request",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
 ```
 
 ## 🌐 Environments

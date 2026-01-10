@@ -42,6 +42,15 @@ param allowAzureServices bool = true
 @description('Key Vault name for storing connection info')
 param keyVaultName string = ''
 
+@description('Azure AD admin object ID for Azure AD-only authentication')
+param azureAdAdminObjectId string = ''
+
+@description('Azure AD admin login name')
+param azureAdAdminLogin string = ''
+
+@description('Use Azure AD-only authentication (required by MCAPS corporate policy)')
+param azureAdOnlyAuthentication bool = true
+
 // =============================================================================
 // Variables
 // =============================================================================
@@ -59,13 +68,22 @@ resource sqlServer 'Microsoft.Sql/servers@2023-05-01-preview' = {
   tags: union(tags, {
     component: 'database'
     type: 'sql-server'
+    SecurityControl: azureAdOnlyAuthentication ? 'Compliant' : 'Ignore'
   })
   properties: {
-    administratorLogin: administratorLogin
-    administratorLoginPassword: administratorLoginPassword
+    administratorLogin: azureAdOnlyAuthentication ? null : administratorLogin
+    administratorLoginPassword: azureAdOnlyAuthentication ? null : administratorLoginPassword
     version: '12.0'
     minimalTlsVersion: '1.2'
     publicNetworkAccess: publicNetworkAccess
+    administrators: azureAdOnlyAuthentication && !empty(azureAdAdminObjectId) ? {
+      administratorType: 'ActiveDirectory'
+      principalType: 'User'
+      login: azureAdAdminLogin
+      sid: azureAdAdminObjectId
+      tenantId: subscription().tenantId
+      azureADOnlyAuthentication: true
+    } : null
   }
 }
 

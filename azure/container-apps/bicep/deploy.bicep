@@ -66,6 +66,20 @@ param mysqlAdminLogin string = 'mysqladmin'
 @secure()
 param mysqlAdminPassword string
 
+// Azure AD Configuration for SQL Server (required for MCAPS compliance)
+@description('Azure AD admin object ID for SQL Server (required for MCAPS corporate policy)')
+param sqlAzureAdAdminObjectId string = ''
+
+@description('Azure AD admin login name for SQL Server')
+param sqlAzureAdAdminLogin string = ''
+
+@description('Use Azure AD-only authentication for SQL Server (required by MCAPS policy)')
+param sqlAzureAdOnlyAuthentication bool = true
+
+// Optional resource deployment flags
+@description('Deploy MySQL Flexible Server (set to false if region not supported)')
+param deployMySQL bool = true
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -104,6 +118,10 @@ module infrastructure 'main.bicep' = {
     sqlServerAdminPassword: sqlServerAdminPassword
     mysqlAdminLogin: mysqlAdminLogin
     mysqlAdminPassword: mysqlAdminPassword
+    sqlAzureAdAdminObjectId: sqlAzureAdAdminObjectId
+    sqlAzureAdAdminLogin: sqlAzureAdAdminLogin
+    sqlAzureAdOnlyAuthentication: sqlAzureAdOnlyAuthentication
+    deployMySQL: deployMySQL
   }
 }
 

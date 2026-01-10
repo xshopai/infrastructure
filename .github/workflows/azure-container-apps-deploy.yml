@@ -38,6 +38,16 @@ on:
         required: false
         type: boolean
         default: true
+      deployMySQL:
+        description: 'Deploy MySQL (set to false if not supported in region)'
+        required: false
+        type: boolean
+        default: false
+      sqlAzureAdOnly:
+        description: 'Use Azure AD-only auth for SQL Server (required by MCAPS)'
+        required: false
+        type: boolean
+        default: true
 
   push:
     branches:
@@ -114,7 +124,11 @@ jobs:
             --parameters sqlServerAdminLogin=xshopaiadmin \
             --parameters sqlServerAdminPassword=${{ secrets.SQL_SERVER_ADMIN_PASSWORD }} \
             --parameters mysqlAdminLogin=xshopaiadmin \
-            --parameters mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }}
+            --parameters mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }} \
+            --parameters deployMySQL=${{ github.event.inputs.deployMySQL || 'false' }} \
+            --parameters sqlAzureAdOnlyAuthentication=${{ github.event.inputs.sqlAzureAdOnly || 'true' }} \
+            --parameters sqlAzureAdAdminObjectId=${{ secrets.SQL_AZURE_AD_ADMIN_OBJECT_ID || '' }} \
+            --parameters sqlAzureAdAdminLogin="${{ secrets.SQL_AZURE_AD_ADMIN_LOGIN || '' }}"
           
           # Get outputs
           RG_NAME=$(az deployment sub show \
@@ -160,6 +174,10 @@ jobs:
             sqlServerAdminPassword=${{ secrets.SQL_SERVER_ADMIN_PASSWORD }}
             mysqlAdminLogin=xshopaiadmin
             mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }}
+            deployMySQL=${{ github.event.inputs.deployMySQL || 'false' }}
+            sqlAzureAdOnlyAuthentication=${{ github.event.inputs.sqlAzureAdOnly || 'true' }}
+            sqlAzureAdAdminObjectId=${{ secrets.SQL_AZURE_AD_ADMIN_OBJECT_ID }}
+            sqlAzureAdAdminLogin=${{ secrets.SQL_AZURE_AD_ADMIN_LOGIN }}
           deploymentName: xshopai-infra-${{ github.run_number }}
           failOnStdErr: false
 
