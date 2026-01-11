@@ -34,12 +34,12 @@ on:
         type: string
         default: 'swedencentral'
 
-  push:
-    branches:
-      - main
-    paths:
-      - 'azure/container-apps/bicep/**'
-      - '.github/workflows/azure-container-apps-deploy.yml'
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'azure/container-apps/bicep/**'
+  #     - '.github/workflows/azure-container-apps-deploy.yml'
 
 permissions:
   id-token: write  # Required for OIDC authentication
