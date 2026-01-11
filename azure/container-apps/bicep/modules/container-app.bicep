@@ -33,8 +33,7 @@ param containerPort int = 3000
 @description('Environment variables for the container')
 param envVars array = []
 
-@description('Secrets for the container (name/value pairs)')
-@secure()
+@description('Secrets for the container (name/value pairs from Key Vault references)')
 param secrets array = []
 
 @description('Health check path')

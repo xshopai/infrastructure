@@ -10,7 +10,7 @@
 // - Admin credentials are stored in Key Vault for services to retrieve
 // =============================================================================
 
-@description('Environment name (dev, staging, prod)')
+@description('Environment name (dev, staging, prod) - used for backup/HA settings')
 param environment string
 
 @description('Resource location')
@@ -50,19 +50,21 @@ param publicNetworkAccess string = 'Enabled'
 @description('Key Vault name for storing connection info')
 param keyVaultName string = ''
 
+@description('Unique suffix for globally-unique resource names (passed from parent deployment)')
+param uniqueSuffix string
+
 // =============================================================================
 // Variables
 // =============================================================================
 
-var serverName = '${baseName}-mysql-${environment}'
-var uniqueServerName = '${serverName}-${substring(uniqueString(resourceGroup().id), 0, 6)}'
+var serverName = '${baseName}-${uniqueSuffix}-mysql'
 
 // =============================================================================
 // MySQL Flexible Server
 // =============================================================================
 
 resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-06-30' = {
-  name: uniqueServerName
+  name: serverName
   location: location
   tags: union(tags, {
     component: 'database'
@@ -158,4 +160,4 @@ output fqdn string = mysqlServer.properties.fullyQualifiedDomainName
 output serverId string = mysqlServer.id
 
 @description('Connection string template for services to use (PyMySQL for Python)')
-output connectionStringTemplate string = 'mysql+pymysql://${administratorLogin}:{password}@${mysqlServer.properties.fullyQualifiedDomainName}:3306/{database}'
+output connectionStringTemplate string = 'mysql+pymysql://{username}:{password}@${mysqlServer.properties.fullyQualifiedDomainName}:3306/{database}'

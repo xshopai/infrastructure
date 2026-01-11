@@ -15,9 +15,6 @@ param tags object
 @description('Log Analytics Workspace ID')
 param logAnalyticsWorkspaceId string
 
-@description('Enable Dapr')
-param daprEnabled bool = true
-
 @description('Enable zone redundancy (requires Premium)')
 param zoneRedundant bool = false
 

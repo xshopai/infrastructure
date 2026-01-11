@@ -10,9 +10,6 @@
 // - Admin credentials are stored in Key Vault for services to retrieve
 // =============================================================================
 
-@description('Environment name (dev, staging, prod)')
-param environment string
-
 @description('Resource location')
 param location string = resourceGroup().location
 
@@ -42,6 +39,9 @@ param allowAzureServices bool = true
 @description('Key Vault name for storing connection info')
 param keyVaultName string = ''
 
+@description('Unique suffix for globally-unique resource names (passed from parent deployment)')
+param uniqueSuffix string
+
 @description('Azure AD admin object ID for Azure AD-only authentication')
 param azureAdAdminObjectId string = ''
 
@@ -55,15 +55,14 @@ param azureAdOnlyAuthentication bool = true
 // Variables
 // =============================================================================
 
-var serverName = '${baseName}-sql-${environment}'
-var uniqueServerName = '${serverName}-${uniqueString(resourceGroup().id)}'
+var serverName = '${baseName}-${uniqueSuffix}-sql'
 
 // =============================================================================
 // SQL Server
 // =============================================================================
 
 resource sqlServer 'Microsoft.Sql/servers@2023-05-01-preview' = {
-  name: uniqueServerName
+  name: serverName
   location: location
   tags: union(tags, {
     component: 'database'
@@ -160,5 +159,5 @@ output serverFqdn string = sqlServer.properties.fullyQualifiedDomainName
 @description('SQL Server resource ID')
 output serverId string = sqlServer.id
 
-@description('Connection string template for services to use (replace {database} and {password})')
-output connectionStringTemplate string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog={database};Persist Security Info=False;User ID=${administratorLogin};Password={password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+@description('Connection string template for services to use (replace {username}, {database} and {password})')
+output connectionStringTemplate string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog={database};Persist Security Info=False;User ID={username};Password={password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'

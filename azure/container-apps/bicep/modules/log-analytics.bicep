@@ -56,5 +56,6 @@ output workspaceName string = logAnalyticsWorkspace.name
 @description('Log Analytics Workspace Customer ID')
 output customerId string = logAnalyticsWorkspace.properties.customerId
 
-@description('Log Analytics Workspace Primary Shared Key')
+#disable-next-line outputs-should-not-contain-secrets
+@description('Log Analytics Workspace Primary Shared Key (used internally for Container Apps logging)')
 output primarySharedKey string = logAnalyticsWorkspace.listKeys().primarySharedKey

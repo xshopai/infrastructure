@@ -67,8 +67,10 @@ output hostName string = redisCache.properties.hostName
 @description('Redis SSL Port')
 output sslPort int = redisCache.properties.sslPort
 
-@description('Redis Primary Key')
+#disable-next-line outputs-should-not-contain-secrets
+@description('Redis Primary Key (stored in Key Vault for secure access)')
 output primaryKey string = redisCache.listKeys().primaryKey
 
-@description('Redis Connection String')
+#disable-next-line outputs-should-not-contain-secrets
+@description('Redis Connection String (stored in Key Vault for secure access)')
 output connectionString string = '${redisCache.properties.hostName}:${redisCache.properties.sslPort},password=${redisCache.listKeys().primaryKey},ssl=True,abortConnect=False'

@@ -32,7 +32,7 @@ on:
         description: 'Azure region'
         required: false
         type: string
-        default: 'eastus'
+        default: 'westus2'
       sqlAzureAdOnly:
         description: 'Use Azure AD-only auth for SQL Server (enable for MCAPS compliance in prod)'
         required: false
@@ -104,10 +104,10 @@ jobs:
           
           az deployment sub create \
             --name $DEPLOYMENT_NAME \
-            --location ${{ github.event.inputs.location || 'eastus' }} \
+            --location ${{ github.event.inputs.location || 'westus2' }} \
             --template-file ./azure/container-apps/bicep/deploy.bicep \
             --parameters environment=${{ github.event.inputs.environment || 'dev' }} \
-            --parameters location=${{ github.event.inputs.location || 'eastus' }} \
+            --parameters location=${{ github.event.inputs.location || 'westus2' }} \
             --parameters postgresAdminLogin=xshopaiadmin \
             --parameters postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }} \
             --parameters sqlServerAdminLogin=xshopaiadmin \

@@ -149,5 +149,5 @@ output name string = postgresServer.name
 @description('PostgreSQL Server FQDN')
 output fqdn string = postgresServer.properties.fullyQualifiedDomainName
 
-@description('PostgreSQL Connection String Template for services to use (replace {database} and {password})')
-output connectionStringTemplate string = 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database={database};Username=${administratorLogin};Password={password};SSL Mode=Require;Trust Server Certificate=true'
+@description('PostgreSQL Connection String Template for services to use (replace {username}, {database} and {password})')
+output connectionStringTemplate string = 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true'

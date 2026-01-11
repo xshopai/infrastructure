@@ -26,19 +26,7 @@ param tags object = {
   managedBy: 'bicep'
 }
 
-// Service Configuration
-@description('Container image tag to deploy')
-param imageTag string = 'latest'
-
-@description('Enable Dapr for services')
-param daprEnabled bool = true
-
-// Scaling Configuration
-@description('Minimum replicas for services')
-param minReplicas int = environment == 'prod' ? 2 : 1
-
-@description('Maximum replicas for services')
-param maxReplicas int = environment == 'prod' ? 10 : 3
+// Dapr is always enabled via Container Apps Environment configuration
 
 // Database Configuration
 @description('PostgreSQL administrator login')
@@ -75,14 +63,16 @@ param sqlAzureAdAdminLogin string = ''
 @description('Use Azure AD-only authentication for SQL Server (set true for MCAPS compliance in prod)')
 param sqlAzureAdOnlyAuthentication bool = false
 
+@description('Unique suffix for globally-unique resource names (passed from subscription-level deployment, or auto-generated for standalone deployments)')
+param uniqueSuffix string = substring(uniqueString(subscription().subscriptionId, environment), 0, 6)
+
 // ============================================================================
 // Variables
 // ============================================================================
 
 var resourcePrefix = '${projectName}-${environment}'
 var resourcePrefixClean = replace(resourcePrefix, '-', '')
-// Unique suffix for globally-unique resource names (deterministic based on subscription + RG)
-var uniqueSuffix = substring(uniqueString(subscription().subscriptionId, resourceGroup().id), 0, 6)
+// uniqueSuffix is now passed as a parameter from deploy.bicep for consistency
 
 // ============================================================================
 // Core Infrastructure Modules
@@ -198,9 +188,9 @@ module postgresql 'modules/postgresql.bicep' = {
 module sqlServer 'modules/sql-server.bicep' = {
   name: 'deploy-sql-server'
   params: {
-    environment: environment
     location: location
     baseName: resourcePrefix
+    uniqueSuffix: uniqueSuffix
     tags: tags
     administratorLogin: sqlServerAdminLogin
     administratorLoginPassword: sqlServerAdminPassword
@@ -219,6 +209,7 @@ module mysql 'modules/mysql.bicep' = {
     environment: environment
     location: location
     baseName: resourcePrefix
+    uniqueSuffix: uniqueSuffix
     tags: tags
     administratorLogin: mysqlAdminLogin
     administratorLoginPassword: mysqlAdminPassword
@@ -239,7 +230,6 @@ module containerAppsEnv 'modules/container-apps-env.bicep' = {
     location: location
     tags: tags
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
-    daprEnabled: daprEnabled
   }
 }
 
@@ -247,7 +237,7 @@ module containerAppsEnv 'modules/container-apps-env.bicep' = {
 // Dapr Components
 // ============================================================================
 
-module daprComponents 'modules/dapr-components.bicep' = if (daprEnabled) {
+module daprComponents 'modules/dapr-components.bicep' = {
   name: 'deploy-dapr-components'
   params: {
     containerAppsEnvName: containerAppsEnv.outputs.name

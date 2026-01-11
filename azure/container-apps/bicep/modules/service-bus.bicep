@@ -112,7 +112,8 @@ output id string = serviceBusNamespace.id
 @description('Service Bus Namespace Name')
 output namespaceName string = serviceBusNamespace.name
 
-@description('Service Bus Connection String')
+#disable-next-line outputs-should-not-contain-secrets
+@description('Service Bus Connection String (stored in Key Vault for secure access)')
 output connectionString string = daprAuthRule.listKeys().primaryConnectionString
 
 @description('Service Bus Endpoint')

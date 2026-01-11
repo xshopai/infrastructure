@@ -27,24 +27,12 @@ param tags object = {
   createdDate: utcNow('yyyy-MM-dd')
 }
 
-// Service Configuration
-@description('Container image tag to deploy')
-param imageTag string = 'latest'
-
-@description('Enable Dapr for services')
-param daprEnabled bool = true
-
-// Scaling Configuration
-@description('Minimum replicas for services')
-param minReplicas int = environment == 'prod' ? 2 : 1
-
-@description('Maximum replicas for services')
-param maxReplicas int = environment == 'prod' ? 10 : 3
+// Container image tag and scaling are configured per-service in container-app module
 
 // Database Configuration
 @description('PostgreSQL administrator login')
 @secure()
-param postgresAdminLogin string = 'pgadmin'
+param postgresAdminLogin string
 
 @description('PostgreSQL administrator password')
 @secure()
@@ -52,7 +40,7 @@ param postgresAdminPassword string
 
 @description('SQL Server administrator login')
 @secure()
-param sqlServerAdminLogin string = 'sqladmin'
+param sqlServerAdminLogin string
 
 @description('SQL Server administrator password')
 @secure()
@@ -60,7 +48,7 @@ param sqlServerAdminPassword string
 
 @description('MySQL administrator login')
 @secure()
-param mysqlAdminLogin string = 'mysqladmin'
+param mysqlAdminLogin string
 
 @description('MySQL administrator password')
 @secure()
@@ -109,10 +97,7 @@ module infrastructure 'main.bicep' = {
     location: location
     projectName: projectName
     tags: tags
-    imageTag: imageTag
-    daprEnabled: daprEnabled
-    minReplicas: minReplicas
-    maxReplicas: maxReplicas
+    uniqueSuffix: uniqueSuffix
     postgresAdminLogin: postgresAdminLogin
     postgresAdminPassword: postgresAdminPassword
     sqlServerAdminLogin: sqlServerAdminLogin
