@@ -32,7 +32,7 @@ on:
         description: 'Azure region'
         required: false
         type: string
-        default: 'westus2'
+        default: 'northeurope'
 
   push:
     branches:
