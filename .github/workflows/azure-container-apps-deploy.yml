@@ -38,6 +38,11 @@ on:
         required: false
         type: boolean
         default: false
+      deploymentSuffix:
+        description: 'Custom deployment suffix (leave empty for auto-generated based on subscription)'
+        required: false
+        type: string
+        default: ''
 
   push:
     branches:
@@ -116,7 +121,8 @@ jobs:
             --parameters mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }} \
             --parameters sqlAzureAdOnlyAuthentication=${{ github.event.inputs.sqlAzureAdOnly || 'false' }} \
             --parameters sqlAzureAdAdminObjectId=${{ secrets.SQL_AZURE_AD_ADMIN_OBJECT_ID || '' }} \
-            --parameters sqlAzureAdAdminLogin="${{ secrets.SQL_AZURE_AD_ADMIN_LOGIN || '' }}"
+            --parameters sqlAzureAdAdminLogin="${{ secrets.SQL_AZURE_AD_ADMIN_LOGIN || '' }}" \
+            --parameters deploymentSuffix="${{ github.event.inputs.deploymentSuffix || '' }}"
           
           # Get outputs
           RG_NAME=$(az deployment sub show \
