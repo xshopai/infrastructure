@@ -155,10 +155,6 @@ resource cosmosDbBinding 'Microsoft.App/managedEnvironments/daprComponents@2023-
         secretRef: 'cosmos-db-connection-string'
       }
       {
-        name: 'masterKey'
-        value: '' // Using connection string auth
-      }
-      {
         name: 'database'
         value: 'xshopai'
       }

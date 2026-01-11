@@ -32,7 +32,7 @@ on:
         description: 'Azure region'
         required: false
         type: string
-        default: 'northeurope'
+        default: 'swedencentral'
 
   push:
     branches:
@@ -99,10 +99,10 @@ jobs:
           
           az deployment sub create \
             --name $DEPLOYMENT_NAME \
-            --location ${{ github.event.inputs.location || 'westus2' }} \
+            --location ${{ github.event.inputs.location || 'swedencentral' }} \
             --template-file ./azure/container-apps/bicep/deploy.bicep \
             --parameters environment=${{ github.event.inputs.environment || 'dev' }} \
-            --parameters location=${{ github.event.inputs.location || 'westus2' }} \
+            --parameters location=${{ github.event.inputs.location || 'swedencentral' }} \
             --parameters postgresAdminLogin=xshopaiadmin \
             --parameters postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }} \
             --parameters sqlServerAdminLogin=xshopaiadmin \
