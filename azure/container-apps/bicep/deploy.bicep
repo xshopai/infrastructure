@@ -64,15 +64,15 @@ param sqlAzureAdAdminLogin string = ''
 @description('Use Azure AD-only authentication for SQL Server (set to true for MCAPS compliance in prod)')
 param sqlAzureAdOnlyAuthentication bool = false
 
-@description('Unique deployment suffix (leave empty for auto-generated, or provide custom value)')
-param deploymentSuffix string = ''
+@description('Unique deployment suffix (e.g., run number from CI/CD)')
+param deploymentSuffix string
 
 // ============================================================================
 // Variables
 // ============================================================================
 
-// Generate a unique suffix if not provided (first 6 chars of subscription hash)
-var uniqueSuffix = empty(deploymentSuffix) ? substring(uniqueString(subscription().subscriptionId, environment), 0, 6) : deploymentSuffix
+// Use the provided deployment suffix directly for unique resource naming
+var uniqueSuffix = deploymentSuffix
 var resourceGroupName = 'rg-${projectName}-${environment}-${uniqueSuffix}'
 
 // ============================================================================
