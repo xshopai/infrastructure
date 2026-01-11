@@ -72,12 +72,8 @@ param sqlAzureAdAdminObjectId string = ''
 @description('Azure AD admin login name for SQL Server')
 param sqlAzureAdAdminLogin string = ''
 
-@description('Use Azure AD-only authentication for SQL Server (required by MCAPS policy)')
-param sqlAzureAdOnlyAuthentication bool = true
-
-// Optional resource deployment flags
-@description('Deploy MySQL Flexible Server (set to false if region not supported)')
-param deployMySQL bool = true
+@description('Use Azure AD-only authentication for SQL Server (set true for MCAPS compliance in prod)')
+param sqlAzureAdOnlyAuthentication bool = false
 
 // ============================================================================
 // Variables
@@ -85,6 +81,8 @@ param deployMySQL bool = true
 
 var resourcePrefix = '${projectName}-${environment}'
 var resourcePrefixClean = replace(resourcePrefix, '-', '')
+// Unique suffix for globally-unique resource names (deterministic based on subscription + RG)
+var uniqueSuffix = substring(uniqueString(subscription().subscriptionId, resourceGroup().id), 0, 6)
 
 // ============================================================================
 // Core Infrastructure Modules
@@ -111,11 +109,11 @@ module managedIdentity 'modules/managed-identity.bicep' = {
   }
 }
 
-// Key Vault for secrets
+// Key Vault for secrets (globally unique name required)
 module keyVault 'modules/key-vault.bicep' = {
   name: 'deploy-key-vault'
   params: {
-    name: '${resourcePrefixClean}kv'
+    name: '${resourcePrefixClean}${uniqueSuffix}kv'
     location: location
     tags: tags
     managedIdentityPrincipalId: managedIdentity.outputs.principalId
@@ -123,11 +121,11 @@ module keyVault 'modules/key-vault.bicep' = {
   }
 }
 
-// Container Registry
+// Container Registry (globally unique name required)
 module containerRegistry 'modules/container-registry.bicep' = {
   name: 'deploy-container-registry'
   params: {
-    name: '${resourcePrefixClean}acr'
+    name: '${resourcePrefixClean}${uniqueSuffix}acr'
     location: location
     tags: tags
     sku: environment == 'prod' ? 'Premium' : 'Basic'
@@ -139,11 +137,11 @@ module containerRegistry 'modules/container-registry.bicep' = {
 // Data Services
 // ============================================================================
 
-// Azure Service Bus (for Dapr pub/sub)
+// Azure Service Bus (for Dapr pub/sub - globally unique namespace required)
 module serviceBus 'modules/service-bus.bicep' = {
   name: 'deploy-service-bus'
   params: {
-    name: '${resourcePrefix}-servicebus'
+    name: '${resourcePrefix}-${uniqueSuffix}-servicebus'
     location: location
     tags: tags
     sku: environment == 'prod' ? 'Standard' : 'Basic'
@@ -151,11 +149,11 @@ module serviceBus 'modules/service-bus.bicep' = {
   }
 }
 
-// Azure Cache for Redis (for Dapr state store and caching)
+// Azure Cache for Redis (for Dapr state store and caching - globally unique DNS required)
 module redis 'modules/redis.bicep' = {
   name: 'deploy-redis'
   params: {
-    name: '${resourcePrefix}-redis'
+    name: '${resourcePrefix}-${uniqueSuffix}-redis'
     location: location
     tags: tags
     sku: environment == 'prod' ? 'Standard' : 'Basic'
@@ -169,7 +167,7 @@ module redis 'modules/redis.bicep' = {
 module cosmosDb 'modules/cosmos-db.bicep' = {
   name: 'deploy-cosmos-db'
   params: {
-    name: '${resourcePrefix}-cosmos'
+    name: '${resourcePrefix}-${uniqueSuffix}-cosmos'
     location: location
     tags: tags
     enableFreeTier: false
@@ -183,7 +181,7 @@ module cosmosDb 'modules/cosmos-db.bicep' = {
 module postgresql 'modules/postgresql.bicep' = {
   name: 'deploy-postgresql'
   params: {
-    name: '${resourcePrefix}-psql'
+    name: '${resourcePrefix}-${uniqueSuffix}-psql'
     location: location
     tags: tags
     administratorLogin: postgresAdminLogin
@@ -215,8 +213,7 @@ module sqlServer 'modules/sql-server.bicep' = {
 
 // Azure MySQL Flexible Server (for inventory-service - Python service)
 // Note: Only creates server. Services create their own databases.
-// Note: MySQL may not be available in all regions for internal subscriptions
-module mysql 'modules/mysql.bicep' = if (deployMySQL) {
+module mysql 'modules/mysql.bicep' = {
   name: 'deploy-mysql'
   params: {
     environment: environment
@@ -319,5 +316,5 @@ output postgresqlFqdn string = postgresql.outputs.fqdn
 @description('SQL Server FQDN')
 output sqlServerFqdn string = sqlServer.outputs.serverFqdn
 
-@description('MySQL Server FQDN (empty if not deployed)')
-output mysqlFqdn string = deployMySQL ? mysql!.outputs.fqdn : ''
+@description('MySQL Server FQDN')
+output mysqlFqdn string = mysql.outputs.fqdn

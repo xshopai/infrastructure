@@ -32,22 +32,12 @@ on:
         description: 'Azure region'
         required: false
         type: string
-        default: 'uksouth'
-      createResourceGroup:
-        description: 'Create resource group via Bicep (subscription deployment)'
-        required: false
-        type: boolean
-        default: true
-      deployMySQL:
-        description: 'Deploy MySQL (set to false if not supported in region)'
+        default: 'eastus'
+      sqlAzureAdOnly:
+        description: 'Use Azure AD-only auth for SQL Server (enable for MCAPS compliance in prod)'
         required: false
         type: boolean
         default: false
-      sqlAzureAdOnly:
-        description: 'Use Azure AD-only auth for SQL Server (required by MCAPS)'
-        required: false
-        type: boolean
-        default: true
 
   push:
     branches:
@@ -60,8 +50,8 @@ permissions:
   id-token: write  # Required for OIDC authentication
   contents: read
 
-env:
-  AZURE_RESOURCE_GROUP: rg-xshopai-${{ github.event.inputs.environment || 'dev' }}
+# Note: Resource group name will be determined dynamically by Bicep template
+# with unique suffix for global resource uniqueness
 
 jobs:
   validate:
@@ -107,26 +97,24 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy via Subscription Scope (creates Resource Group)
-        if: ${{ github.event.inputs.createResourceGroup == 'true' || github.event.inputs.createResourceGroup == '' }}
+      - name: Deploy Infrastructure (Subscription Scope)
         id: deploy-sub
         run: |
           DEPLOYMENT_NAME="xshopai-infra-${{ github.run_number }}"
           
           az deployment sub create \
             --name $DEPLOYMENT_NAME \
-            --location ${{ github.event.inputs.location || 'uksouth' }} \
+            --location ${{ github.event.inputs.location || 'eastus' }} \
             --template-file ./azure/container-apps/bicep/deploy.bicep \
             --parameters environment=${{ github.event.inputs.environment || 'dev' }} \
-            --parameters location=${{ github.event.inputs.location || 'uksouth' }} \
+            --parameters location=${{ github.event.inputs.location || 'eastus' }} \
             --parameters postgresAdminLogin=xshopaiadmin \
             --parameters postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }} \
             --parameters sqlServerAdminLogin=xshopaiadmin \
             --parameters sqlServerAdminPassword=${{ secrets.SQL_SERVER_ADMIN_PASSWORD }} \
             --parameters mysqlAdminLogin=xshopaiadmin \
             --parameters mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }} \
-            --parameters deployMySQL=${{ github.event.inputs.deployMySQL || 'false' }} \
-            --parameters sqlAzureAdOnlyAuthentication=${{ github.event.inputs.sqlAzureAdOnly || 'true' }} \
+            --parameters sqlAzureAdOnlyAuthentication=${{ github.event.inputs.sqlAzureAdOnly || 'false' }} \
             --parameters sqlAzureAdAdminObjectId=${{ secrets.SQL_AZURE_AD_ADMIN_OBJECT_ID || '' }} \
             --parameters sqlAzureAdAdminLogin="${{ secrets.SQL_AZURE_AD_ADMIN_LOGIN || '' }}"
           
@@ -158,86 +146,20 @@ jobs:
           echo "keyVaultUri=$KV_URI" >> $GITHUB_OUTPUT
           echo "containerAppsEnvDomain=$CAE_DOMAIN" >> $GITHUB_OUTPUT
 
-      - name: Deploy via Resource Group Scope (existing RG)
-        if: ${{ github.event.inputs.createResourceGroup == 'false' }}
-        id: deploy-rg
-        uses: azure/arm-deploy@v2
-        with:
-          resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
-          template: ./azure/container-apps/bicep/main.bicep
-          parameters: >
-            environment=${{ github.event.inputs.environment || 'dev' }}
-            location=${{ github.event.inputs.location || 'uksouth' }}
-            postgresAdminLogin=xshopaiadmin
-            postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }}
-            sqlServerAdminLogin=xshopaiadmin
-            sqlServerAdminPassword=${{ secrets.SQL_SERVER_ADMIN_PASSWORD }}
-            mysqlAdminLogin=xshopaiadmin
-            mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }}
-            deployMySQL=${{ github.event.inputs.deployMySQL || 'false' }}
-            sqlAzureAdOnlyAuthentication=${{ github.event.inputs.sqlAzureAdOnly || 'true' }}
-            sqlAzureAdAdminObjectId=${{ secrets.SQL_AZURE_AD_ADMIN_OBJECT_ID }}
-            sqlAzureAdAdminLogin=${{ secrets.SQL_AZURE_AD_ADMIN_LOGIN }}
-          deploymentName: xshopai-infra-${{ github.run_number }}
-          failOnStdErr: false
-
-      - name: Get Outputs (Resource Group Deployment)
-        if: ${{ github.event.inputs.createResourceGroup == 'false' }}
-        id: outputs-rg
+      - name: Set Outputs
+        id: deploy
         run: |
-          DEPLOYMENT_NAME="xshopai-infra-${{ github.run_number }}"
+          # Get outputs from subscription deployment
+          RG_NAME="${{ steps.deploy-sub.outputs.resourceGroupName }}"
+          CAE_NAME="${{ steps.deploy-sub.outputs.containerAppsEnvName }}"
+          ACR_SERVER="${{ steps.deploy-sub.outputs.acrLoginServer }}"
+          KV_URI="${{ steps.deploy-sub.outputs.keyVaultUri }}"
+          CAE_DOMAIN="${{ steps.deploy-sub.outputs.containerAppsEnvDomain }}"
           
-          CAE_NAME=$(az deployment group show \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.containerAppsEnvName.value -o tsv)
-          
-          ACR_SERVER=$(az deployment group show \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.acrLoginServer.value -o tsv)
-          
-          KV_URI=$(az deployment group show \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.keyVaultUri.value -o tsv)
-          
-          CAE_DOMAIN=$(az deployment group show \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.containerAppsEnvDomain.value -o tsv)
-          
-          echo "resourceGroupName=${{ env.AZURE_RESOURCE_GROUP }}" >> $GITHUB_OUTPUT
+          echo "resourceGroupName=$RG_NAME" >> $GITHUB_OUTPUT
           echo "containerAppsEnvName=$CAE_NAME" >> $GITHUB_OUTPUT
           echo "acrLoginServer=$ACR_SERVER" >> $GITHUB_OUTPUT
           echo "keyVaultUri=$KV_URI" >> $GITHUB_OUTPUT
-          echo "containerAppsEnvDomain=$CAE_DOMAIN" >> $GITHUB_OUTPUT
-
-      - name: Consolidate Outputs
-        id: deploy
-        run: |
-          # Use subscription deployment outputs if available, otherwise resource group outputs
-          if [ -n "${{ steps.deploy-sub.outputs.containerAppsEnvName }}" ]; then
-            echo "resourceGroupName=${{ steps.deploy-sub.outputs.resourceGroupName }}" >> $GITHUB_OUTPUT
-            echo "containerAppsEnvName=${{ steps.deploy-sub.outputs.containerAppsEnvName }}" >> $GITHUB_OUTPUT
-            echo "acrLoginServer=${{ steps.deploy-sub.outputs.acrLoginServer }}" >> $GITHUB_OUTPUT
-            echo "keyVaultUri=${{ steps.deploy-sub.outputs.keyVaultUri }}" >> $GITHUB_OUTPUT
-            CAE_DOMAIN="${{ steps.deploy-sub.outputs.containerAppsEnvDomain }}"
-            RG_NAME="${{ steps.deploy-sub.outputs.resourceGroupName }}"
-            CAE_NAME="${{ steps.deploy-sub.outputs.containerAppsEnvName }}"
-            ACR_SERVER="${{ steps.deploy-sub.outputs.acrLoginServer }}"
-            KV_URI="${{ steps.deploy-sub.outputs.keyVaultUri }}"
-          else
-            echo "resourceGroupName=${{ steps.outputs-rg.outputs.resourceGroupName }}" >> $GITHUB_OUTPUT
-            echo "containerAppsEnvName=${{ steps.outputs-rg.outputs.containerAppsEnvName }}" >> $GITHUB_OUTPUT
-            echo "acrLoginServer=${{ steps.outputs-rg.outputs.acrLoginServer }}" >> $GITHUB_OUTPUT
-            echo "keyVaultUri=${{ steps.outputs-rg.outputs.keyVaultUri }}" >> $GITHUB_OUTPUT
-            CAE_DOMAIN="${{ steps.outputs-rg.outputs.containerAppsEnvDomain }}"
-            RG_NAME="${{ steps.outputs-rg.outputs.resourceGroupName }}"
-            CAE_NAME="${{ steps.outputs-rg.outputs.containerAppsEnvName }}"
-            ACR_SERVER="${{ steps.outputs-rg.outputs.acrLoginServer }}"
-            KV_URI="${{ steps.outputs-rg.outputs.keyVaultUri }}"
-          fi
           
           # Summary
           echo "### 🚀 Deployment Complete!" >> $GITHUB_STEP_SUMMARY

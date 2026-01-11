@@ -55,13 +55,14 @@ param keyVaultName string = ''
 // =============================================================================
 
 var serverName = '${baseName}-mysql-${environment}'
+var uniqueServerName = '${serverName}-${substring(uniqueString(resourceGroup().id), 0, 6)}'
 
 // =============================================================================
 // MySQL Flexible Server
 // =============================================================================
 
 resource mysqlServer 'Microsoft.DBforMySQL/flexibleServers@2023-06-30' = {
-  name: serverName
+  name: uniqueServerName
   location: location
   tags: union(tags, {
     component: 'database'

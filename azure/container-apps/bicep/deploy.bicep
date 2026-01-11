@@ -66,25 +66,26 @@ param mysqlAdminLogin string = 'mysqladmin'
 @secure()
 param mysqlAdminPassword string
 
-// Azure AD Configuration for SQL Server (required for MCAPS compliance)
-@description('Azure AD admin object ID for SQL Server (required for MCAPS corporate policy)')
+// Azure AD Configuration for SQL Server (optional, for enhanced security)
+@description('Azure AD admin object ID for SQL Server (required only if using Azure AD auth)')
 param sqlAzureAdAdminObjectId string = ''
 
 @description('Azure AD admin login name for SQL Server')
 param sqlAzureAdAdminLogin string = ''
 
-@description('Use Azure AD-only authentication for SQL Server (required by MCAPS policy)')
-param sqlAzureAdOnlyAuthentication bool = true
+@description('Use Azure AD-only authentication for SQL Server (set to true for MCAPS compliance in prod)')
+param sqlAzureAdOnlyAuthentication bool = false
 
-// Optional resource deployment flags
-@description('Deploy MySQL Flexible Server (set to false if region not supported)')
-param deployMySQL bool = true
+@description('Unique deployment suffix (leave empty for auto-generated, or provide custom value)')
+param deploymentSuffix string = ''
 
 // ============================================================================
 // Variables
 // ============================================================================
 
-var resourceGroupName = 'rg-${projectName}-${environment}'
+// Generate a unique suffix if not provided (first 6 chars of subscription hash)
+var uniqueSuffix = empty(deploymentSuffix) ? substring(uniqueString(subscription().subscriptionId, environment), 0, 6) : deploymentSuffix
+var resourceGroupName = 'rg-${projectName}-${environment}-${uniqueSuffix}'
 
 // ============================================================================
 // Resource Group
@@ -121,7 +122,6 @@ module infrastructure 'main.bicep' = {
     sqlAzureAdAdminObjectId: sqlAzureAdAdminObjectId
     sqlAzureAdAdminLogin: sqlAzureAdAdminLogin
     sqlAzureAdOnlyAuthentication: sqlAzureAdOnlyAuthentication
-    deployMySQL: deployMySQL
   }
 }
 
