@@ -106,7 +106,7 @@ output resourceGroupLocation string = resourceGroup.location
 output logAnalyticsWorkspaceId string = logAnalytics.outputs.workspaceId
 
 @description('Log Analytics Workspace Name')
-output logAnalyticsWorkspaceName string = logAnalytics.outputs.name
+output logAnalyticsWorkspaceName string = logAnalytics.outputs.workspaceName
 
 @description('Managed Identity Client ID')
 output managedIdentityClientId string = managedIdentity.outputs.clientId
