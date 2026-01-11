@@ -1,0 +1,176 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.37.4.10188",
+      "templateHash": "9137835835075309050"
+    }
+  },
+  "parameters": {
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Service Bus namespace (avoid -sb suffix as it is reserved)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "metadata": {
+        "description": "Resource tags"
+      }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "SKU for Service Bus"
+      }
+    },
+    "managedIdentityPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Managed Identity Principal ID for access"
+      }
+    }
+  },
+  "variables": {
+    "topics": [
+      "user-events",
+      "product-events",
+      "order-events",
+      "payment-events",
+      "inventory-events",
+      "notification-events",
+      "cart-events",
+      "review-events",
+      "audit-events"
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ServiceBus/namespaces",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[parameters('name')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "[parameters('sku')]",
+        "tier": "[parameters('sku')]"
+      },
+      "properties": {
+        "minimumTlsVersion": "1.2",
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "copy": {
+        "name": "serviceBusTopics",
+        "count": "[length(variables('topics'))]"
+      },
+      "condition": "[not(equals(parameters('sku'), 'Basic'))]",
+      "type": "Microsoft.ServiceBus/namespaces/topics",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', parameters('name'), variables('topics')[copyIndex()])]",
+      "properties": {
+        "maxSizeInMegabytes": 1024,
+        "defaultMessageTimeToLive": "P14D",
+        "enablePartitioning": false,
+        "enableBatchedOperations": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', parameters('name'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "defaultSubscriptions",
+        "count": "[length(variables('topics'))]"
+      },
+      "condition": "[not(equals(parameters('sku'), 'Basic'))]",
+      "type": "Microsoft.ServiceBus/namespaces/topics/subscriptions",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('name'), variables('topics')[copyIndex()], 'default')]",
+      "properties": {
+        "maxDeliveryCount": 10,
+        "deadLetteringOnMessageExpiration": true,
+        "defaultMessageTimeToLive": "P14D",
+        "lockDuration": "PT1M"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('name'), variables('topics')[copyIndex()])]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces/AuthorizationRules",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', parameters('name'), 'dapr-auth-rule')]",
+      "properties": {
+        "rights": [
+          "Listen",
+          "Send",
+          "Manage"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', parameters('name'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.ServiceBus/namespaces/{0}', parameters('name'))]",
+      "name": "[guid(resourceId('Microsoft.ServiceBus/namespaces', parameters('name')), parameters('managedIdentityPrincipalId'), 'Azure Service Bus Data Owner')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '090c5cfd-751d-490a-894a-3ce6f1109419')]",
+        "principalId": "[parameters('managedIdentityPrincipalId')]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', parameters('name'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Namespace Resource ID"
+      },
+      "value": "[resourceId('Microsoft.ServiceBus/namespaces', parameters('name'))]"
+    },
+    "namespaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Namespace Name"
+      },
+      "value": "[parameters('name')]"
+    },
+    "connectionString": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Connection String (stored in Key Vault for secure access)"
+      },
+      "value": "[listKeys(resourceId('Microsoft.ServiceBus/namespaces/AuthorizationRules', parameters('name'), 'dapr-auth-rule'), '2022-10-01-preview').primaryConnectionString]"
+    },
+    "endpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus Endpoint"
+      },
+      "value": "[reference(resourceId('Microsoft.ServiceBus/namespaces', parameters('name')), '2022-10-01-preview').serviceBusEndpoint]"
+    }
+  }
+}
