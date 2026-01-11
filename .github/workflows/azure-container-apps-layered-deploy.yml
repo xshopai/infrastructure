@@ -107,6 +107,7 @@ jobs:
     outputs:
       resourceGroupName: ${{ steps.deploy.outputs.resourceGroupName }}
       logAnalyticsWorkspaceId: ${{ steps.deploy.outputs.logAnalyticsWorkspaceId }}
+      logAnalyticsWorkspaceName: ${{ steps.deploy.outputs.logAnalyticsWorkspaceName }}
       managedIdentityClientId: ${{ steps.deploy.outputs.managedIdentityClientId }}
       managedIdentityPrincipalId: ${{ steps.deploy.outputs.managedIdentityPrincipalId }}
       keyVaultName: ${{ steps.deploy.outputs.keyVaultName }}
@@ -149,6 +150,7 @@ jobs:
           
           RG_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.resourceGroupName.value -o tsv)
           LOG_WS_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.logAnalyticsWorkspaceId.value -o tsv)
+          LOG_WS_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.logAnalyticsWorkspaceName.value -o tsv)
           MI_CLIENT_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.managedIdentityClientId.value -o tsv)
           MI_PRINCIPAL_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.managedIdentityPrincipalId.value -o tsv)
           KV_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.keyVaultName.value -o tsv)
@@ -159,6 +161,7 @@ jobs:
           # Set outputs
           echo "resourceGroupName=$RG_NAME" >> $GITHUB_OUTPUT
           echo "logAnalyticsWorkspaceId=$LOG_WS_ID" >> $GITHUB_OUTPUT
+          echo "logAnalyticsWorkspaceName=$LOG_WS_NAME" >> $GITHUB_OUTPUT
           echo "managedIdentityClientId=$MI_CLIENT_ID" >> $GITHUB_OUTPUT
           echo "managedIdentityPrincipalId=$MI_PRINCIPAL_ID" >> $GITHUB_OUTPUT
           echo "keyVaultName=$KV_NAME" >> $GITHUB_OUTPUT
@@ -212,7 +215,7 @@ jobs:
         run: |
           ENV="${{ github.event.inputs.environment || 'dev' }}"
           RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
-          LOG_WS_ID="${{ needs.layer0-foundation.outputs.logAnalyticsWorkspaceId }}"
+          LOG_WS_NAME="${{ needs.layer0-foundation.outputs.logAnalyticsWorkspaceName }}"
           MI_PRINCIPAL_ID="${{ needs.layer0-foundation.outputs.managedIdentityPrincipalId }}"
           UNIQUE_SUFFIX="${{ needs.layer0-foundation.outputs.uniqueSuffix }}"
           DEPLOYMENT_NAME="layer1-core-platform-${ENV}"
@@ -226,7 +229,7 @@ jobs:
             --template-file ./${{ env.BICEP_PATH }}/layers/layer1-core-platform.bicep \
             --parameters environment=$ENV \
             --parameters projectName=${{ env.PROJECT_NAME }} \
-            --parameters logAnalyticsWorkspaceId=$LOG_WS_ID \
+            --parameters logAnalyticsWorkspaceName=$LOG_WS_NAME \
             --parameters managedIdentityPrincipalId=$MI_PRINCIPAL_ID \
             --parameters uniqueSuffix=$UNIQUE_SUFFIX
           
