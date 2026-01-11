@@ -220,13 +220,13 @@ output redisConnectionString string = redis.outputs.connectionString
 output cosmosDbAccountName string = cosmosDb.outputs.accountName
 
 @description('Cosmos DB Endpoint')
-output cosmosDbEndpoint string = cosmosDb.outputs.endpoint
+output cosmosDbEndpoint string = cosmosDb.outputs.documentEndpoint
 
 @description('PostgreSQL Server FQDN')
 output postgresqlFqdn string = postgresql.outputs.fqdn
 
 @description('PostgreSQL Server Name')
-output postgresqlServerName string = postgresql.outputs.serverName
+output postgresqlServerName string = postgresql.outputs.name
 
 @description('SQL Server FQDN')
 output sqlServerFqdn string = sqlServer.outputs.serverFqdn
