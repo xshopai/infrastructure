@@ -322,21 +322,20 @@ jobs:
           # Start with user-provided env vars
           ENV_VARS='${{ inputs.env_vars }}'
           
-          # Add standard env vars
-          STANDARD_VARS='[
-            {"name": "ENVIRONMENT", "value": "${{ inputs.environment }}"},
-            {"name": "SERVICE_NAME", "value": "${{ inputs.service_name }}"},
-            {"name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "secretRef": "appinsights-connection-string"}
-          ]'
+          # Add standard env vars (single line to avoid GITHUB_OUTPUT format issues)
+          STANDARD_VARS='[{"name": "ENVIRONMENT", "value": "${{ inputs.environment }}"},{"name": "SERVICE_NAME", "value": "${{ inputs.service_name }}"},{"name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "secretRef": "appinsights-connection-string"}]'
           
           # Merge env vars (user vars take precedence)
           if [ "$ENV_VARS" != "[]" ]; then
-            MERGED=$(echo "$STANDARD_VARS $ENV_VARS" | jq -s 'add | unique_by(.name)')
+            MERGED=$(echo "$STANDARD_VARS $ENV_VARS" | jq -s -c 'add | unique_by(.name)')
           else
             MERGED="$STANDARD_VARS"
           fi
           
-          echo "vars=$MERGED" >> $GITHUB_OUTPUT
+          # Use EOF delimiter for multi-line output
+          echo "vars<<EOF" >> $GITHUB_OUTPUT
+          echo "$MERGED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Deploy Container App
         id: deploy
