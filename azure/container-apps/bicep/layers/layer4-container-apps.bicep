@@ -143,7 +143,104 @@ resource customerUi 'Microsoft.App/containerApps@2023-05-01' = {
         }
       ]
       scale: {
-        minReplicas: environment == 'prod' ? 1 : 0
+        minReplicas: 1  // Always have at least 1 replica for health probes
+        maxReplicas: environment == 'prod' ? 10 : 3
+        rules: [
+          {
+            name: 'http-scaler'
+            http: {
+              metadata: {
+                concurrentRequests: '100'
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
+// Admin UI - React SPA admin dashboard
+resource adminUi 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'admin-ui'
+  location: location
+  tags: union(tags, {
+    service: 'admin-ui'
+    type: 'frontend'
+  })
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentityId}': {}
+    }
+  }
+  properties: {
+    managedEnvironmentId: containerAppsEnv.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: true
+        targetPort: 8080
+        transport: 'http'
+        allowInsecure: false
+        traffic: [
+          {
+            weight: 100
+            latestRevision: true
+          }
+        ]
+        corsPolicy: {
+          allowedOrigins: environment == 'prod' ? [
+            'https://admin.xshopai.com'
+          ] : [
+            '*'
+          ]
+          allowedMethods: [
+            'GET'
+            'POST'
+            'PUT'
+            'DELETE'
+            'OPTIONS'
+          ]
+          allowedHeaders: [
+            '*'
+          ]
+          exposeHeaders: [
+            '*'
+          ]
+          allowCredentials: true
+          maxAge: 3600
+        }
+      }
+      dapr: {
+        enabled: false  // Admin UI doesn't use Dapr
+      }
+      registries: [
+        {
+          server: acrLoginServer
+          identity: managedIdentityId
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'admin-ui'
+          image: placeholderImage  // Placeholder - CI/CD will update
+          resources: {
+            cpu: json(environment == 'prod' ? '0.5' : '0.25')
+            memory: environment == 'prod' ? '1Gi' : '0.5Gi'
+          }
+          env: [
+            {
+              name: 'REACT_APP_ENVIRONMENT'
+              value: environment
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 1  // Always have at least 1 replica for health probes
         maxReplicas: environment == 'prod' ? 10 : 3
         rules: [
           {
@@ -175,3 +272,15 @@ output customerUiId string = customerUi.id
 
 @description('Customer UI Container App Name')
 output customerUiName string = customerUi.name
+
+@description('Admin UI Container App URL')
+output adminUiUrl string = 'https://${adminUi.properties.configuration.ingress.fqdn}'
+
+@description('Admin UI Container App FQDN')
+output adminUiFqdn string = adminUi.properties.configuration.ingress.fqdn
+
+@description('Admin UI Container App Resource ID')
+output adminUiId string = adminUi.id
+
+@description('Admin UI Container App Name')
+output adminUiName string = adminUi.name
