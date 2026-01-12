@@ -257,6 +257,156 @@ resource adminUi 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
+// Web BFF - Backend for Frontend (API aggregation layer for customer-ui)
+resource webBff 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'web-bff'
+  location: location
+  tags: union(tags, {
+    service: 'web-bff'
+    type: 'backend'
+  })
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentityId}': {}
+    }
+  }
+  properties: {
+    managedEnvironmentId: containerAppsEnv.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: true
+        targetPort: 8080
+        transport: 'http'
+        allowInsecure: false
+        traffic: [
+          {
+            weight: 100
+            latestRevision: true
+          }
+        ]
+        corsPolicy: {
+          allowedOrigins: environment == 'prod' ? [
+            'https://xshopai.com'
+            'https://www.xshopai.com'
+          ] : [
+            '*'
+          ]
+          allowedMethods: [
+            'GET'
+            'POST'
+            'PUT'
+            'DELETE'
+            'PATCH'
+            'OPTIONS'
+          ]
+          allowedHeaders: [
+            '*'
+          ]
+          exposeHeaders: [
+            '*'
+          ]
+          allowCredentials: true
+          maxAge: 3600
+        }
+      }
+      dapr: {
+        enabled: true
+        appId: 'web-bff'
+        appPort: 8080
+        appProtocol: 'http'
+      }
+      registries: [
+        {
+          server: acrLoginServer
+          identity: managedIdentityId
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'web-bff'
+          image: placeholderImage  // Placeholder - CI/CD will update
+          resources: {
+            cpu: json(environment == 'prod' ? '1' : '0.5')
+            memory: environment == 'prod' ? '2Gi' : '1Gi'
+          }
+          env: [
+            {
+              name: 'NODE_ENV'
+              value: 'production'
+            }
+            {
+              name: 'PORT'
+              value: '8080'
+            }
+            {
+              name: 'HOST'
+              value: '0.0.0.0'
+            }
+            {
+              name: 'LOG_LEVEL'
+              value: environment == 'prod' ? 'warn' : 'info'
+            }
+            {
+              name: 'PRODUCT_SERVICE_APP_ID'
+              value: 'product-service'
+            }
+            {
+              name: 'INVENTORY_SERVICE_APP_ID'
+              value: 'inventory-service'
+            }
+            {
+              name: 'REVIEW_SERVICE_APP_ID'
+              value: 'review-service'
+            }
+            {
+              name: 'AUTH_SERVICE_APP_ID'
+              value: 'auth-service'
+            }
+            {
+              name: 'USER_SERVICE_APP_ID'
+              value: 'user-service'
+            }
+            {
+              name: 'CART_SERVICE_APP_ID'
+              value: 'cart-service'
+            }
+            {
+              name: 'ORDER_SERVICE_APP_ID'
+              value: 'order-service'
+            }
+            {
+              name: 'ADMIN_SERVICE_APP_ID'
+              value: 'admin-service'
+            }
+            {
+              name: 'CHAT_SERVICE_APP_ID'
+              value: 'chat-service'
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 1  // Always have at least 1 replica for health probes
+        maxReplicas: environment == 'prod' ? 10 : 5
+        rules: [
+          {
+            name: 'http-scaler'
+            http: {
+              metadata: {
+                concurrentRequests: '50'
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
 // ============================================================================
 // Outputs
 // ============================================================================
@@ -284,3 +434,15 @@ output adminUiId string = adminUi.id
 
 @description('Admin UI Container App Name')
 output adminUiName string = adminUi.name
+
+@description('Web BFF Container App URL')
+output webBffUrl string = 'https://${webBff.properties.configuration.ingress.fqdn}'
+
+@description('Web BFF Container App FQDN')
+output webBffFqdn string = webBff.properties.configuration.ingress.fqdn
+
+@description('Web BFF Container App Resource ID')
+output webBffId string = webBff.id
+
+@description('Web BFF Container App Name')
+output webBffName string = webBff.name
