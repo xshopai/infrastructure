@@ -108,8 +108,6 @@ jobs:
       resourceGroupName: ${{ steps.deploy.outputs.resourceGroupName }}
       logAnalyticsWorkspaceId: ${{ steps.deploy.outputs.logAnalyticsWorkspaceId }}
       logAnalyticsWorkspaceName: ${{ steps.deploy.outputs.logAnalyticsWorkspaceName }}
-      logAnalyticsCustomerId: ${{ steps.deploy.outputs.logAnalyticsCustomerId }}
-      logAnalyticsSharedKey: ${{ steps.deploy.outputs.logAnalyticsSharedKey }}
       managedIdentityClientId: ${{ steps.deploy.outputs.managedIdentityClientId }}
       managedIdentityPrincipalId: ${{ steps.deploy.outputs.managedIdentityPrincipalId }}
       keyVaultName: ${{ steps.deploy.outputs.keyVaultName }}
@@ -153,8 +151,6 @@ jobs:
           RG_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.resourceGroupName.value -o tsv)
           LOG_WS_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.logAnalyticsWorkspaceId.value -o tsv)
           LOG_WS_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.logAnalyticsWorkspaceName.value -o tsv)
-          LOG_CUSTOMER_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.logAnalyticsCustomerId.value -o tsv)
-          LOG_SHARED_KEY=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.logAnalyticsSharedKey.value -o tsv)
           MI_CLIENT_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.managedIdentityClientId.value -o tsv)
           MI_PRINCIPAL_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.managedIdentityPrincipalId.value -o tsv)
           KV_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.keyVaultName.value -o tsv)
@@ -162,15 +158,10 @@ jobs:
           UNIQUE_SUFFIX=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.uniqueSuffix.value -o tsv)
           RESOURCE_PREFIX=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.resourcePrefix.value -o tsv)
           
-          # Mask sensitive values
-          echo "::add-mask::$LOG_SHARED_KEY"
-          
-          # Set outputs
+          # Set outputs (no sensitive values passed between jobs)
           echo "resourceGroupName=$RG_NAME" >> $GITHUB_OUTPUT
           echo "logAnalyticsWorkspaceId=$LOG_WS_ID" >> $GITHUB_OUTPUT
           echo "logAnalyticsWorkspaceName=$LOG_WS_NAME" >> $GITHUB_OUTPUT
-          echo "logAnalyticsCustomerId=$LOG_CUSTOMER_ID" >> $GITHUB_OUTPUT
-          echo "logAnalyticsSharedKey=$LOG_SHARED_KEY" >> $GITHUB_OUTPUT
           echo "managedIdentityClientId=$MI_CLIENT_ID" >> $GITHUB_OUTPUT
           echo "managedIdentityPrincipalId=$MI_PRINCIPAL_ID" >> $GITHUB_OUTPUT
           echo "keyVaultName=$KV_NAME" >> $GITHUB_OUTPUT
@@ -224,14 +215,22 @@ jobs:
         run: |
           ENV="${{ github.event.inputs.environment || 'dev' }}"
           RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
-          LOG_CUSTOMER_ID="${{ needs.layer0-foundation.outputs.logAnalyticsCustomerId }}"
-          LOG_SHARED_KEY="${{ needs.layer0-foundation.outputs.logAnalyticsSharedKey }}"
+          KV_NAME="${{ needs.layer0-foundation.outputs.keyVaultName }}"
           MI_PRINCIPAL_ID="${{ needs.layer0-foundation.outputs.managedIdentityPrincipalId }}"
           UNIQUE_SUFFIX="${{ needs.layer0-foundation.outputs.uniqueSuffix }}"
           DEPLOYMENT_NAME="layer1-core-platform-${ENV}"
           
           echo "🏗️ Deploying Layer 1: Core Platform..."
           echo "  Resource Group: $RG_NAME"
+          
+          # Retrieve Log Analytics credentials from Key Vault
+          # (Secrets cannot be passed via GitHub Actions job outputs)
+          echo "🔐 Retrieving Log Analytics credentials from Key Vault..."
+          LOG_CUSTOMER_ID=$(az keyvault secret show --vault-name $KV_NAME --name "log-analytics-customer-id" --query value -o tsv)
+          LOG_SHARED_KEY=$(az keyvault secret show --vault-name $KV_NAME --name "log-analytics-shared-key" --query value -o tsv)
+          
+          # Mask sensitive values
+          echo "::add-mask::$LOG_SHARED_KEY"
           
           az deployment group create \
             --name $DEPLOYMENT_NAME \

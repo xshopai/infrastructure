@@ -93,6 +93,33 @@ module keyVault '../modules/key-vault.bicep' = {
 }
 
 // ============================================================================
+// Store Log Analytics Credentials in Key Vault
+// (Required because GitHub Actions cannot pass secrets between jobs)
+// ============================================================================
+
+module logAnalyticsSecret '../modules/key-vault-secret.bicep' = {
+  name: 'deploy-log-analytics-secrets'
+  scope: resourceGroup
+  params: {
+    keyVaultName: keyVault.outputs.name
+    secrets: [
+      {
+        name: 'log-analytics-customer-id'
+        value: logAnalytics.outputs.customerId
+      }
+      {
+        name: 'log-analytics-shared-key'
+        value: logAnalytics.outputs.primarySharedKey
+      }
+    ]
+  }
+  dependsOn: [
+    keyVault
+    logAnalytics
+  ]
+}
+
+// ============================================================================
 // Outputs
 // ============================================================================
 
