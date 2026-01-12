@@ -407,6 +407,182 @@ resource webBff 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
+// Product Service - Python/FastAPI backend for product catalog management
+resource productService 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'product-service'
+  location: location
+  tags: union(tags, {
+    service: 'product-service'
+    type: 'backend'
+  })
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentityId}': {}
+    }
+  }
+  properties: {
+    managedEnvironmentId: containerAppsEnv.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: false  // Internal only - accessed via Dapr service invocation
+        targetPort: 1001
+        transport: 'http'
+        allowInsecure: false
+        traffic: [
+          {
+            weight: 100
+            latestRevision: true
+          }
+        ]
+      }
+      dapr: {
+        enabled: true
+        appId: 'product-service'
+        appPort: 1001
+        appProtocol: 'http'
+      }
+      registries: [
+        {
+          server: acrLoginServer
+          identity: managedIdentityId
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'product-service'
+          image: placeholderImage  // Placeholder - CI/CD will update
+          resources: {
+            cpu: json(environment == 'prod' ? '1' : '0.5')
+            memory: environment == 'prod' ? '2Gi' : '1Gi'
+          }
+          env: [
+            {
+              name: 'ENVIRONMENT'
+              value: 'production'
+            }
+            {
+              name: 'DEBUG'
+              value: 'false'
+            }
+            {
+              name: 'NAME'
+              value: 'product-service'
+            }
+            {
+              name: 'VERSION'
+              value: '1.0.0'
+            }
+            {
+              name: 'PORT'
+              value: '1001'
+            }
+            {
+              name: 'LOG_LEVEL'
+              value: environment == 'prod' ? 'WARNING' : 'INFO'
+            }
+            {
+              name: 'LOG_FORMAT'
+              value: 'json'
+            }
+            {
+              name: 'LOG_TO_CONSOLE'
+              value: 'true'
+            }
+            {
+              name: 'LOG_TO_FILE'
+              value: 'false'
+            }
+            {
+              name: 'DAPR_HOST'
+              value: 'localhost'
+            }
+            {
+              name: 'DAPR_HTTP_PORT'
+              value: '3500'
+            }
+            {
+              name: 'DAPR_GRPC_PORT'
+              value: '50001'
+            }
+            {
+              name: 'DAPR_APP_ID'
+              value: 'product-service'
+            }
+            {
+              name: 'DAPR_PUBSUB_NAME'
+              value: 'event-bus'
+            }
+            {
+              name: 'DAPR_INVENTORY_SERVICE_APP_ID'
+              value: 'inventory-service'
+            }
+            {
+              name: 'WORKERS'
+              value: environment == 'prod' ? '4' : '2'
+            }
+          ]
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/health'
+                port: 1001
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 30
+              failureThreshold: 3
+              timeoutSeconds: 5
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/readiness'
+                port: 1001
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              failureThreshold: 3
+              timeoutSeconds: 5
+            }
+            {
+              type: 'Startup'
+              httpGet: {
+                path: '/readiness'
+                port: 1001
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 0
+              periodSeconds: 10
+              failureThreshold: 30
+              timeoutSeconds: 5
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 1  // Always have at least 1 replica for health probes
+        maxReplicas: environment == 'prod' ? 10 : 5
+        rules: [
+          {
+            name: 'http-scaler'
+            http: {
+              metadata: {
+                concurrentRequests: '100'
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
 // ============================================================================
 // Outputs
 // ============================================================================
@@ -446,3 +622,12 @@ output webBffId string = webBff.id
 
 @description('Web BFF Container App Name')
 output webBffName string = webBff.name
+
+@description('Product Service Container App FQDN')
+output productServiceFqdn string = productService.properties.configuration.ingress.fqdn
+
+@description('Product Service Container App Resource ID')
+output productServiceId string = productService.id
+
+@description('Product Service Container App Name')
+output productServiceName string = productService.name
