@@ -178,6 +178,28 @@ jobs:
           echo "| Key Vault | $KV_NAME |" >> $GITHUB_STEP_SUMMARY
           echo "| Unique Suffix | $UNIQUE_SUFFIX |" >> $GITHUB_STEP_SUMMARY
 
+      - name: Grant Key Vault access to GitHub Actions
+        run: |
+          KV_NAME="${{ steps.deploy.outputs.keyVaultName }}"
+          
+          # Get the current service principal object ID
+          echo "🔐 Granting Key Vault Secrets User role to GitHub Actions service principal..."
+          SP_OBJECT_ID=$(az ad sp show --id ${{ secrets.AZURE_CLIENT_ID }} --query id -o tsv)
+          
+          # Get Key Vault resource ID
+          KV_RESOURCE_ID=$(az keyvault show --name $KV_NAME --query id -o tsv)
+          
+          # Assign Key Vault Secrets User role (if not already assigned)
+          # Role ID for Key Vault Secrets User: 4633458b-17de-408a-b874-0445c86b69e6
+          az role assignment create \
+            --role "Key Vault Secrets User" \
+            --assignee-object-id $SP_OBJECT_ID \
+            --assignee-principal-type ServicePrincipal \
+            --scope $KV_RESOURCE_ID \
+            2>/dev/null || echo "Role assignment may already exist"
+          
+          echo "✅ Key Vault access granted"
+
   # ============================================================================
   # Layer 1: Core Platform
   # Creates: Container Apps Environment, Container Registry
