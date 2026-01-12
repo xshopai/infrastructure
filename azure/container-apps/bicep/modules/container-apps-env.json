@@ -1,0 +1,123 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.37.4.10188",
+      "templateHash": "13024430214126985520"
+    }
+  },
+  "parameters": {
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Container Apps Environment"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "metadata": {
+        "description": "Resource tags"
+      }
+    },
+    "logAnalyticsCustomerId": {
+      "type": "string",
+      "metadata": {
+        "description": "Log Analytics Workspace Customer ID"
+      }
+    },
+    "logAnalyticsSharedKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Log Analytics Workspace Shared Key"
+      }
+    },
+    "zoneRedundant": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable zone redundancy (requires Premium)"
+      }
+    },
+    "workloadProfileType": {
+      "type": "string",
+      "defaultValue": "Consumption",
+      "allowedValues": [
+        "Consumption",
+        "D4",
+        "D8",
+        "D16",
+        "D32",
+        "E4",
+        "E8",
+        "E16",
+        "E32"
+      ],
+      "metadata": {
+        "description": "Workload profile type"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2023-11-02-preview",
+      "name": "[parameters('name')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[parameters('logAnalyticsCustomerId')]",
+            "sharedKey": "[parameters('logAnalyticsSharedKey')]"
+          }
+        },
+        "zoneRedundant": "[parameters('zoneRedundant')]",
+        "workloadProfiles": "[if(equals(parameters('workloadProfileType'), 'Consumption'), createArray(createObject('name', 'Consumption', 'workloadProfileType', 'Consumption')), createArray(createObject('name', 'Consumption', 'workloadProfileType', 'Consumption'), createObject('name', 'Dedicated', 'workloadProfileType', parameters('workloadProfileType'), 'minimumCount', 1, 'maximumCount', 3)))]",
+        "peerAuthentication": {
+          "mtls": {
+            "enabled": true
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "metadata": {
+        "description": "Container Apps Environment Resource ID"
+      },
+      "value": "[resourceId('Microsoft.App/managedEnvironments', parameters('name'))]"
+    },
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "Container Apps Environment Name"
+      },
+      "value": "[parameters('name')]"
+    },
+    "defaultDomain": {
+      "type": "string",
+      "metadata": {
+        "description": "Container Apps Environment Default Domain"
+      },
+      "value": "[reference(resourceId('Microsoft.App/managedEnvironments', parameters('name')), '2023-11-02-preview').defaultDomain]"
+    },
+    "staticIp": {
+      "type": "string",
+      "metadata": {
+        "description": "Container Apps Environment Static IP"
+      },
+      "value": "[reference(resourceId('Microsoft.App/managedEnvironments', parameters('name')), '2023-11-02-preview').staticIp]"
+    }
+  }
+}

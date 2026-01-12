@@ -12,8 +12,12 @@ param location string
 @description('Resource tags')
 param tags object
 
-@description('Log Analytics Workspace Name')
-param logAnalyticsWorkspaceName string
+@description('Log Analytics Workspace Customer ID')
+param logAnalyticsCustomerId string
+
+@description('Log Analytics Workspace Shared Key')
+@secure()
+param logAnalyticsSharedKey string
 
 @description('Enable zone redundancy (requires Premium)')
 param zoneRedundant bool = false
@@ -26,11 +30,6 @@ param workloadProfileType string = 'Consumption'
 // Resources
 // ============================================================================
 
-// Reference existing Log Analytics workspace
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
-  name: logAnalyticsWorkspaceName
-}
-
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
   name: name
   location: location
@@ -39,8 +38,8 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2023-11-02-
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
-        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+        customerId: logAnalyticsCustomerId
+        sharedKey: logAnalyticsSharedKey
       }
     }
     zoneRedundant: zoneRedundant

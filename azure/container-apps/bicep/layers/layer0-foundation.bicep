@@ -128,3 +128,10 @@ output uniqueSuffix string = uniqueSuffix
 
 @description('Resource Prefix for subsequent layers')
 output resourcePrefix string = resourcePrefix
+
+@description('Log Analytics Workspace Customer ID')
+output logAnalyticsCustomerId string = logAnalytics.outputs.customerId
+
+@description('Log Analytics Workspace Shared Key')
+#disable-next-line outputs-should-not-contain-secrets
+output logAnalyticsSharedKey string = logAnalytics.outputs.primarySharedKey

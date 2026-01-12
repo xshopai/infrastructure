@@ -28,8 +28,12 @@ param tags object = {
   layer: 'core-platform'
 }
 
-@description('Log Analytics Workspace Name (from Layer 0)')
-param logAnalyticsWorkspaceName string
+@description('Log Analytics Workspace Customer ID (from Layer 0)')
+param logAnalyticsCustomerId string
+
+@description('Log Analytics Workspace Shared Key (from Layer 0)')
+@secure()
+param logAnalyticsSharedKey string
 
 @description('Managed Identity Principal ID (from Layer 0)')
 param managedIdentityPrincipalId string
@@ -54,7 +58,8 @@ module containerAppsEnv '../modules/container-apps-env.bicep' = {
     name: '${resourcePrefix}-cae'
     location: location
     tags: tags
-    logAnalyticsWorkspaceName: logAnalyticsWorkspaceName
+    logAnalyticsCustomerId: logAnalyticsCustomerId
+    logAnalyticsSharedKey: logAnalyticsSharedKey
   }
 }
 
