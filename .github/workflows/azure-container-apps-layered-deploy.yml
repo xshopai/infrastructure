@@ -183,22 +183,22 @@ jobs:
           KV_NAME="${{ steps.deploy.outputs.keyVaultName }}"
           
           # Get the current service principal object ID
-          echo "🔐 Granting Key Vault Secrets User role to GitHub Actions service principal..."
+          echo "🔐 Granting Key Vault Secrets Officer role to GitHub Actions service principal..."
           SP_OBJECT_ID=$(az ad sp show --id ${{ secrets.AZURE_CLIENT_ID }} --query id -o tsv)
           
           # Get Key Vault resource ID
           KV_RESOURCE_ID=$(az keyvault show --name $KV_NAME --query id -o tsv)
           
-          # Assign Key Vault Secrets User role (if not already assigned)
-          # Role ID for Key Vault Secrets User: 4633458b-17de-408a-b874-0445c86b69e6
+          # Assign Key Vault Secrets Officer role (read + write) - needed for Bicep deployments to store secrets
+          # Role ID for Key Vault Secrets Officer: b86a8fe4-44ce-4948-aee5-eccb2c155cd7
           az role assignment create \
-            --role "Key Vault Secrets User" \
+            --role "Key Vault Secrets Officer" \
             --assignee-object-id $SP_OBJECT_ID \
             --assignee-principal-type ServicePrincipal \
             --scope $KV_RESOURCE_ID \
             2>/dev/null || echo "Role assignment may already exist"
           
-          echo "✅ Key Vault access granted"
+          echo "✅ Key Vault access granted (Secrets Officer for read/write)"
 
   # ============================================================================
   # Layer 1: Core Platform
