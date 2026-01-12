@@ -44,6 +44,7 @@ on:
           - layer1-core-platform
           - layer2-data-services
           - layer3-dapr-components
+          - layer4-container-apps
         default: 'all'
       skip_validation:
         description: 'Skip Bicep validation'
@@ -83,7 +84,7 @@ jobs:
           echo "🔍 Validating Bicep templates..."
           
           # Validate all layer templates
-          for layer in layer0-foundation layer1-core-platform layer2-data-services layer3-dapr-components; do
+          for layer in layer0-foundation layer1-core-platform layer2-data-services layer3-dapr-components layer4-container-apps; do
             echo "  Validating $layer..."
             az bicep build --file ${{ env.BICEP_PATH }}/layers/${layer}.bicep
           done
@@ -474,12 +475,97 @@ jobs:
           echo "- configstore (Key Vault)" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
+  # Layer 4: Container Apps
+  # Creates: Container App instances for microservices (shells with placeholder images)
+  # ============================================================================
+  layer4-container-apps:
+    name: Layer 4 - Container Apps
+    runs-on: ubuntu-latest
+    needs: [validate, layer0-foundation, layer1-core-platform]
+    if: |
+      always() && 
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
+      needs.layer0-foundation.result == 'success' &&
+      needs.layer1-core-platform.result == 'success' &&
+      (github.event.inputs.layer == 'all' || github.event.inputs.layer == 'layer4-container-apps')
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    outputs:
+      customerUiUrl: ${{ steps.deploy.outputs.customerUiUrl }}
+      customerUiFqdn: ${{ steps.deploy.outputs.customerUiFqdn }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Managed Identity Resource ID
+        id: identity
+        run: |
+          RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
+          RESOURCE_PREFIX="${{ needs.layer0-foundation.outputs.resourcePrefix }}"
+          
+          # Get Managed Identity resource ID (needed for Container Apps)
+          MI_NAME="${RESOURCE_PREFIX}-identity"
+          MI_RESOURCE_ID=$(az identity show -n $MI_NAME -g $RG_NAME --query id -o tsv)
+          
+          echo "managedIdentityResourceId=$MI_RESOURCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Deploy Layer 4 - Container Apps
+        id: deploy
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
+          CAE_NAME="${{ needs.layer1-core-platform.outputs.containerAppsEnvName }}"
+          ACR_SERVER="${{ needs.layer1-core-platform.outputs.acrLoginServer }}"
+          MI_RESOURCE_ID="${{ steps.identity.outputs.managedIdentityResourceId }}"
+          DEPLOYMENT_NAME="layer4-container-apps-${ENV}"
+          
+          echo "🏗️ Deploying Layer 4: Container Apps..."
+          echo "  Resource Group: $RG_NAME"
+          echo "  Container Apps Env: $CAE_NAME"
+          echo "  Container Registry: $ACR_SERVER"
+          
+          az deployment group create \
+            --name $DEPLOYMENT_NAME \
+            --resource-group $RG_NAME \
+            --template-file ./${{ env.BICEP_PATH }}/layers/layer4-container-apps.bicep \
+            --parameters environment=$ENV \
+            --parameters projectName=${{ env.PROJECT_NAME }} \
+            --parameters containerAppsEnvName=$CAE_NAME \
+            --parameters acrLoginServer=$ACR_SERVER \
+            --parameters managedIdentityId=$MI_RESOURCE_ID
+          
+          # Get outputs
+          echo "📤 Retrieving deployment outputs..."
+          
+          CUSTOMER_UI_URL=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.customerUiUrl.value -o tsv)
+          CUSTOMER_UI_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.customerUiFqdn.value -o tsv)
+          
+          # Set outputs
+          echo "customerUiUrl=$CUSTOMER_UI_URL" >> $GITHUB_OUTPUT
+          echo "customerUiFqdn=$CUSTOMER_UI_FQDN" >> $GITHUB_OUTPUT
+          
+          echo "✅ Layer 4 deployed successfully!"
+          echo ""
+          echo "### Layer 4 - Container Apps Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "| Container App | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| customer-ui | $CUSTOMER_UI_URL |" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
   # Summary
   # ============================================================================
   summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [layer0-foundation, layer1-core-platform, layer2-data-services, layer3-dapr-components]
+    needs: [layer0-foundation, layer1-core-platform, layer2-data-services, layer3-dapr-components, layer4-container-apps]
     if: always()
     steps:
       - name: Generate Summary
@@ -497,6 +583,7 @@ jobs:
           echo "| Layer 1 - Core Platform | ${{ needs.layer1-core-platform.result == 'success' && '✅ Success' || needs.layer1-core-platform.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Layer 2 - Data Services | ${{ needs.layer2-data-services.result == 'success' && '✅ Success' || needs.layer2-data-services.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Layer 3 - Dapr Components | ${{ needs.layer3-dapr-components.result == 'success' && '✅ Success' || needs.layer3-dapr-components.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer 4 - Container Apps | ${{ needs.layer4-container-apps.result == 'success' && '✅ Success' || needs.layer4-container-apps.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ needs.layer0-foundation.result }}" == "success" ]; then
@@ -518,6 +605,14 @@ jobs:
               echo "| SQL Server | ${{ needs.layer2-data-services.outputs.sqlServerFqdn }} |" >> $GITHUB_STEP_SUMMARY
               echo "| Redis | ${{ needs.layer2-data-services.outputs.redisHostName }} |" >> $GITHUB_STEP_SUMMARY
               echo "| Cosmos DB | ${{ needs.layer2-data-services.outputs.cosmosDbAccountName }} |" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ "${{ needs.layer4-container-apps.result }}" == "success" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### Container Apps" >> $GITHUB_STEP_SUMMARY
+              echo "| App | URL |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|-----|" >> $GITHUB_STEP_SUMMARY
+              echo "| customer-ui | ${{ needs.layer4-container-apps.outputs.customerUiUrl }} |" >> $GITHUB_STEP_SUMMARY
             fi
           fi
           
