@@ -137,6 +137,72 @@ az vm list-usage --location swedencentral --output table
 
 GitHub Actions uses OpenID Connect (OIDC) to authenticate with Azure without storing secrets. This is more secure than using service principal credentials.
 
+#### Understanding the Two-Identity Architecture
+
+The xshopai platform uses **two different identities** for different purposes:
+
+| Identity | Purpose | Used By | How It Authenticates |
+|----------|---------|---------|---------------------|
+| **Azure AD App** (`xshopai-github-actions`) | External identity for GitHub Actions to deploy TO Azure | GitHub Actions workflows | OIDC (passwordless via federated credentials) |
+| **Managed Identity** (`id-xshopai-dev`) | Azure-native identity for running containers to access Azure resources | Container Apps at runtime | Automatic (Azure handles internally) |
+
+**Why two identities?**
+
+1. **Azure AD App** - GitHub is EXTERNAL to Azure. GitHub needs to prove its identity to Azure before it can deploy resources. This is done via OIDC tokens that Azure validates against federated credentials.
+
+2. **Managed Identity** - Once containers are running INSIDE Azure, they use Managed Identity. Azure automatically injects tokens - no credentials needed in code. Dapr sidecars use this identity to access Key Vault, Service Bus, etc.
+
+```
+GitHub Actions                          Azure
+┌─────────────────┐                    ┌─────────────────────────────────────┐
+│ Workflow runs   │    OIDC Token      │  Azure AD validates against         │
+│ Requests ID     │ ─────────────────► │  Federated Credential config        │
+│ token from GH   │                    │                                     │
+│                 │ ◄───────────────── │  Returns Azure Access Token         │
+│                 │   Access Token     │                                     │
+│                 │                    │                                     │
+│ Uses token to   │ ─────────────────► │  Deploys Container App              │
+│ deploy          │   az login         │                                     │
+└─────────────────┘                    │                                     │
+                                       │  ┌─────────────────────────────────┐│
+                                       │  │ Container App (running)         ││
+                                       │  │                                 ││
+                                       │  │ Uses Managed Identity           ││
+                                       │  │ (id-xshopai-dev) to access:     ││
+                                       │  │ - Key Vault secrets             ││
+                                       │  │ - Service Bus pub/sub           ││
+                                       │  │ - Redis cache                   ││
+                                       │  │                                 ││
+                                       │  │ (Azure handles auth internally) ││
+                                       │  └─────────────────────────────────┘│
+                                       └─────────────────────────────────────┘
+```
+
+#### Why No AZURE_CLIENT_SECRET?
+
+Traditional service principal auth requires storing a password (`AZURE_CLIENT_SECRET`) in GitHub secrets. This has security risks:
+- Secrets can be leaked
+- Secrets expire and need rotation
+- Secrets are stored in multiple places
+
+**OIDC eliminates this entirely:**
+
+1. GitHub Actions requests an OIDC token from GitHub's token service
+2. The token contains claims like `repo:xshopai/product-service:environment:dev`
+3. GitHub Actions presents this token to Azure AD
+4. Azure AD checks: "Do I have a Federated Credential that matches this claim?"
+5. If yes, Azure issues an access token - **no password ever exchanged**
+
+This is why we only store **3 identifiers** (not passwords) as GitHub secrets:
+
+| Secret | What It Is | Why Stored as Secret |
+|--------|-----------|---------------------|
+| `AZURE_CLIENT_ID` | The Azure AD App's ID | Not sensitive, but centralized management |
+| `AZURE_TENANT_ID` | Your Azure AD tenant ID | Not sensitive, but centralized management |
+| `AZURE_SUBSCRIPTION_ID` | Which Azure subscription to deploy to | Not sensitive, but centralized management |
+
+These are just **"addresses"** that tell GitHub Actions WHERE to authenticate - not passwords to authenticate WITH.
+
 #### Option A: Use the Setup Script (Recommended)
 
 ```bash
@@ -226,11 +292,24 @@ az ad app federated-credential create --id $APP_OBJECT_ID --parameters '{
 
 #### Federated Credentials Required
 
+Federated credentials create a **trust relationship** between GitHub and Azure. Each credential defines: "When GitHub sends a token with THIS specific claim, trust it."
+
+**The setup script creates 68 federated credentials:**
+- 17 repositories × 4 credential patterns per repo = 68 total
+
 Each repository needs credentials for:
-- `ref:refs/heads/main` - For builds triggered on main branch
+- `ref:refs/heads/main` - For builds triggered on main branch push
 - `environment:dev` - For deployments to dev environment
 - `environment:staging` - For deployments to staging environment  
 - `environment:prod` - For deployments to production environment
+
+**Why 4 patterns per repo?**
+
+GitHub Actions generates different OIDC token claims based on trigger:
+- Push to main → token contains `ref:refs/heads/main`
+- Deployment to dev environment → token contains `environment:dev`
+
+Azure checks: "Does ANY federated credential match this token's claims?" If yes, authentication succeeds.
 
 **Repositories requiring credentials:**
 - infrastructure
@@ -255,7 +334,51 @@ Each repository needs credentials for:
 
 ### Step 3: GitHub Configuration
 
-#### 3.1 Organization Secrets
+#### 3.1 Understanding GitHub Workflow OIDC Configuration
+
+All GitHub workflows are already configured for OIDC authentication. Here's what makes it work:
+
+**Required Workflow Configuration:**
+
+```yaml
+# 1. Permission to request OIDC tokens
+permissions:
+  id-token: write    # Required for OIDC
+  contents: read     # To checkout code
+
+# 2. Azure login using OIDC (no client-secret!)
+- name: Azure Login
+  uses: azure/login@v2
+  with:
+    client-id: ${{ secrets.AZURE_CLIENT_ID }}
+    tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+    subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    # Note: NO client-secret parameter - this is OIDC!
+```
+
+**Key Points:**
+- `permissions: id-token: write` - This allows the workflow to request an OIDC token from GitHub
+- `azure/login@v2` - The v2 action supports OIDC natively
+- No `client-secret` parameter - If you see this, it's using OIDC; if you see `client-secret`, it's using service principal auth
+
+**Service Workflows Use Reusable Workflow:**
+
+Most service repos don't directly contain Azure login code. Instead, they call a reusable workflow:
+
+```yaml
+# In service repo (e.g., product-service/.github/workflows/deploy.yml)
+jobs:
+  deploy:
+    uses: xshopai/infrastructure/.github/workflows/reusable-deploy-container-app.yml@main
+    with:
+      service_name: product-service
+      environment: dev
+    secrets: inherit  # Passes org secrets (AZURE_CLIENT_ID, etc.) to reusable workflow
+```
+
+The `secrets: inherit` keyword passes all organization secrets to the reusable workflow, which then handles the Azure login.
+
+#### 3.2 Organization Secrets
 
 ##### Option A: Use the Setup Script (Recommended)
 
@@ -288,7 +411,7 @@ Add these secrets at the **organization level** (so all repos can use them):
 | `AZURE_TENANT_ID` | Azure AD Tenant ID | `az account show --query tenantId -o tsv` |
 | `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | `az account show --query id -o tsv` |
 
-#### 3.2 Create GitHub Environments
+#### 3.3 Create GitHub Environments
 
 For each repository that deploys to Azure, create these environments:
 
