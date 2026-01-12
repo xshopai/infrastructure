@@ -229,7 +229,8 @@ module containerAppsEnv 'modules/container-apps-env.bicep' = {
     name: '${resourcePrefix}-cae'
     location: location
     tags: tags
-    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    logAnalyticsCustomerId: logAnalytics.outputs.customerId
+    logAnalyticsSharedKey: logAnalytics.outputs.primarySharedKey
   }
 }
 

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "15551272325742610927"
+      "templateHash": "1078076852774873186"
     }
   },
   "parameters": {
@@ -43,34 +43,6 @@
       },
       "metadata": {
         "description": "Tags to apply to all resources"
-      }
-    },
-    "imageTag": {
-      "type": "string",
-      "defaultValue": "latest",
-      "metadata": {
-        "description": "Container image tag to deploy"
-      }
-    },
-    "daprEnabled": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Enable Dapr for services"
-      }
-    },
-    "minReplicas": {
-      "type": "int",
-      "defaultValue": "[if(equals(parameters('environment'), 'prod'), 2, 1)]",
-      "metadata": {
-        "description": "Minimum replicas for services"
-      }
-    },
-    "maxReplicas": {
-      "type": "int",
-      "defaultValue": "[if(equals(parameters('environment'), 'prod'), 10, 3)]",
-      "metadata": {
-        "description": "Maximum replicas for services"
       }
     },
     "postgresAdminLogin": {
@@ -125,23 +97,22 @@
     },
     "sqlAzureAdOnlyAuthentication": {
       "type": "bool",
-      "defaultValue": true,
+      "defaultValue": false,
       "metadata": {
-        "description": "Use Azure AD-only authentication for SQL Server (required by MCAPS policy)"
+        "description": "Use Azure AD-only authentication for SQL Server (set true for MCAPS compliance in prod)"
       }
     },
-    "deployMySQL": {
-      "type": "bool",
-      "defaultValue": true,
+    "uniqueSuffix": {
+      "type": "string",
+      "defaultValue": "[substring(uniqueString(subscription().subscriptionId, parameters('environment')), 0, 6)]",
       "metadata": {
-        "description": "Deploy MySQL Flexible Server (set to false if region not supported)"
+        "description": "Unique suffix for globally-unique resource names (passed from subscription-level deployment, or auto-generated for standalone deployments)"
       }
     }
   },
   "variables": {
     "resourcePrefix": "[format('{0}-{1}', parameters('projectName'), parameters('environment'))]",
-    "resourcePrefixClean": "[replace(variables('resourcePrefix'), '-', '')]",
-    "uniqueSuffix": "[substring(uniqueString(subscription().subscriptionId, resourceGroup().id), 0, 6)]"
+    "resourcePrefixClean": "[replace(variables('resourcePrefix'), '-', '')]"
   },
   "resources": [
     {
@@ -172,7 +143,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "7927607368106236509"
+              "templateHash": "14617230862992514163"
             }
           },
           "parameters": {
@@ -262,7 +233,7 @@
             "primarySharedKey": {
               "type": "string",
               "metadata": {
-                "description": "Log Analytics Workspace Primary Shared Key"
+                "description": "Log Analytics Workspace Primary Shared Key (used internally for Container Apps logging)"
               },
               "value": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', parameters('name')), '2022-10-01').primarySharedKey]"
             }
@@ -373,7 +344,7 @@
         "mode": "Incremental",
         "parameters": {
           "name": {
-            "value": "[format('{0}{1}kv', variables('resourcePrefixClean'), variables('uniqueSuffix'))]"
+            "value": "[format('{0}{1}kv', variables('resourcePrefixClean'), parameters('uniqueSuffix'))]"
           },
           "location": {
             "value": "[parameters('location')]"
@@ -529,7 +500,7 @@
         "mode": "Incremental",
         "parameters": {
           "name": {
-            "value": "[format('{0}{1}acr', variables('resourcePrefixClean'), variables('uniqueSuffix'))]"
+            "value": "[format('{0}{1}acr', variables('resourcePrefixClean'), parameters('uniqueSuffix'))]"
           },
           "location": {
             "value": "[parameters('location')]"
@@ -673,7 +644,7 @@
         "mode": "Incremental",
         "parameters": {
           "name": {
-            "value": "[format('{0}-{1}-servicebus', variables('resourcePrefix'), variables('uniqueSuffix'))]"
+            "value": "[format('{0}-{1}-servicebus', variables('resourcePrefix'), parameters('uniqueSuffix'))]"
           },
           "location": {
             "value": "[parameters('location')]"
@@ -693,7 +664,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "6492412802364299130"
+              "templateHash": "9137835835075309050"
             }
           },
           "parameters": {
@@ -849,7 +820,7 @@
             "connectionString": {
               "type": "string",
               "metadata": {
-                "description": "Service Bus Connection String"
+                "description": "Service Bus Connection String (stored in Key Vault for secure access)"
               },
               "value": "[listKeys(resourceId('Microsoft.ServiceBus/namespaces/AuthorizationRules', parameters('name'), 'dapr-auth-rule'), '2022-10-01-preview').primaryConnectionString]"
             },
@@ -878,7 +849,7 @@
         "mode": "Incremental",
         "parameters": {
           "name": {
-            "value": "[format('{0}-{1}-redis', variables('resourcePrefix'), variables('uniqueSuffix'))]"
+            "value": "[format('{0}-{1}-redis', variables('resourcePrefix'), parameters('uniqueSuffix'))]"
           },
           "location": {
             "value": "[parameters('location')]"
@@ -896,7 +867,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "15813695973968938586"
+              "templateHash": "5465673201075556490"
             }
           },
           "parameters": {
@@ -1013,14 +984,14 @@
             "primaryKey": {
               "type": "string",
               "metadata": {
-                "description": "Redis Primary Key"
+                "description": "Redis Primary Key (stored in Key Vault for secure access)"
               },
               "value": "[listKeys(resourceId('Microsoft.Cache/redis', parameters('name')), '2023-08-01').primaryKey]"
             },
             "connectionString": {
               "type": "string",
               "metadata": {
-                "description": "Redis Connection String"
+                "description": "Redis Connection String (stored in Key Vault for secure access)"
               },
               "value": "[format('{0}:{1},password={2},ssl=True,abortConnect=False', reference(resourceId('Microsoft.Cache/redis', parameters('name')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', parameters('name')), '2023-08-01').sslPort, listKeys(resourceId('Microsoft.Cache/redis', parameters('name')), '2023-08-01').primaryKey)]"
             }
@@ -1039,7 +1010,7 @@
         "mode": "Incremental",
         "parameters": {
           "name": {
-            "value": "[format('{0}-{1}-cosmos', variables('resourcePrefix'), variables('uniqueSuffix'))]"
+            "value": "[format('{0}-{1}-cosmos', variables('resourcePrefix'), parameters('uniqueSuffix'))]"
           },
           "location": {
             "value": "[parameters('location')]"
@@ -1269,7 +1240,7 @@
         "mode": "Incremental",
         "parameters": {
           "name": {
-            "value": "[format('{0}-{1}-psql', variables('resourcePrefix'), variables('uniqueSuffix'))]"
+            "value": "[format('{0}-{1}-psql', variables('resourcePrefix'), parameters('uniqueSuffix'))]"
           },
           "location": {
             "value": "[parameters('location')]"
@@ -1296,7 +1267,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "2025113421083770796"
+              "templateHash": "257508798372624882"
             }
           },
           "parameters": {
@@ -1488,9 +1459,9 @@
             "connectionStringTemplate": {
               "type": "string",
               "metadata": {
-                "description": "PostgreSQL Connection String Template for services to use (replace {database} and {password})"
+                "description": "PostgreSQL Connection String Template for services to use (replace {username}, {database} and {password})"
               },
-              "value": "[format('Host={0};Database={{database}};Username={1};Password={{password}};SSL Mode=Require;Trust Server Certificate=true', reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('name')), '2023-06-01-preview').fullyQualifiedDomainName, parameters('administratorLogin'))]"
+              "value": "[format('Host={0};Database={{database}};Username={{username}};Password={{password}};SSL Mode=Require;Trust Server Certificate=true', reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('name')), '2023-06-01-preview').fullyQualifiedDomainName)]"
             }
           }
         }
@@ -1509,14 +1480,14 @@
         },
         "mode": "Incremental",
         "parameters": {
-          "environment": {
-            "value": "[parameters('environment')]"
-          },
           "location": {
             "value": "[parameters('location')]"
           },
           "baseName": {
             "value": "[variables('resourcePrefix')]"
+          },
+          "uniqueSuffix": {
+            "value": "[parameters('uniqueSuffix')]"
           },
           "tags": {
             "value": "[parameters('tags')]"
@@ -1547,16 +1518,10 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "3429310742410400177"
+              "templateHash": "12083740757443587592"
             }
           },
           "parameters": {
-            "environment": {
-              "type": "string",
-              "metadata": {
-                "description": "Environment name (dev, staging, prod)"
-              }
-            },
             "location": {
               "type": "string",
               "defaultValue": "[resourceGroup().location]",
@@ -1617,6 +1582,12 @@
                 "description": "Key Vault name for storing connection info"
               }
             },
+            "uniqueSuffix": {
+              "type": "string",
+              "metadata": {
+                "description": "Unique suffix for globally-unique resource names (passed from parent deployment)"
+              }
+            },
             "azureAdAdminObjectId": {
               "type": "string",
               "defaultValue": "",
@@ -1640,14 +1611,13 @@
             }
           },
           "variables": {
-            "serverName": "[format('{0}-sql-{1}', parameters('baseName'), parameters('environment'))]",
-            "uniqueServerName": "[format('{0}-{1}', variables('serverName'), uniqueString(resourceGroup().id))]"
+            "serverName": "[format('{0}-{1}-sql', parameters('baseName'), parameters('uniqueSuffix'))]"
           },
           "resources": [
             {
               "type": "Microsoft.Sql/servers",
               "apiVersion": "2023-05-01-preview",
-              "name": "[variables('uniqueServerName')]",
+              "name": "[variables('serverName')]",
               "location": "[parameters('location')]",
               "tags": "[union(parameters('tags'), createObject('component', 'database', 'type', 'sql-server', 'SecurityControl', if(parameters('azureAdOnlyAuthentication'), 'Compliant', 'Ignore')))]",
               "properties": {
@@ -1663,13 +1633,13 @@
               "condition": "[parameters('allowAzureServices')]",
               "type": "Microsoft.Sql/servers/firewallRules",
               "apiVersion": "2023-05-01-preview",
-              "name": "[format('{0}/{1}', variables('uniqueServerName'), 'AllowAllWindowsAzureIps')]",
+              "name": "[format('{0}/{1}', variables('serverName'), 'AllowAllWindowsAzureIps')]",
               "properties": {
                 "startIpAddress": "0.0.0.0",
                 "endIpAddress": "0.0.0.0"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.Sql/servers', variables('uniqueServerName'))]"
+                "[resourceId('Microsoft.Sql/servers', variables('serverName'))]"
               ]
             },
             {
@@ -1679,13 +1649,13 @@
               },
               "type": "Microsoft.Sql/servers/firewallRules",
               "apiVersion": "2023-05-01-preview",
-              "name": "[format('{0}/{1}', variables('uniqueServerName'), format('AllowedIP-{0}', copyIndex()))]",
+              "name": "[format('{0}/{1}', variables('serverName'), format('AllowedIP-{0}', copyIndex()))]",
               "properties": {
                 "startIpAddress": "[parameters('allowedIpAddresses')[copyIndex()]]",
                 "endIpAddress": "[parameters('allowedIpAddresses')[copyIndex()]]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.Sql/servers', variables('uniqueServerName'))]"
+                "[resourceId('Microsoft.Sql/servers', variables('serverName'))]"
               ]
             },
             {
@@ -1712,10 +1682,10 @@
               "apiVersion": "2023-07-01",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'sql-server-fqdn')]",
               "properties": {
-                "value": "[reference(resourceId('Microsoft.Sql/servers', variables('uniqueServerName')), '2023-05-01-preview').fullyQualifiedDomainName]"
+                "value": "[reference(resourceId('Microsoft.Sql/servers', variables('serverName')), '2023-05-01-preview').fullyQualifiedDomainName]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.Sql/servers', variables('uniqueServerName'))]"
+                "[resourceId('Microsoft.Sql/servers', variables('serverName'))]"
               ]
             }
           ],
@@ -1725,28 +1695,28 @@
               "metadata": {
                 "description": "SQL Server name"
               },
-              "value": "[variables('uniqueServerName')]"
+              "value": "[variables('serverName')]"
             },
             "serverFqdn": {
               "type": "string",
               "metadata": {
                 "description": "SQL Server FQDN"
               },
-              "value": "[reference(resourceId('Microsoft.Sql/servers', variables('uniqueServerName')), '2023-05-01-preview').fullyQualifiedDomainName]"
+              "value": "[reference(resourceId('Microsoft.Sql/servers', variables('serverName')), '2023-05-01-preview').fullyQualifiedDomainName]"
             },
             "serverId": {
               "type": "string",
               "metadata": {
                 "description": "SQL Server resource ID"
               },
-              "value": "[resourceId('Microsoft.Sql/servers', variables('uniqueServerName'))]"
+              "value": "[resourceId('Microsoft.Sql/servers', variables('serverName'))]"
             },
             "connectionStringTemplate": {
               "type": "string",
               "metadata": {
-                "description": "Connection string template for services to use (replace {database} and {password})"
+                "description": "Connection string template for services to use (replace {username}, {database} and {password})"
               },
-              "value": "[format('Server=tcp:{0},1433;Initial Catalog={{database}};Persist Security Info=False;User ID={1};Password={{password}};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', reference(resourceId('Microsoft.Sql/servers', variables('uniqueServerName')), '2023-05-01-preview').fullyQualifiedDomainName, parameters('administratorLogin'))]"
+              "value": "[format('Server=tcp:{0},1433;Initial Catalog={{database}};Persist Security Info=False;User ID={{username}};Password={{password}};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', reference(resourceId('Microsoft.Sql/servers', variables('serverName')), '2023-05-01-preview').fullyQualifiedDomainName)]"
             }
           }
         }
@@ -1756,7 +1726,6 @@
       ]
     },
     {
-      "condition": "[parameters('deployMySQL')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
       "name": "deploy-mysql",
@@ -1774,6 +1743,9 @@
           },
           "baseName": {
             "value": "[variables('resourcePrefix')]"
+          },
+          "uniqueSuffix": {
+            "value": "[parameters('uniqueSuffix')]"
           },
           "tags": {
             "value": "[parameters('tags')]"
@@ -1797,14 +1769,14 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "9912438021886348400"
+              "templateHash": "5240783441446761138"
             }
           },
           "parameters": {
             "environment": {
               "type": "string",
               "metadata": {
-                "description": "Environment name (dev, staging, prod)"
+                "description": "Environment name (dev, staging, prod) - used for backup/HA settings"
               }
             },
             "location": {
@@ -1889,17 +1861,22 @@
               "metadata": {
                 "description": "Key Vault name for storing connection info"
               }
+            },
+            "uniqueSuffix": {
+              "type": "string",
+              "metadata": {
+                "description": "Unique suffix for globally-unique resource names (passed from parent deployment)"
+              }
             }
           },
           "variables": {
-            "serverName": "[format('{0}-mysql-{1}', parameters('baseName'), parameters('environment'))]",
-            "uniqueServerName": "[format('{0}-{1}', variables('serverName'), substring(uniqueString(resourceGroup().id), 0, 6))]"
+            "serverName": "[format('{0}-{1}-mysql', parameters('baseName'), parameters('uniqueSuffix'))]"
           },
           "resources": [
             {
               "type": "Microsoft.DBforMySQL/flexibleServers",
               "apiVersion": "2023-06-30",
-              "name": "[variables('uniqueServerName')]",
+              "name": "[variables('serverName')]",
               "location": "[parameters('location')]",
               "tags": "[union(parameters('tags'), createObject('component', 'database', 'type', 'mysql'))]",
               "sku": {
@@ -1930,13 +1907,13 @@
             {
               "type": "Microsoft.DBforMySQL/flexibleServers/firewallRules",
               "apiVersion": "2023-06-30",
-              "name": "[format('{0}/{1}', variables('uniqueServerName'), 'AllowAllWindowsAzureIps')]",
+              "name": "[format('{0}/{1}', variables('serverName'), 'AllowAllWindowsAzureIps')]",
               "properties": {
                 "startIpAddress": "0.0.0.0",
                 "endIpAddress": "0.0.0.0"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('uniqueServerName'))]"
+                "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('serverName'))]"
               ]
             },
             {
@@ -1963,10 +1940,10 @@
               "apiVersion": "2023-07-01",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'mysql-server-fqdn')]",
               "properties": {
-                "value": "[reference(resourceId('Microsoft.DBforMySQL/flexibleServers', variables('uniqueServerName')), '2023-06-30').fullyQualifiedDomainName]"
+                "value": "[reference(resourceId('Microsoft.DBforMySQL/flexibleServers', variables('serverName')), '2023-06-30').fullyQualifiedDomainName]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('uniqueServerName'))]"
+                "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('serverName'))]"
               ]
             }
           ],
@@ -1976,28 +1953,28 @@
               "metadata": {
                 "description": "MySQL Server name"
               },
-              "value": "[variables('uniqueServerName')]"
+              "value": "[variables('serverName')]"
             },
             "fqdn": {
               "type": "string",
               "metadata": {
                 "description": "MySQL Server FQDN"
               },
-              "value": "[reference(resourceId('Microsoft.DBforMySQL/flexibleServers', variables('uniqueServerName')), '2023-06-30').fullyQualifiedDomainName]"
+              "value": "[reference(resourceId('Microsoft.DBforMySQL/flexibleServers', variables('serverName')), '2023-06-30').fullyQualifiedDomainName]"
             },
             "serverId": {
               "type": "string",
               "metadata": {
                 "description": "MySQL Server resource ID"
               },
-              "value": "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('uniqueServerName'))]"
+              "value": "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('serverName'))]"
             },
             "connectionStringTemplate": {
               "type": "string",
               "metadata": {
                 "description": "Connection string template for services to use (PyMySQL for Python)"
               },
-              "value": "[format('mysql+pymysql://{0}:{{password}}@{1}:3306/{{database}}', parameters('administratorLogin'), reference(resourceId('Microsoft.DBforMySQL/flexibleServers', variables('uniqueServerName')), '2023-06-30').fullyQualifiedDomainName)]"
+              "value": "[format('mysql+pymysql://{{username}}:{{password}}@{0}:3306/{{database}}', reference(resourceId('Microsoft.DBforMySQL/flexibleServers', variables('serverName')), '2023-06-30').fullyQualifiedDomainName)]"
             }
           }
         }
@@ -2025,11 +2002,11 @@
           "tags": {
             "value": "[parameters('tags')]"
           },
-          "logAnalyticsWorkspaceId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2022-09-01').outputs.workspaceId.value]"
+          "logAnalyticsCustomerId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2022-09-01').outputs.customerId.value]"
           },
-          "daprEnabled": {
-            "value": "[parameters('daprEnabled')]"
+          "logAnalyticsSharedKey": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-log-analytics'), '2022-09-01').outputs.primarySharedKey.value]"
           }
         },
         "template": {
@@ -2039,7 +2016,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "17165202649469416805"
+              "templateHash": "13024430214126985520"
             }
           },
           "parameters": {
@@ -2061,17 +2038,16 @@
                 "description": "Resource tags"
               }
             },
-            "logAnalyticsWorkspaceId": {
+            "logAnalyticsCustomerId": {
               "type": "string",
               "metadata": {
-                "description": "Log Analytics Workspace ID"
+                "description": "Log Analytics Workspace Customer ID"
               }
             },
-            "daprEnabled": {
-              "type": "bool",
-              "defaultValue": true,
+            "logAnalyticsSharedKey": {
+              "type": "securestring",
               "metadata": {
-                "description": "Enable Dapr"
+                "description": "Log Analytics Workspace Shared Key"
               }
             },
             "zoneRedundant": {
@@ -2111,8 +2087,8 @@
                 "appLogsConfiguration": {
                   "destination": "log-analytics",
                   "logAnalyticsConfiguration": {
-                    "customerId": "[reference(parameters('logAnalyticsWorkspaceId'), '2022-10-01').customerId]",
-                    "sharedKey": "[listKeys(parameters('logAnalyticsWorkspaceId'), '2022-10-01').primarySharedKey]"
+                    "customerId": "[parameters('logAnalyticsCustomerId')]",
+                    "sharedKey": "[parameters('logAnalyticsSharedKey')]"
                   }
                 },
                 "zoneRedundant": "[parameters('zoneRedundant')]",
@@ -2162,7 +2138,6 @@
       ]
     },
     {
-      "condition": "[parameters('daprEnabled')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
       "name": "deploy-dapr-components",
@@ -2198,7 +2173,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "3942594691647177382"
+              "templateHash": "11732098141981636561"
             }
           },
           "parameters": {
@@ -2350,10 +2325,6 @@
                   {
                     "name": "url",
                     "secretRef": "cosmos-db-connection-string"
-                  },
-                  {
-                    "name": "masterKey",
-                    "value": ""
                   },
                   {
                     "name": "database",
@@ -2649,9 +2620,9 @@
     "mysqlFqdn": {
       "type": "string",
       "metadata": {
-        "description": "MySQL Server FQDN (empty if not deployed)"
+        "description": "MySQL Server FQDN"
       },
-      "value": "[if(parameters('deployMySQL'), reference(resourceId('Microsoft.Resources/deployments', 'deploy-mysql'), '2022-09-01').outputs.fqdn.value, '')]"
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-mysql'), '2022-09-01').outputs.fqdn.value]"
     }
   }
 }
