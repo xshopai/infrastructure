@@ -208,20 +208,10 @@ jobs:
       - name: Discover Azure Resources
         id: resources
         run: |
-          # Map environment names to resource suffixes
-          # OIDC uses: development/production (for federated credentials)
-          # Azure resources use: dev/prod (shorter naming)
-          ENV_SUFFIX="${{ inputs.environment }}"
-          if [ "$ENV_SUFFIX" = "development" ]; then
-            ENV_SUFFIX="dev"
-          elif [ "$ENV_SUFFIX" = "production" ]; then
-            ENV_SUFFIX="prod"
-          fi
-          
           # Use provided values or discover from Azure
           RESOURCE_GROUP="${{ inputs.resource_group }}"
           if [ -z "$RESOURCE_GROUP" ]; then
-            RESOURCE_GROUP="rg-xshopai-${ENV_SUFFIX}"
+            RESOURCE_GROUP="rg-xshopai-${{ inputs.environment }}"
           fi
           echo "resource_group=$RESOURCE_GROUP" >> $GITHUB_OUTPUT
           
@@ -296,7 +286,7 @@ jobs:
     env:
       RESOURCE_GROUP: ${{ needs.build.outputs.resource_group }}
       ACR_NAME: ${{ needs.build.outputs.acr_name }}
-      CONTAINER_ENV: xshopai-${{ inputs.environment == 'development' && 'dev' || (inputs.environment == 'production' && 'prod' || inputs.environment) }}-cae
+      CONTAINER_ENV: xshopai-${{ inputs.environment }}-cae
     
     steps:
       - name: Checkout code
