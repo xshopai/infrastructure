@@ -5,10 +5,10 @@
 # This script sets up Azure AD Application with federated credentials for
 # GitHub Actions OIDC authentication across all xshopai repositories.
 #
-# Key Feature: Uses DEFAULT GitHub OIDC (no workflow filename dependency!)
-# - Each repo/environment gets its own credential (repo-based, not filename-based)
-# - Total credentials: ~50 for all services and environments
-# - No dependency on workflow filenames - can rename workflows freely
+# Key Feature: Uses ENVIRONMENT-ONLY GitHub OIDC (minimal credentials!)
+# - All services deploying to same environment share ONE credential
+# - Total credentials: 2 (development + production) - within 20 limit!
+# - No dependency on repo names or workflow filenames
 #
 # Prerequisites:
 #   - Azure CLI installed and logged in
@@ -138,26 +138,27 @@ az role assignment create \
 echo "   ✅ AcrPush role assigned"
 
 # ============================================================================
-# Step 4: Configure GitHub OIDC Subject Claims - USE DEFAULT
+# Step 4: Configure GitHub OIDC Subject Claims - ENVIRONMENT ONLY
 # ============================================================================
 #
-# IMPORTANT: We use the DEFAULT GitHub OIDC subject claim format!
+# IMPORTANT: We use ENVIRONMENT-ONLY GitHub OIDC subject claims!
 #
-# Default subject claims look like:
-#   repo:xshopai/product-service:ref:refs/heads/main
-#   repo:xshopai/product-service:environment:production
+# Environment-only subject claims look like:
+#   environment:development
+#   environment:production
 #
-# ✅ BENEFITS of using default:
+# ✅ BENEFITS of environment-only approach:
+#   - Minimal credentials: Only 2 total (development + production)
+#   - Well within Azure AD's 20 credential limit per app registration
+#   - No dependency on repo names (can rename repos freely)
 #   - No dependency on workflow filenames (can rename workflows freely)
-#   - Standard GitHub pattern (widely documented)
-#   - Simpler credential management (one per repo + environment)
-#   - No custom OIDC configuration needed
+#   - All services deploying to same environment share one credential
+#   - Simplest possible configuration
 #
-# ❌ DO NOT use "job_workflow_ref" because:
-#   - Creates dependency on workflow filename
-#   - Breaks when workflows are renamed
-#   - Non-standard approach
-#   - Harder to debug
+# ❌ DO NOT use other approaches because:
+#   - "job_workflow_ref": Creates workflow filename dependency
+#   - "repo": Creates too many credentials (3 per service × 16 = 48 > 20 limit)
+#   - "context": Creates too many credentials
 # ============================================================================
 
 echo ""
@@ -169,24 +170,26 @@ if ! gh auth status > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "   Resetting to default GitHub OIDC configuration..."
-echo "   This ensures NO dependency on workflow filenames!"
+echo "   Configuring environment-only GitHub OIDC..."
+echo "   This ensures NO dependency on repo names or workflow filenames!"
+echo "   Only 2 credentials needed total (development + production)!"
 
-# NOTE: Organization-level OIDC API doesn't support {"use_default": true}
+# NOTE: Organization-level OIDC API doesn't support custom configurations
 #       So we configure each repo individually instead
 
 echo ""
-echo "   Configuring infrastructure repo to use default OIDC..."
+echo "   Configuring infrastructure repo to use environment-only OIDC..."
 gh api -X PUT "repos/${GITHUB_ORG}/infrastructure/actions/oidc/customization/sub" \
     --input - <<EOF > /dev/null 2>&1
 {
-    "use_default": true
+    "use_default": false,
+    "include_claim_keys": ["environment"]
 }
 EOF
 echo "   ✅ Infrastructure repo configured"
 
 echo ""
-echo "   Configuring service repos to use default OIDC..."
+echo "   Configuring service repos to use environment-only OIDC..."
 
 # List of all service repos
 SERVICE_REPOS=(
@@ -212,7 +215,8 @@ for repo in "${SERVICE_REPOS[@]}"; do
     gh api -X PUT "repos/${GITHUB_ORG}/${repo}/actions/oidc/customization/sub" \
         --input - <<EOF > /dev/null 2>&1
     {
-        "use_default": true
+        "use_default": false,
+        "include_claim_keys": ["environment"]
     }
 EOF
     if [ $? -eq 0 ]; then
@@ -223,34 +227,35 @@ EOF
 done
 
 echo ""
-echo "   📝 All repos now use default OIDC (no filename dependency)"
+echo "   📝 All repos now use environment-only OIDC"
+echo "   📝 Subject claims will be: environment:development or environment:production"
 
 # Verify the configuration
 echo ""
 echo "   Verifying configuration..."
-OIDC_CONFIG=$(gh api "orgs/${GITHUB_ORG}/actions/oidc/customization/sub" 2>/dev/null || echo '{}')
-echo "   Current config: $OIDC_CONFIG"
+INFRA_CONFIG=$(gh api "repos/${GITHUB_ORG}/infrastructure/actions/oidc/customization/sub" 2>/dev/null || echo '{}')
+echo "   Infrastructure config: $INFRA_CONFIG"
 
 # ============================================================================
-# Step 5: Create Federated Credentials Using Default Subject Format
+# Step 5: Create Federated Credentials Using Environment-Only Subject Format
 # ============================================================================
 # 
-# IMPORTANT: We use DEFAULT GitHub OIDC subject claims (repo-based)!
+# IMPORTANT: We create only 2 federated credentials (environment-based)!
 # 
-# Default subject patterns:
-#   - Main branch: repo:xshopai/{repo-name}:ref:refs/heads/main
-#   - Environment: repo:xshopai/{repo-name}:environment:{env-name}
-#   - Pull request: repo:xshopai/{repo-name}:pull_request
+# Environment-only subject patterns:
+#   - Development: environment:development
+#   - Production: environment:production
 #
-# Each microservice repo gets:
-#   - 1 credential for main branch deployments
-#   - 1 credential for each environment (dev, staging, production)
+# ALL services deploying to development share the same credential
+# ALL services deploying to production share the same credential
 #
 # ✅ Benefits:
-#   - No dependency on workflow filenames
-#   - Standard GitHub pattern
-#   - Works with any workflow in the repo
-#   - Easy to understand and debug
+#   - Minimal credentials: Only 2 total!
+#   - Well within Azure AD's 20 credential limit per app registration
+#   - No dependency on repo names (can rename repos freely)
+#   - No dependency on workflow filenames (can rename workflows freely)
+#   - Simplest possible configuration
+#   - Scalable to any number of services
 # ============================================================================
 
 echo ""
@@ -279,73 +284,23 @@ create_federated_credential() {
 }
 
 echo ""
-echo "   📦 Creating credentials for infrastructure repo..."
+echo "   🌍 Creating environment-based credentials (2 total)..."
 
-# Infrastructure main branch
+# Development environment - shared by ALL services
 create_federated_credential \
-    "infrastructure-main" \
-    "repo:${GITHUB_ORG}/infrastructure:ref:refs/heads/main" \
-    "Infrastructure deployments from main branch"
+    "xshopai-development" \
+    "environment:development" \
+    "All xshopai services deploying to development environment"
 
-# Infrastructure environments
+# Production environment - shared by ALL services
 create_federated_credential \
-    "infrastructure-dev" \
-    "repo:${GITHUB_ORG}/infrastructure:environment:development" \
-    "Infrastructure deployments to development environment"
-
-create_federated_credential \
-    "infrastructure-production" \
-    "repo:${GITHUB_ORG}/infrastructure:environment:production" \
-    "Infrastructure deployments to production environment"
-
-echo ""
-echo "   📦 Creating credentials for microservice repos..."
-
-# List of all service repos
-SERVICE_REPOS=(
-    "admin-service"
-    "admin-ui"
-    "audit-service"
-    "auth-service"
-    "cart-service"
-    "chat-service"
-    "customer-ui"
-    "inventory-service"
-    "notification-service"
-    "order-processor-service"
-    "order-service"
-    "payment-service"
-    "product-service"
-    "review-service"
-    "user-service"
-    "web-bff"
-)
-
-for repo in "${SERVICE_REPOS[@]}"; do
-    echo "   Setting up $repo..."
-    
-    # Main branch credential
-    create_federated_credential \
-        "${repo}-main" \
-        "repo:${GITHUB_ORG}/${repo}:ref:refs/heads/main" \
-        "${repo} deployments from main branch"
-    
-    # Development environment credential
-    create_federated_credential \
-        "${repo}-dev" \
-        "repo:${GITHUB_ORG}/${repo}:environment:development" \
-        "${repo} deployments to development environment"
-    
-    # Production environment credential
-    create_federated_credential \
-        "${repo}-production" \
-        "repo:${GITHUB_ORG}/${repo}:environment:production" \
-        "${repo} deployments to production environment"
-done
+    "xshopai-production" \
+    "environment:production" \
+    "All xshopai services deploying to production environment"
 
 echo ""
 echo "   ✅ Federated credentials setup complete!"
-echo "   Total credentials: ~50 (well under the 300 limit)"
+echo "   Total credentials: 2 (well within the 20 limit)"
 
 # ============================================================================
 # Step 6: Display Summary and GitHub Secrets
@@ -366,22 +321,25 @@ echo "============================================"
 echo "🎯 How It Works"
 echo "============================================"
 echo ""
-echo "We use DEFAULT GitHub OIDC (repo-based authentication)!"
+echo "We use ENVIRONMENT-ONLY GitHub OIDC (minimal credentials)!"
 echo ""
-echo "1. Each repo uses default GitHub OIDC subject claims:"
-echo "   repo:xshopai/product-service:ref:refs/heads/main"
-echo "   repo:xshopai/product-service:environment:production"
+echo "1. Each repo uses environment-only GitHub OIDC subject claims:"
+echo "   environment:development"
+echo "   environment:production"
 echo ""
 echo "2. Benefits:"
+echo "   ✅ Only 2 credentials total (not 50!)"
+echo "   ✅ Well within Azure AD's 20 credential limit"
+echo "   ✅ No dependency on repo names"
 echo "   ✅ No dependency on workflow filenames"
-echo "   ✅ Can rename workflows freely"
-echo "   ✅ Standard GitHub pattern"
-echo "   ✅ Simple credential management"
+echo "   ✅ All services deploying to same environment share one credential"
+echo "   ✅ Can rename workflows and repos freely"
 echo ""
-echo "3. Each microservice gets 3 credentials:"
-echo "   - One for main branch deployments"
-echo "   - One for dev environment"
-echo "   - One for production environment"
+echo "3. Authentication flow:"
+echo "   - Service workflow runs in 'development' environment"
+echo "   - GitHub generates token with subject: environment:development"
+echo "   - Azure AD matches this to 'xshopai-development' credential"
+echo "   - All services deploying to development use same credential"
 echo ""
 echo "============================================"
 echo "🔐 GitHub Organization Secrets to Configure"
