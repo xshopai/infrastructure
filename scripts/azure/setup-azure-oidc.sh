@@ -5,10 +5,10 @@
 # This script sets up Azure AD Application with federated credentials for
 # GitHub Actions OIDC authentication across all xshopai repositories.
 #
-# Key Feature: Uses job_workflow_ref for authentication!
-# - ONE credential authenticates ALL services that use the reusable workflow
-# - Total credentials: 2 (instead of 68+ with per-repo approach)
-# - See Step 4 comments for detailed explanation
+# Key Feature: Uses DEFAULT GitHub OIDC (no workflow filename dependency!)
+# - Each repo/environment gets its own credential (repo-based, not filename-based)
+# - Total credentials: ~50 for all services and environments
+# - No dependency on workflow filenames - can rename workflows freely
 #
 # Prerequisites:
 #   - Azure CLI installed and logged in
@@ -366,18 +366,22 @@ echo "============================================"
 echo "🎯 How It Works"
 echo "============================================"
 echo ""
-echo "We configured GitHub org OIDC + Azure federated credentials to use job_workflow_ref!"
+echo "We use DEFAULT GitHub OIDC (repo-based authentication)!"
 echo ""
-echo "1. GitHub org OIDC is configured with:"
-echo "   include_claim_keys: [\"job_workflow_ref\"]"
+echo "1. Each repo uses default GitHub OIDC subject claims:"
+echo "   repo:xshopai/product-service:ref:refs/heads/main"
+echo "   repo:xshopai/product-service:environment:production"
 echo ""
-echo "2. When any service (e.g., product-service) calls:"
-echo "   uses: xshopai/infrastructure/.github/workflows/reusable-deploy-container-app.yml@main"
+echo "2. Benefits:"
+echo "   ✅ No dependency on workflow filenames"
+echo "   ✅ Can rename workflows freely"
+echo "   ✅ Standard GitHub pattern"
+echo "   ✅ Simple credential management"
 echo ""
-echo "3. GitHub OIDC now generates subject claim as:"
-echo "   job_workflow_ref:xshopai/infrastructure/.github/workflows/reusable-deploy-container-app.yml@refs/heads/main"
-echo ""
-echo "4. This matches our Azure federated credential! One credential authenticates ALL services! 🎉"
+echo "3. Each microservice gets 3 credentials:"
+echo "   - One for main branch deployments"
+echo "   - One for dev environment"
+echo "   - One for production environment"
 echo ""
 echo "============================================"
 echo "🔐 GitHub Organization Secrets to Configure"
