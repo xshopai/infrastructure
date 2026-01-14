@@ -583,6 +583,174 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
+// User Service - Node.js/Express backend for user management, authentication, profiles
+resource userService 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'user-service'
+  location: location
+  tags: union(tags, {
+    service: 'user-service'
+    type: 'backend'
+  })
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentityId}': {}
+    }
+  }
+  properties: {
+    managedEnvironmentId: containerAppsEnv.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: false  // Internal only - accessed via Dapr service invocation
+        targetPort: 1002
+        transport: 'http'
+        allowInsecure: false
+        traffic: [
+          {
+            weight: 100
+            latestRevision: true
+          }
+        ]
+      }
+      dapr: {
+        enabled: true
+        appId: 'user-service'
+        appPort: 1002
+        appProtocol: 'http'
+      }
+      registries: [
+        {
+          server: acrLoginServer
+          identity: managedIdentityId
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'user-service'
+          image: placeholderImage  // Placeholder - CI/CD will update
+          resources: {
+            cpu: json(environment == 'prod' ? '0.5' : '0.5')
+            memory: environment == 'prod' ? '1Gi' : '1Gi'
+          }
+          env: [
+            {
+              name: 'NODE_ENV'
+              value: 'production'
+            }
+            {
+              name: 'PORT'
+              value: '1002'
+            }
+            {
+              name: 'NAME'
+              value: 'user-service'
+            }
+            {
+              name: 'VERSION'
+              value: '1.0.0'
+            }
+            {
+              name: 'ENVIRONMENT'
+              value: 'production'
+            }
+            {
+              name: 'LOG_LEVEL'
+              value: environment == 'prod' ? 'info' : 'debug'
+            }
+            {
+              name: 'LOG_FORMAT'
+              value: 'json'
+            }
+            {
+              name: 'LOG_TO_CONSOLE'
+              value: 'true'
+            }
+            {
+              name: 'LOG_TO_FILE'
+              value: 'false'
+            }
+            {
+              name: 'DAPR_HOST'
+              value: 'localhost'
+            }
+            {
+              name: 'DAPR_HTTP_PORT'
+              value: '3500'
+            }
+            {
+              name: 'DAPR_GRPC_PORT'
+              value: '50002'
+            }
+            {
+              name: 'DAPR_APP_ID'
+              value: 'user-service'
+            }
+            {
+              name: 'DAPR_PUBSUB_NAME'
+              value: 'event-bus'
+            }
+          ]
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/health'
+                port: 1002
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 30
+              failureThreshold: 3
+              timeoutSeconds: 5
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/health/ready'
+                port: 1002
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              failureThreshold: 3
+              timeoutSeconds: 5
+            }
+            {
+              type: 'Startup'
+              httpGet: {
+                path: '/health/ready'
+                port: 1002
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 0
+              periodSeconds: 10
+              failureThreshold: 30
+              timeoutSeconds: 5
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 1  // Always have at least 1 replica for health probes
+        maxReplicas: environment == 'prod' ? 10 : 5
+        rules: [
+          {
+            name: 'http-scaler'
+            http: {
+              metadata: {
+                concurrentRequests: '100'
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
 // ============================================================================
 // Outputs
 // ============================================================================
@@ -631,3 +799,12 @@ output productServiceId string = productService.id
 
 @description('Product Service Container App Name')
 output productServiceName string = productService.name
+
+@description('User Service Container App FQDN')
+output userServiceFqdn string = userService.properties.configuration.ingress.fqdn
+
+@description('User Service Container App Resource ID')
+output userServiceId string = userService.id
+
+@description('User Service Container App Name')
+output userServiceName string = userService.name

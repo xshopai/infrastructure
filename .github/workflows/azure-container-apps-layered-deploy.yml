@@ -493,6 +493,10 @@ jobs:
     outputs:
       customerUiUrl: ${{ steps.deploy.outputs.customerUiUrl }}
       customerUiFqdn: ${{ steps.deploy.outputs.customerUiFqdn }}
+      adminUiUrl: ${{ steps.deploy.outputs.adminUiUrl }}
+      webBffUrl: ${{ steps.deploy.outputs.webBffUrl }}
+      productServiceFqdn: ${{ steps.deploy.outputs.productServiceFqdn }}
+      userServiceFqdn: ${{ steps.deploy.outputs.userServiceFqdn }}
       
     steps:
       - name: Checkout code
@@ -547,10 +551,18 @@ jobs:
           
           CUSTOMER_UI_URL=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.customerUiUrl.value -o tsv)
           CUSTOMER_UI_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.customerUiFqdn.value -o tsv)
+          ADMIN_UI_URL=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.adminUiUrl.value -o tsv)
+          WEB_BFF_URL=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.webBffUrl.value -o tsv)
+          PRODUCT_SERVICE_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.productServiceFqdn.value -o tsv)
+          USER_SERVICE_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.userServiceFqdn.value -o tsv)
           
           # Set outputs
           echo "customerUiUrl=$CUSTOMER_UI_URL" >> $GITHUB_OUTPUT
           echo "customerUiFqdn=$CUSTOMER_UI_FQDN" >> $GITHUB_OUTPUT
+          echo "adminUiUrl=$ADMIN_UI_URL" >> $GITHUB_OUTPUT
+          echo "webBffUrl=$WEB_BFF_URL" >> $GITHUB_OUTPUT
+          echo "productServiceFqdn=$PRODUCT_SERVICE_FQDN" >> $GITHUB_OUTPUT
+          echo "userServiceFqdn=$USER_SERVICE_FQDN" >> $GITHUB_OUTPUT
           
           echo "✅ Layer 4 deployed successfully!"
           echo ""
@@ -558,6 +570,10 @@ jobs:
           echo "| Container App | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|---------------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| customer-ui | $CUSTOMER_UI_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| admin-ui | $ADMIN_UI_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| web-bff | $WEB_BFF_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| product-service | Internal (Dapr: $PRODUCT_SERVICE_FQDN) |" >> $GITHUB_STEP_SUMMARY
+          echo "| user-service | Internal (Dapr: $USER_SERVICE_FQDN) |" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
   # Summary
@@ -613,6 +629,10 @@ jobs:
               echo "| App | URL |" >> $GITHUB_STEP_SUMMARY
               echo "|-----|-----|" >> $GITHUB_STEP_SUMMARY
               echo "| customer-ui | ${{ needs.layer4-container-apps.outputs.customerUiUrl }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| admin-ui | ${{ needs.layer4-container-apps.outputs.adminUiUrl }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| web-bff | ${{ needs.layer4-container-apps.outputs.webBffUrl }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| product-service | Internal (Dapr: ${{ needs.layer4-container-apps.outputs.productServiceFqdn }}) |" >> $GITHUB_STEP_SUMMARY
+              echo "| user-service | Internal (Dapr: ${{ needs.layer4-container-apps.outputs.userServiceFqdn }}) |" >> $GITHUB_STEP_SUMMARY
             fi
           fi
           
