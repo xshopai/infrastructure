@@ -307,15 +307,6 @@ jobs:
             --query id -o tsv)
           echo "id=$CAE_ID" >> $GITHUB_OUTPUT
 
-      - name: Get ACR credentials
-        id: acr
-        run: |
-          ACR_USERNAME=$(az acr credential show --name ${{ env.ACR_NAME }} --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show --name ${{ env.ACR_NAME }} --query "passwords[0].value" -o tsv)
-          echo "::add-mask::$ACR_PASSWORD"
-          echo "username=$ACR_USERNAME" >> $GITHUB_OUTPUT
-          echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
-
       - name: Prepare environment variables
         id: env
         run: |
