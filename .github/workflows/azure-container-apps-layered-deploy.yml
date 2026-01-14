@@ -67,7 +67,6 @@ jobs:
   validate:
     name: Validate Bicep
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'dev' }}
     if: ${{ github.event.inputs.skip_validation != 'true' }}
     steps:
       - name: Checkout code

@@ -276,8 +276,17 @@ create_federated_credential \
     "Infrastructure deployment workflow on main branch"
 
 echo ""
+echo "   📦 Creating credential for layered infrastructure deployment workflow..."
+
+# Layered Container Apps deployment workflow
+create_federated_credential \
+    "infrastructure-layered-deploy" \
+    "job_workflow_ref:${GITHUB_ORG}/infrastructure/.github/workflows/azure-container-apps-layered-deploy.yml@refs/heads/main" \
+    "Layered Container Apps infrastructure deployment workflow"
+
+echo ""
 echo "   ✅ Federated credentials setup complete!"
-echo "   Total credentials: 2 (well under the 20 limit)"
+echo "   Total credentials: 3 (well under the 20 limit)"
 
 # ============================================================================
 # Step 6: Display Summary and GitHub Secrets
