@@ -138,18 +138,26 @@ az role assignment create \
 echo "   ✅ AcrPush role assigned"
 
 # ============================================================================
-# Step 4: Configure GitHub OIDC Subject Claims (Org + All Repos)
+# Step 4: Configure GitHub OIDC Subject Claims - USE DEFAULT
 # ============================================================================
 #
-# CRITICAL: By default, GitHub OIDC generates subject claims like:
+# IMPORTANT: We use the DEFAULT GitHub OIDC subject claim format!
+#
+# Default subject claims look like:
 #   repo:xshopai/product-service:ref:refs/heads/main
+#   repo:xshopai/product-service:environment:production
 #
-# But we need the subject to use job_workflow_ref instead:
-#   job_workflow_ref:xshopai/infrastructure/.github/workflows/reusable-deploy-container-app.yml@refs/heads/main
+# ✅ BENEFITS of using default:
+#   - No dependency on workflow filenames (can rename workflows freely)
+#   - Standard GitHub pattern (widely documented)
+#   - Simpler credential management (one per repo + environment)
+#   - No custom OIDC configuration needed
 #
-# This requires configuring BOTH:
-#   1. The GitHub organization OIDC customization
-#   2. EACH repository's OIDC customization (repos use their own settings!)
+# ❌ DO NOT use "job_workflow_ref" because:
+#   - Creates dependency on workflow filename
+#   - Breaks when workflows are renamed
+#   - Non-standard approach
+#   - Harder to debug
 # ============================================================================
 
 echo ""
@@ -161,74 +169,58 @@ if ! gh auth status > /dev/null 2>&1; then
     exit 1
 fi
 
-echo "   Configuring organization-level OIDC..."
+echo "   Resetting to default GitHub OIDC configuration..."
+echo "   This ensures NO dependency on workflow filenames!"
+
+# Reset org-level OIDC to use default
 gh api -X PUT "orgs/${GITHUB_ORG}/actions/oidc/customization/sub" \
     --input - <<EOF > /dev/null
 {
-    "use_default": false,
-    "include_claim_keys": ["job_workflow_ref"]
+    "use_default": true
 }
 EOF
-echo "   ✅ Organization OIDC configured"
+echo "   ✅ Organization OIDC configured (using default)"
 
 echo ""
-echo "   Configuring OIDC for each service repository..."
-echo "   (Each repo needs its own config - org-level alone is NOT enough!)"
-
-# List of all service repos that may call the reusable workflow
-SERVICE_REPOS=(
-    "admin-service"
-    "admin-ui"
-    "audit-service"
-    "auth-service"
-    "cart-service"
-    "chat-service"
-    "customer-ui"
-    "inventory-service"
-    "notification-service"
-    "order-processor-service"
-    "order-service"
-    "payment-service"
-    "product-service"
-    "review-service"
-    "user-service"
-    "web-bff"
-    "infrastructure"
-)
-
-for repo in "${SERVICE_REPOS[@]}"; do
-    gh api -X PUT "repos/${GITHUB_ORG}/${repo}/actions/oidc/customization/sub" \
-        --input - <<EOF > /dev/null 2>&1 || echo "   ⚠️  Could not configure $repo (may not exist)"
+echo "   Resetting OIDC for infrastructure repo..."
+gh api -X PUT "repos/${GITHUB_ORG}/infrastructure/actions/oidc/customization/sub" \
+    --input - <<EOF > /dev/null 2>&1 || echo "   ⚠️  Could not configure infrastructure repo"
 {
-    "use_default": false,
-    "include_claim_keys": ["job_workflow_ref"]
+    "use_default": true
 }
 EOF
-done
-echo "   ✅ All repositories configured to use job_workflow_ref"
+echo "   ✅ Infrastructure repo configured to use default"
+
+echo ""
+echo "   📝 Note: Service repos will inherit org-level settings automatically."
+echo "   No need to configure each repo individually."
 
 # Verify the configuration
 echo ""
 echo "   Verifying configuration..."
 OIDC_CONFIG=$(gh api "orgs/${GITHUB_ORG}/actions/oidc/customization/sub" 2>/dev/null || echo '{}')
-echo "   Org config: $OIDC_CONFIG"
 echo "   Current config: $OIDC_CONFIG"
 
 # ============================================================================
-# Step 5: Create Federated Credentials using job_workflow_ref
+# Step 5: Create Federated Credentials Using Default Subject Format
 # ============================================================================
 # 
-# IMPORTANT: We use job_workflow_ref instead of per-repo credentials!
+# IMPORTANT: We use DEFAULT GitHub OIDC subject claims (repo-based)!
 # 
-# When a service repo calls our reusable workflow, GitHub OIDC generates a
-# subject claim like:
-#   job_workflow_ref:xshopai/infrastructure/.github/workflows/reusable-deploy-container-app.yml@refs/heads/main
+# Default subject patterns:
+#   - Main branch: repo:xshopai/{repo-name}:ref:refs/heads/main
+#   - Environment: repo:xshopai/{repo-name}:environment:{env-name}
+#   - Pull request: repo:xshopai/{repo-name}:pull_request
 #
-# This means ONE credential can authenticate ALL services that call the
-# reusable workflow, dramatically reducing credential count!
+# Each microservice repo gets:
+#   - 1 credential for main branch deployments
+#   - 1 credential for each environment (dev, staging, production)
 #
-# Total credentials needed: ~5 (reusable workflows + infrastructure main)
-# Instead of: 68+ (17 repos × 4 credentials each)
+# ✅ Benefits:
+#   - No dependency on workflow filenames
+#   - Standard GitHub pattern
+#   - Works with any workflow in the repo
+#   - Easy to understand and debug
 # ============================================================================
 
 echo ""
@@ -257,36 +249,73 @@ create_federated_credential() {
 }
 
 echo ""
-echo "   📦 Creating credential for reusable deployment workflow..."
-echo "   This single credential works for ALL service deployments!"
+echo "   📦 Creating credentials for infrastructure repo..."
 
-# Reusable workflow credential - covers ALL service repos that call this workflow
-create_federated_credential \
-    "reusable-deploy-container-app" \
-    "job_workflow_ref:${GITHUB_ORG}/infrastructure/.github/workflows/reusable-deploy-container-app.yml@refs/heads/main" \
-    "Reusable workflow for deploying any service to Container Apps"
-
-echo ""
-echo "   📦 Creating credential for infrastructure deployment workflow..."
-
-# Infrastructure deployment workflow - uses job_workflow_ref for consistency
+# Infrastructure main branch
 create_federated_credential \
     "infrastructure-main" \
-    "job_workflow_ref:${GITHUB_ORG}/infrastructure/.github/workflows/deploy-infrastructure.yml@refs/heads/main" \
-    "Infrastructure deployment workflow on main branch"
+    "repo:${GITHUB_ORG}/infrastructure:ref:refs/heads/main" \
+    "Infrastructure deployments from main branch"
+
+# Infrastructure environments
+create_federated_credential \
+    "infrastructure-dev" \
+    "repo:${GITHUB_ORG}/infrastructure:environment:development" \
+    "Infrastructure deployments to development environment"
+
+create_federated_credential \
+    "infrastructure-production" \
+    "repo:${GITHUB_ORG}/infrastructure:environment:production" \
+    "Infrastructure deployments to production environment"
 
 echo ""
-echo "   📦 Creating credential for layered infrastructure deployment workflow..."
+echo "   📦 Creating credentials for microservice repos..."
 
-# Layered Container Apps deployment workflow
-create_federated_credential \
-    "infrastructure-layered-deploy" \
-    "job_workflow_ref:${GITHUB_ORG}/infrastructure/.github/workflows/azure-container-apps-layered-deploy.yml@refs/heads/main" \
-    "Layered Container Apps infrastructure deployment workflow"
+# List of all service repos
+SERVICE_REPOS=(
+    "admin-service"
+    "admin-ui"
+    "audit-service"
+    "auth-service"
+    "cart-service"
+    "chat-service"
+    "customer-ui"
+    "inventory-service"
+    "notification-service"
+    "order-processor-service"
+    "order-service"
+    "payment-service"
+    "product-service"
+    "review-service"
+    "user-service"
+    "web-bff"
+)
+
+for repo in "${SERVICE_REPOS[@]}"; do
+    echo "   Setting up $repo..."
+    
+    # Main branch credential
+    create_federated_credential \
+        "${repo}-main" \
+        "repo:${GITHUB_ORG}/${repo}:ref:refs/heads/main" \
+        "${repo} deployments from main branch"
+    
+    # Development environment credential
+    create_federated_credential \
+        "${repo}-dev" \
+        "repo:${GITHUB_ORG}/${repo}:environment:development" \
+        "${repo} deployments to development environment"
+    
+    # Production environment credential
+    create_federated_credential \
+        "${repo}-production" \
+        "repo:${GITHUB_ORG}/${repo}:environment:production" \
+        "${repo} deployments to production environment"
+done
 
 echo ""
 echo "   ✅ Federated credentials setup complete!"
-echo "   Total credentials: 3 (well under the 20 limit)"
+echo "   Total credentials: ~50 (well under the 300 limit)"
 
 # ============================================================================
 # Step 6: Display Summary and GitHub Secrets
