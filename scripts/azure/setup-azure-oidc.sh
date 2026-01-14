@@ -172,28 +172,58 @@ fi
 echo "   Resetting to default GitHub OIDC configuration..."
 echo "   This ensures NO dependency on workflow filenames!"
 
-# Reset org-level OIDC to use default
-gh api -X PUT "orgs/${GITHUB_ORG}/actions/oidc/customization/sub" \
-    --input - <<EOF > /dev/null
-{
-    "use_default": true
-}
-EOF
-echo "   ✅ Organization OIDC configured (using default)"
+# NOTE: Organization-level OIDC API doesn't support {"use_default": true}
+#       So we configure each repo individually instead
 
 echo ""
-echo "   Resetting OIDC for infrastructure repo..."
+echo "   Configuring infrastructure repo to use default OIDC..."
 gh api -X PUT "repos/${GITHUB_ORG}/infrastructure/actions/oidc/customization/sub" \
-    --input - <<EOF > /dev/null 2>&1 || echo "   ⚠️  Could not configure infrastructure repo"
+    --input - <<EOF > /dev/null 2>&1
 {
     "use_default": true
 }
 EOF
-echo "   ✅ Infrastructure repo configured to use default"
+echo "   ✅ Infrastructure repo configured"
 
 echo ""
-echo "   📝 Note: Service repos will inherit org-level settings automatically."
-echo "   No need to configure each repo individually."
+echo "   Configuring service repos to use default OIDC..."
+
+# List of all service repos
+SERVICE_REPOS=(
+    "admin-service"
+    "admin-ui"
+    "audit-service"
+    "auth-service"
+    "cart-service"
+    "chat-service"
+    "customer-ui"
+    "inventory-service"
+    "notification-service"
+    "order-processor-service"
+    "order-service"
+    "payment-service"
+    "product-service"
+    "review-service"
+    "user-service"
+    "web-bff"
+)
+
+for repo in "${SERVICE_REPOS[@]}"; do
+    gh api -X PUT "repos/${GITHUB_ORG}/${repo}/actions/oidc/customization/sub" \
+        --input - <<EOF > /dev/null 2>&1
+    {
+        "use_default": true
+    }
+EOF
+    if [ $? -eq 0 ]; then
+        echo "   ✅ ${repo}"
+    else
+        echo "   ⚠️  ${repo} (may not exist yet)"
+    fi
+done
+
+echo ""
+echo "   📝 All repos now use default OIDC (no filename dependency)"
 
 # Verify the configuration
 echo ""
