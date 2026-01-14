@@ -187,6 +187,7 @@ jobs:
   build:
     name: Build & Push Image
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     outputs:
       image_tag: ${{ steps.meta.outputs.version }}
       image_full: ${{ steps.meta.outputs.tags }}
