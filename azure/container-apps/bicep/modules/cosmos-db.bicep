@@ -136,6 +136,48 @@ resource primaryKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!
   }
 }
 
+// =============================================================================
+// MongoDB-Compatible Secrets (for services using Dapr secret store)
+// =============================================================================
+// These secrets use the naming convention expected by service secret_manager.py
+// Database name is NOT stored here - it's service-specific and passed via env var
+
+// MongoDB host (Cosmos DB MongoDB endpoint)
+resource mongoHostSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(keyVaultName)) {
+  name: 'mongodb-host'
+  parent: keyVault
+  properties: {
+    value: '${cosmosDbAccount.name}.mongo.cosmos.azure.com'
+  }
+}
+
+// MongoDB port (Cosmos DB uses 10255 for MongoDB API)
+resource mongoPortSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(keyVaultName)) {
+  name: 'mongodb-port'
+  parent: keyVault
+  properties: {
+    value: '10255'
+  }
+}
+
+// MongoDB username (Cosmos DB account name)
+resource mongoUsernameSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(keyVaultName)) {
+  name: 'mongo-initdb-root-username'
+  parent: keyVault
+  properties: {
+    value: cosmosDbAccount.name
+  }
+}
+
+// MongoDB password (Cosmos DB primary key)
+resource mongoPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(keyVaultName)) {
+  name: 'mongo-initdb-root-password'
+  parent: keyVault
+  properties: {
+    value: cosmosDbAccount.listKeys().primaryMasterKey
+  }
+}
+
 // ============================================================================
 // Outputs
 // ============================================================================

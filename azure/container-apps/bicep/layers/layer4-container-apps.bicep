@@ -426,7 +426,7 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: false  // Internal only - accessed via Dapr service invocation
+        external: true  // External access for API calls
         targetPort: 1001
         transport: 'http'
         allowInsecure: false
@@ -519,6 +519,10 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'DAPR_INVENTORY_SERVICE_APP_ID'
               value: 'inventory-service'
+            }
+            {
+              name: 'MONGODB_DATABASE'
+              value: 'productdb'
             }
             {
               name: 'WORKERS'
