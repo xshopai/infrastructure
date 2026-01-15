@@ -1,17 +1,18 @@
 # ==============================================================================
-# Deploy Azure Container Apps Infrastructure
+# Deploy Azure Container Apps Infrastructure - Layered Approach
 # ==============================================================================
-# This workflow deploys the shared infrastructure for xshopai platform:
-# - Resource Group (created via Bicep at subscription scope)
-# - Container Apps Environment with Dapr
-# - Azure Service Bus (pub/sub)
-# - Azure Cache for Redis (Dapr state store for cart-service)
-# - Azure Cosmos DB (MongoDB API)
-# - Azure SQL Server (for .NET services)
-# - Azure PostgreSQL Flexible Server (for Java/Node services)
-# - Azure MySQL Flexible Server (for Python services)
-# - Azure Key Vault (secrets)
-# - Azure Container Registry
+# This workflow deploys infrastructure in layers for better control and idempotency:
+#
+# Layer 0 - Foundation: Resource Group, Log Analytics, Managed Identity, Key Vault
+# Layer 1 - Core Platform: Container Apps Environment, Container Registry
+# Layer 2 - Data Services: PostgreSQL, MySQL, SQL Server, Cosmos DB, Redis, Service Bus
+# Layer 3 - Dapr Components: Dapr pub/sub, state store, secret store, config store
+#
+# Key differences from monolithic deployment:
+# - Uses environment prefix (not run number) for idempotency
+# - Can deploy/redeploy individual layers
+# - Better error isolation and debugging
+# - Supports incremental infrastructure changes
 # ==============================================================================
 
 name: Deploy Azure Container Apps Infrastructure
@@ -33,25 +34,41 @@ on:
         required: false
         type: string
         default: 'swedencentral'
-
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'azure/container-apps/bicep/**'
-  #     - '.github/workflows/azure-container-apps-deploy.yml'
+      layer:
+        description: 'Layer to deploy (all = full deployment)'
+        required: true
+        type: choice
+        options:
+          - all
+          - layer0-foundation
+          - layer1-core-platform
+          - layer2-data-services
+          - layer3-dapr-components
+          - layer4-container-apps
+        default: 'all'
+      skip_validation:
+        description: 'Skip Bicep validation'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write  # Required for OIDC authentication
   contents: read
 
-# Note: Resource group name will be determined dynamically by Bicep template
-# with unique suffix for global resource uniqueness
+env:
+  PROJECT_NAME: xshopai
+  BICEP_PATH: azure/container-apps/bicep
 
 jobs:
+  # ============================================================================
+  # Validate Bicep Templates
+  # ============================================================================
   validate:
     name: Validate Bicep
     runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_validation != 'true' }}
+    environment: ${{ github.event.inputs.environment || 'dev' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -63,23 +80,42 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Validate Bicep template
+      - name: Validate Bicep templates
         run: |
-          az bicep build --file azure/container-apps/bicep/deploy.bicep
-          az bicep build --file azure/container-apps/bicep/main.bicep
-          echo "✅ Bicep validation passed"
+          echo "🔍 Validating Bicep templates..."
+          
+          # Validate all layer templates
+          for layer in layer0-foundation layer1-core-platform layer2-data-services layer3-dapr-components layer4-container-apps; do
+            echo "  Validating $layer..."
+            az bicep build --file ${{ env.BICEP_PATH }}/layers/${layer}.bicep
+          done
+          
+          echo "✅ All Bicep templates validated successfully"
 
-  deploy:
-    name: Deploy Infrastructure
+  # ============================================================================
+  # Layer 0: Foundation
+  # Creates: Resource Group, Log Analytics, Managed Identity, Key Vault
+  # ============================================================================
+  layer0-foundation:
+    name: Layer 0 - Foundation
     runs-on: ubuntu-latest
-    needs: validate
+    needs: [validate]
+    if: |
+      always() && 
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
+      (github.event.inputs.layer == 'all' || github.event.inputs.layer == 'layer0-foundation')
     environment: ${{ github.event.inputs.environment || 'dev' }}
     
     outputs:
-      containerAppsEnvName: ${{ steps.deploy.outputs.containerAppsEnvName }}
-      acrLoginServer: ${{ steps.deploy.outputs.acrLoginServer }}
-      keyVaultUri: ${{ steps.deploy.outputs.keyVaultUri }}
       resourceGroupName: ${{ steps.deploy.outputs.resourceGroupName }}
+      logAnalyticsWorkspaceId: ${{ steps.deploy.outputs.logAnalyticsWorkspaceId }}
+      logAnalyticsWorkspaceName: ${{ steps.deploy.outputs.logAnalyticsWorkspaceName }}
+      managedIdentityClientId: ${{ steps.deploy.outputs.managedIdentityClientId }}
+      managedIdentityPrincipalId: ${{ steps.deploy.outputs.managedIdentityPrincipalId }}
+      keyVaultName: ${{ steps.deploy.outputs.keyVaultName }}
+      keyVaultUri: ${{ steps.deploy.outputs.keyVaultUri }}
+      uniqueSuffix: ${{ steps.deploy.outputs.uniqueSuffix }}
+      resourcePrefix: ${{ steps.deploy.outputs.resourcePrefix }}
       
     steps:
       - name: Checkout code
@@ -92,103 +128,518 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy Infrastructure (Subscription Scope)
-        id: deploy-sub
+      - name: Deploy Layer 0 - Foundation
+        id: deploy
         run: |
-          DEPLOYMENT_NAME="xshopai-infra-${{ github.run_number }}"
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          LOCATION="${{ github.event.inputs.location || 'swedencentral' }}"
+          DEPLOYMENT_NAME="layer0-foundation-${ENV}"
+          
+          echo "🏗️ Deploying Layer 0: Foundation..."
+          echo "  Environment: $ENV"
+          echo "  Location: $LOCATION"
           
           az deployment sub create \
             --name $DEPLOYMENT_NAME \
-            --location ${{ github.event.inputs.location || 'swedencentral' }} \
-            --template-file ./azure/container-apps/bicep/deploy.bicep \
-            --parameters environment=${{ github.event.inputs.environment || 'dev' }} \
-            --parameters location=${{ github.event.inputs.location || 'swedencentral' }} \
+            --location $LOCATION \
+            --template-file ./${{ env.BICEP_PATH }}/layers/layer0-foundation.bicep \
+            --parameters environment=$ENV \
+            --parameters location=$LOCATION \
+            --parameters projectName=${{ env.PROJECT_NAME }}
+          
+          # Get outputs
+          echo "📤 Retrieving deployment outputs..."
+          
+          RG_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.resourceGroupName.value -o tsv)
+          LOG_WS_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.logAnalyticsWorkspaceId.value -o tsv)
+          LOG_WS_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.logAnalyticsWorkspaceName.value -o tsv)
+          MI_CLIENT_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.managedIdentityClientId.value -o tsv)
+          MI_PRINCIPAL_ID=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.managedIdentityPrincipalId.value -o tsv)
+          KV_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.keyVaultName.value -o tsv)
+          KV_URI=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.keyVaultUri.value -o tsv)
+          UNIQUE_SUFFIX=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.uniqueSuffix.value -o tsv)
+          RESOURCE_PREFIX=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.resourcePrefix.value -o tsv)
+          
+          # Set outputs (no sensitive values passed between jobs)
+          echo "resourceGroupName=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "logAnalyticsWorkspaceId=$LOG_WS_ID" >> $GITHUB_OUTPUT
+          echo "logAnalyticsWorkspaceName=$LOG_WS_NAME" >> $GITHUB_OUTPUT
+          echo "managedIdentityClientId=$MI_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "managedIdentityPrincipalId=$MI_PRINCIPAL_ID" >> $GITHUB_OUTPUT
+          echo "keyVaultName=$KV_NAME" >> $GITHUB_OUTPUT
+          echo "keyVaultUri=$KV_URI" >> $GITHUB_OUTPUT
+          echo "uniqueSuffix=$UNIQUE_SUFFIX" >> $GITHUB_OUTPUT
+          echo "resourcePrefix=$RESOURCE_PREFIX" >> $GITHUB_OUTPUT
+          
+          echo "✅ Layer 0 deployed successfully!"
+          echo ""
+          echo "### Layer 0 - Foundation Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource Group | $RG_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| Key Vault | $KV_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unique Suffix | $UNIQUE_SUFFIX |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Grant Key Vault access to GitHub Actions
+        run: |
+          KV_NAME="${{ steps.deploy.outputs.keyVaultName }}"
+          
+          # Get the current service principal object ID
+          echo "🔐 Granting Key Vault Secrets Officer role to GitHub Actions service principal..."
+          SP_OBJECT_ID=$(az ad sp show --id ${{ secrets.AZURE_CLIENT_ID }} --query id -o tsv)
+          
+          # Get Key Vault resource ID
+          KV_RESOURCE_ID=$(az keyvault show --name $KV_NAME --query id -o tsv)
+          
+          # Assign Key Vault Secrets Officer role (read + write) - needed for Bicep deployments to store secrets
+          # Role ID for Key Vault Secrets Officer: b86a8fe4-44ce-4948-aee5-eccb2c155cd7
+          az role assignment create \
+            --role "Key Vault Secrets Officer" \
+            --assignee-object-id $SP_OBJECT_ID \
+            --assignee-principal-type ServicePrincipal \
+            --scope $KV_RESOURCE_ID \
+            2>/dev/null || echo "Role assignment may already exist"
+          
+          echo "✅ Key Vault access granted (Secrets Officer for read/write)"
+
+  # ============================================================================
+  # Layer 1: Core Platform
+  # Creates: Container Apps Environment, Container Registry
+  # ============================================================================
+  layer1-core-platform:
+    name: Layer 1 - Core Platform
+    runs-on: ubuntu-latest
+    needs: [validate, layer0-foundation]
+    if: |
+      always() && 
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
+      needs.layer0-foundation.result == 'success' &&
+      (github.event.inputs.layer == 'all' || github.event.inputs.layer == 'layer1-core-platform')
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    outputs:
+      containerAppsEnvId: ${{ steps.deploy.outputs.containerAppsEnvId }}
+      containerAppsEnvName: ${{ steps.deploy.outputs.containerAppsEnvName }}
+      containerAppsEnvDomain: ${{ steps.deploy.outputs.containerAppsEnvDomain }}
+      acrLoginServer: ${{ steps.deploy.outputs.acrLoginServer }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Layer 1 - Core Platform
+        id: deploy
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
+          KV_NAME="${{ needs.layer0-foundation.outputs.keyVaultName }}"
+          MI_PRINCIPAL_ID="${{ needs.layer0-foundation.outputs.managedIdentityPrincipalId }}"
+          UNIQUE_SUFFIX="${{ needs.layer0-foundation.outputs.uniqueSuffix }}"
+          DEPLOYMENT_NAME="layer1-core-platform-${ENV}"
+          
+          echo "🏗️ Deploying Layer 1: Core Platform..."
+          echo "  Resource Group: $RG_NAME"
+          
+          # Retrieve Log Analytics credentials from Key Vault
+          # (Secrets cannot be passed via GitHub Actions job outputs)
+          echo "🔐 Retrieving Log Analytics credentials from Key Vault..."
+          LOG_CUSTOMER_ID=$(az keyvault secret show --vault-name $KV_NAME --name "log-analytics-customer-id" --query value -o tsv)
+          LOG_SHARED_KEY=$(az keyvault secret show --vault-name $KV_NAME --name "log-analytics-shared-key" --query value -o tsv)
+          
+          # Mask sensitive values
+          echo "::add-mask::$LOG_SHARED_KEY"
+          
+          az deployment group create \
+            --name $DEPLOYMENT_NAME \
+            --resource-group $RG_NAME \
+            --template-file ./${{ env.BICEP_PATH }}/layers/layer1-core-platform.bicep \
+            --parameters environment=$ENV \
+            --parameters projectName=${{ env.PROJECT_NAME }} \
+            --parameters logAnalyticsCustomerId=$LOG_CUSTOMER_ID \
+            --parameters logAnalyticsSharedKey=$LOG_SHARED_KEY \
+            --parameters managedIdentityPrincipalId=$MI_PRINCIPAL_ID \
+            --parameters uniqueSuffix=$UNIQUE_SUFFIX
+          
+          # Get outputs
+          echo "📤 Retrieving deployment outputs..."
+          
+          CAE_ID=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.containerAppsEnvId.value -o tsv)
+          CAE_NAME=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.containerAppsEnvName.value -o tsv)
+          CAE_DOMAIN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.containerAppsEnvDomain.value -o tsv)
+          ACR_SERVER=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.acrLoginServer.value -o tsv)
+          
+          # Set outputs
+          echo "containerAppsEnvId=$CAE_ID" >> $GITHUB_OUTPUT
+          echo "containerAppsEnvName=$CAE_NAME" >> $GITHUB_OUTPUT
+          echo "containerAppsEnvDomain=$CAE_DOMAIN" >> $GITHUB_OUTPUT
+          echo "acrLoginServer=$ACR_SERVER" >> $GITHUB_OUTPUT
+          
+          echo "✅ Layer 1 deployed successfully!"
+          echo ""
+          echo "### Layer 1 - Core Platform Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Apps Env | $CAE_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Apps Domain | $CAE_DOMAIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Registry | $ACR_SERVER |" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Layer 2: Data Services
+  # Creates: PostgreSQL, MySQL, SQL Server, Cosmos DB, Redis, Service Bus
+  # ============================================================================
+  layer2-data-services:
+    name: Layer 2 - Data Services
+    runs-on: ubuntu-latest
+    needs: [validate, layer0-foundation]
+    if: |
+      always() && 
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
+      needs.layer0-foundation.result == 'success' &&
+      (github.event.inputs.layer == 'all' || github.event.inputs.layer == 'layer2-data-services')
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    outputs:
+      serviceBusNamespace: ${{ steps.deploy.outputs.serviceBusNamespace }}
+      redisHostName: ${{ steps.deploy.outputs.redisHostName }}
+      cosmosDbAccountName: ${{ steps.deploy.outputs.cosmosDbAccountName }}
+      postgresqlFqdn: ${{ steps.deploy.outputs.postgresqlFqdn }}
+      sqlServerFqdn: ${{ steps.deploy.outputs.sqlServerFqdn }}
+      mysqlFqdn: ${{ steps.deploy.outputs.mysqlFqdn }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Layer 2 - Data Services
+        id: deploy
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
+          KV_NAME="${{ needs.layer0-foundation.outputs.keyVaultName }}"
+          MI_PRINCIPAL_ID="${{ needs.layer0-foundation.outputs.managedIdentityPrincipalId }}"
+          UNIQUE_SUFFIX="${{ needs.layer0-foundation.outputs.uniqueSuffix }}"
+          DEPLOYMENT_NAME="layer2-data-services-${ENV}"
+          
+          echo "🏗️ Deploying Layer 2: Data Services..."
+          echo "  Resource Group: $RG_NAME"
+          echo "  This may take 10-15 minutes..."
+          
+          az deployment group create \
+            --name $DEPLOYMENT_NAME \
+            --resource-group $RG_NAME \
+            --template-file ./${{ env.BICEP_PATH }}/layers/layer2-data-services.bicep \
+            --parameters environment=$ENV \
+            --parameters projectName=${{ env.PROJECT_NAME }} \
+            --parameters keyVaultName=$KV_NAME \
+            --parameters managedIdentityPrincipalId=$MI_PRINCIPAL_ID \
+            --parameters uniqueSuffix=$UNIQUE_SUFFIX \
             --parameters postgresAdminLogin=xshopaiadmin \
             --parameters postgresAdminPassword=${{ secrets.POSTGRES_ADMIN_PASSWORD }} \
             --parameters sqlServerAdminLogin=xshopaiadmin \
             --parameters sqlServerAdminPassword=${{ secrets.SQL_SERVER_ADMIN_PASSWORD }} \
             --parameters mysqlAdminLogin=xshopaiadmin \
             --parameters mysqlAdminPassword=${{ secrets.MYSQL_ADMIN_PASSWORD }} \
-            --parameters sqlAzureAdAdminObjectId=${{ secrets.SQL_AZURE_AD_ADMIN_OBJECT_ID || '' }} \
-            --parameters sqlAzureAdAdminLogin="${{ secrets.SQL_AZURE_AD_ADMIN_LOGIN || '' }}" \
-            --parameters deploymentSuffix="run${{ github.run_number }}"
+            --parameters sqlAzureAdAdminObjectId="${{ secrets.SQL_AZURE_AD_ADMIN_OBJECT_ID }}" \
+            --parameters sqlAzureAdAdminLogin="${{ secrets.SQL_AZURE_AD_ADMIN_LOGIN }}"
           
           # Get outputs
-          RG_NAME=$(az deployment sub show \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.resourceGroupName.value -o tsv)
+          echo "📤 Retrieving deployment outputs..."
           
-          CAE_NAME=$(az deployment sub show \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.containerAppsEnvName.value -o tsv)
-          
-          ACR_SERVER=$(az deployment sub show \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.acrLoginServer.value -o tsv)
-          
-          KV_URI=$(az deployment sub show \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.keyVaultUri.value -o tsv)
-          
-          CAE_DOMAIN=$(az deployment sub show \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.containerAppsEnvDomain.value -o tsv)
+          SB_NS=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.serviceBusNamespace.value -o tsv)
+          REDIS_HOST=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.redisHostName.value -o tsv)
+          COSMOS_NAME=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.cosmosDbAccountName.value -o tsv)
+          PSQL_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.postgresqlFqdn.value -o tsv)
+          SQL_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.sqlServerFqdn.value -o tsv)
+          MYSQL_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.mysqlFqdn.value -o tsv)
           
           # Set outputs
-          echo "resourceGroupName=$RG_NAME" >> $GITHUB_OUTPUT
-          echo "containerAppsEnvName=$CAE_NAME" >> $GITHUB_OUTPUT
-          echo "acrLoginServer=$ACR_SERVER" >> $GITHUB_OUTPUT
-          echo "keyVaultUri=$KV_URI" >> $GITHUB_OUTPUT
-          echo "containerAppsEnvDomain=$CAE_DOMAIN" >> $GITHUB_OUTPUT
-
-      - name: Set Outputs
-        id: deploy
-        run: |
-          # Get outputs from subscription deployment
-          RG_NAME="${{ steps.deploy-sub.outputs.resourceGroupName }}"
-          CAE_NAME="${{ steps.deploy-sub.outputs.containerAppsEnvName }}"
-          ACR_SERVER="${{ steps.deploy-sub.outputs.acrLoginServer }}"
-          KV_URI="${{ steps.deploy-sub.outputs.keyVaultUri }}"
-          CAE_DOMAIN="${{ steps.deploy-sub.outputs.containerAppsEnvDomain }}"
+          echo "serviceBusNamespace=$SB_NS" >> $GITHUB_OUTPUT
+          echo "redisHostName=$REDIS_HOST" >> $GITHUB_OUTPUT
+          echo "cosmosDbAccountName=$COSMOS_NAME" >> $GITHUB_OUTPUT
+          echo "postgresqlFqdn=$PSQL_FQDN" >> $GITHUB_OUTPUT
+          echo "sqlServerFqdn=$SQL_FQDN" >> $GITHUB_OUTPUT
+          echo "mysqlFqdn=$MYSQL_FQDN" >> $GITHUB_OUTPUT
           
-          echo "resourceGroupName=$RG_NAME" >> $GITHUB_OUTPUT
-          echo "containerAppsEnvName=$CAE_NAME" >> $GITHUB_OUTPUT
-          echo "acrLoginServer=$ACR_SERVER" >> $GITHUB_OUTPUT
-          echo "keyVaultUri=$KV_URI" >> $GITHUB_OUTPUT
-          
-          # Summary
-          echo "### 🚀 Deployment Complete!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Layer 2 deployed successfully!"
+          echo ""
+          echo "### Layer 2 - Data Services Deployed" >> $GITHUB_STEP_SUMMARY
           echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Environment** | ${{ github.event.inputs.environment || 'dev' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Resource Group** | $RG_NAME |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Container Apps Env** | $CAE_NAME |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Container Apps Domain** | $CAE_DOMAIN |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Container Registry** | $ACR_SERVER |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Key Vault** | $KV_URI |" >> $GITHUB_STEP_SUMMARY
+          echo "| Service Bus | $SB_NS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Redis | $REDIS_HOST |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cosmos DB | $COSMOS_NAME |" >> $GITHUB_STEP_SUMMARY
+          echo "| PostgreSQL | $PSQL_FQDN |" >> $GITHUB_STEP_SUMMARY
+          echo "| SQL Server | $SQL_FQDN |" >> $GITHUB_STEP_SUMMARY
+          echo "| MySQL | $MYSQL_FQDN |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Azure Logout
-        if: always()
-        run: az logout
-
-  notify:
-    name: Notify Completion
+  # ============================================================================
+  # Layer 3: Dapr Components
+  # Creates: Dapr pub/sub, state store, secret store, config store
+  # ============================================================================
+  layer3-dapr-components:
+    name: Layer 3 - Dapr Components
     runs-on: ubuntu-latest
-    needs: deploy
+    needs: [validate, layer0-foundation, layer1-core-platform, layer2-data-services]
+    if: |
+      always() && 
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
+      needs.layer0-foundation.result == 'success' &&
+      needs.layer1-core-platform.result == 'success' &&
+      needs.layer2-data-services.result == 'success' &&
+      (github.event.inputs.layer == 'all' || github.event.inputs.layer == 'layer3-dapr-components')
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Data Service Secrets
+        id: secrets
+        run: |
+          RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
+          KV_NAME="${{ needs.layer0-foundation.outputs.keyVaultName }}"
+          UNIQUE_SUFFIX="${{ needs.layer0-foundation.outputs.uniqueSuffix }}"
+          RESOURCE_PREFIX="${{ needs.layer0-foundation.outputs.resourcePrefix }}"
+          
+          echo "🔐 Retrieving secrets from Key Vault..."
+          
+          # Get Service Bus connection string from Key Vault
+          SB_CONN=$(az keyvault secret show --vault-name $KV_NAME --name "service-bus-connection-string" --query value -o tsv)
+          
+          # Get Redis info
+          REDIS_NAME="${RESOURCE_PREFIX}-${UNIQUE_SUFFIX}-redis"
+          REDIS_HOST=$(az redis show -n $REDIS_NAME -g $RG_NAME --query hostName -o tsv)
+          REDIS_KEY=$(az redis list-keys -n $REDIS_NAME -g $RG_NAME --query primaryKey -o tsv)
+          
+          # Set outputs (mask sensitive values)
+          echo "::add-mask::$SB_CONN"
+          echo "::add-mask::$REDIS_KEY"
+          echo "serviceBusConnectionString=$SB_CONN" >> $GITHUB_OUTPUT
+          echo "redisHost=$REDIS_HOST" >> $GITHUB_OUTPUT
+          echo "redisPassword=$REDIS_KEY" >> $GITHUB_OUTPUT
+
+      - name: Deploy Layer 3 - Dapr Components
+        id: deploy
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
+          KV_NAME="${{ needs.layer0-foundation.outputs.keyVaultName }}"
+          MI_CLIENT_ID="${{ needs.layer0-foundation.outputs.managedIdentityClientId }}"
+          CAE_NAME="${{ needs.layer1-core-platform.outputs.containerAppsEnvName }}"
+          DEPLOYMENT_NAME="layer3-dapr-components-${ENV}"
+          
+          echo "🏗️ Deploying Layer 3: Dapr Components..."
+          echo "  Resource Group: $RG_NAME"
+          echo "  Container Apps Env: $CAE_NAME"
+          
+          az deployment group create \
+            --name $DEPLOYMENT_NAME \
+            --resource-group $RG_NAME \
+            --template-file ./${{ env.BICEP_PATH }}/layers/layer3-dapr-components.bicep \
+            --parameters environment=$ENV \
+            --parameters projectName=${{ env.PROJECT_NAME }} \
+            --parameters containerAppsEnvName=$CAE_NAME \
+            --parameters keyVaultName=$KV_NAME \
+            --parameters managedIdentityClientId=$MI_CLIENT_ID \
+            --parameters serviceBusConnectionString="${{ steps.secrets.outputs.serviceBusConnectionString }}" \
+            --parameters redisHost="${{ steps.secrets.outputs.redisHost }}" \
+            --parameters redisPassword="${{ steps.secrets.outputs.redisPassword }}"
+          
+          echo "✅ Layer 3 deployed successfully!"
+          echo ""
+          echo "### Layer 3 - Dapr Components Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "Dapr components configured:" >> $GITHUB_STEP_SUMMARY
+          echo "- pubsub (Service Bus)" >> $GITHUB_STEP_SUMMARY
+          echo "- statestore (Redis)" >> $GITHUB_STEP_SUMMARY
+          echo "- secretstore (Key Vault)" >> $GITHUB_STEP_SUMMARY
+          echo "- configstore (Key Vault)" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Layer 4: Container Apps
+  # Creates: Container App instances for microservices (shells with placeholder images)
+  # ============================================================================
+  layer4-container-apps:
+    name: Layer 4 - Container Apps
+    runs-on: ubuntu-latest
+    needs: [validate, layer0-foundation, layer1-core-platform]
+    if: |
+      always() && 
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
+      needs.layer0-foundation.result == 'success' &&
+      needs.layer1-core-platform.result == 'success' &&
+      (github.event.inputs.layer == 'all' || github.event.inputs.layer == 'layer4-container-apps')
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    outputs:
+      customerUiUrl: ${{ steps.deploy.outputs.customerUiUrl }}
+      customerUiFqdn: ${{ steps.deploy.outputs.customerUiFqdn }}
+      adminUiUrl: ${{ steps.deploy.outputs.adminUiUrl }}
+      webBffUrl: ${{ steps.deploy.outputs.webBffUrl }}
+      productServiceFqdn: ${{ steps.deploy.outputs.productServiceFqdn }}
+      userServiceFqdn: ${{ steps.deploy.outputs.userServiceFqdn }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Managed Identity Resource ID
+        id: identity
+        run: |
+          RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
+          RESOURCE_PREFIX="${{ needs.layer0-foundation.outputs.resourcePrefix }}"
+          
+          # Get Managed Identity resource ID (needed for Container Apps)
+          MI_NAME="${RESOURCE_PREFIX}-identity"
+          MI_RESOURCE_ID=$(az identity show -n $MI_NAME -g $RG_NAME --query id -o tsv)
+          
+          echo "managedIdentityResourceId=$MI_RESOURCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Deploy Layer 4 - Container Apps
+        id: deploy
+        run: |
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          RG_NAME="${{ needs.layer0-foundation.outputs.resourceGroupName }}"
+          CAE_NAME="${{ needs.layer1-core-platform.outputs.containerAppsEnvName }}"
+          ACR_SERVER="${{ needs.layer1-core-platform.outputs.acrLoginServer }}"
+          MI_RESOURCE_ID="${{ steps.identity.outputs.managedIdentityResourceId }}"
+          DEPLOYMENT_NAME="layer4-container-apps-${ENV}"
+          
+          echo "🏗️ Deploying Layer 4: Container Apps..."
+          echo "  Resource Group: $RG_NAME"
+          echo "  Container Apps Env: $CAE_NAME"
+          echo "  Container Registry: $ACR_SERVER"
+          
+          az deployment group create \
+            --name $DEPLOYMENT_NAME \
+            --resource-group $RG_NAME \
+            --template-file ./${{ env.BICEP_PATH }}/layers/layer4-container-apps.bicep \
+            --parameters environment=$ENV \
+            --parameters projectName=${{ env.PROJECT_NAME }} \
+            --parameters containerAppsEnvName=$CAE_NAME \
+            --parameters acrLoginServer=$ACR_SERVER \
+            --parameters managedIdentityId=$MI_RESOURCE_ID
+          
+          # Get outputs
+          echo "📤 Retrieving deployment outputs..."
+          
+          CUSTOMER_UI_URL=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.customerUiUrl.value -o tsv)
+          CUSTOMER_UI_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.customerUiFqdn.value -o tsv)
+          ADMIN_UI_URL=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.adminUiUrl.value -o tsv)
+          WEB_BFF_URL=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.webBffUrl.value -o tsv)
+          PRODUCT_SERVICE_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.productServiceFqdn.value -o tsv)
+          USER_SERVICE_FQDN=$(az deployment group show -g $RG_NAME --name $DEPLOYMENT_NAME --query properties.outputs.userServiceFqdn.value -o tsv)
+          
+          # Set outputs
+          echo "customerUiUrl=$CUSTOMER_UI_URL" >> $GITHUB_OUTPUT
+          echo "customerUiFqdn=$CUSTOMER_UI_FQDN" >> $GITHUB_OUTPUT
+          echo "adminUiUrl=$ADMIN_UI_URL" >> $GITHUB_OUTPUT
+          echo "webBffUrl=$WEB_BFF_URL" >> $GITHUB_OUTPUT
+          echo "productServiceFqdn=$PRODUCT_SERVICE_FQDN" >> $GITHUB_OUTPUT
+          echo "userServiceFqdn=$USER_SERVICE_FQDN" >> $GITHUB_OUTPUT
+          
+          echo "✅ Layer 4 deployed successfully!"
+          echo ""
+          echo "### Layer 4 - Container Apps Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "| Container App | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| customer-ui | $CUSTOMER_UI_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| admin-ui | $ADMIN_UI_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| web-bff | $WEB_BFF_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| product-service | Internal (Dapr: $PRODUCT_SERVICE_FQDN) |" >> $GITHUB_STEP_SUMMARY
+          echo "| user-service | Internal (Dapr: $USER_SERVICE_FQDN) |" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Summary
+  # ============================================================================
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [layer0-foundation, layer1-core-platform, layer2-data-services, layer3-dapr-components, layer4-container-apps]
     if: always()
     steps:
-      - name: Post Summary
+      - name: Generate Summary
         run: |
-          if [ "${{ needs.deploy.result }}" == "success" ]; then
-            echo "✅ Infrastructure deployment completed successfully!"
-            echo ""
-            echo "Next steps:"
-            echo "1. Deploy services using their respective workflows"
-            echo "2. Configure DNS if custom domain is needed"
-            echo "3. Verify Dapr components are working"
-          else
-            echo "❌ Infrastructure deployment failed!"
-            echo "Check the deploy job logs for details."
-            exit 1
+          echo "## 🚀 xshopai Infrastructure Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ github.event.inputs.location || 'swedencentral' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Layer:** ${{ github.event.inputs.layer || 'all' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Layer Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer 0 - Foundation | ${{ needs.layer0-foundation.result == 'success' && '✅ Success' || needs.layer0-foundation.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer 1 - Core Platform | ${{ needs.layer1-core-platform.result == 'success' && '✅ Success' || needs.layer1-core-platform.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer 2 - Data Services | ${{ needs.layer2-data-services.result == 'success' && '✅ Success' || needs.layer2-data-services.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer 3 - Dapr Components | ${{ needs.layer3-dapr-components.result == 'success' && '✅ Success' || needs.layer3-dapr-components.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Layer 4 - Container Apps | ${{ needs.layer4-container-apps.result == 'success' && '✅ Success' || needs.layer4-container-apps.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.layer0-foundation.result }}" == "success" ]; then
+            echo "### Deployed Resources" >> $GITHUB_STEP_SUMMARY
+            echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Resource Group | ${{ needs.layer0-foundation.outputs.resourceGroupName }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Key Vault | ${{ needs.layer0-foundation.outputs.keyVaultUri }} |" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ needs.layer1-core-platform.result }}" == "success" ]; then
+              echo "| Container Apps Env | ${{ needs.layer1-core-platform.outputs.containerAppsEnvName }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| Container Registry | ${{ needs.layer1-core-platform.outputs.acrLoginServer }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| Apps Domain | ${{ needs.layer1-core-platform.outputs.containerAppsEnvDomain }} |" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ "${{ needs.layer2-data-services.result }}" == "success" ]; then
+              echo "| PostgreSQL | ${{ needs.layer2-data-services.outputs.postgresqlFqdn }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| MySQL | ${{ needs.layer2-data-services.outputs.mysqlFqdn }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| SQL Server | ${{ needs.layer2-data-services.outputs.sqlServerFqdn }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| Redis | ${{ needs.layer2-data-services.outputs.redisHostName }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| Cosmos DB | ${{ needs.layer2-data-services.outputs.cosmosDbAccountName }} |" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ "${{ needs.layer4-container-apps.result }}" == "success" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### Container Apps" >> $GITHUB_STEP_SUMMARY
+              echo "| App | URL |" >> $GITHUB_STEP_SUMMARY
+              echo "|-----|-----|" >> $GITHUB_STEP_SUMMARY
+              echo "| customer-ui | ${{ needs.layer4-container-apps.outputs.customerUiUrl }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| admin-ui | ${{ needs.layer4-container-apps.outputs.adminUiUrl }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| web-bff | ${{ needs.layer4-container-apps.outputs.webBffUrl }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| product-service | Internal (Dapr: ${{ needs.layer4-container-apps.outputs.productServiceFqdn }}) |" >> $GITHUB_STEP_SUMMARY
+              echo "| user-service | Internal (Dapr: ${{ needs.layer4-container-apps.outputs.userServiceFqdn }}) |" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Deploy microservices to Container Apps" >> $GITHUB_STEP_SUMMARY
+          echo "2. Configure application-specific secrets in Key Vault" >> $GITHUB_STEP_SUMMARY
+          echo "3. Test Dapr pub/sub and state store components" >> $GITHUB_STEP_SUMMARY
+          echo "4. Configure custom domain if needed" >> $GITHUB_STEP_SUMMARY
