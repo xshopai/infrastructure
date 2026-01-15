@@ -1,0 +1,31 @@
+{
+  "$schema": "https://aka.ms/bicep/config-schema",
+  "moduleAliases": {
+    "br": {
+      "xshopai": {
+        "registry": "xshopaiacr.azurecr.io",
+        "modulePath": "bicep/modules"
+      }
+    }
+  },
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "verbose": false,
+      "rules": {
+        "no-unused-params": {
+          "level": "warning"
+        },
+        "no-unused-vars": {
+          "level": "warning"
+        },
+        "prefer-interpolation": {
+          "level": "warning"
+        },
+        "secure-secrets-in-params": {
+          "level": "error"
+        }
+      }
+    }
+  }
+}
