@@ -692,6 +692,10 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
               name: 'DAPR_PUBSUB_NAME'
               value: 'event-bus'
             }
+            {
+              name: 'DAPR_SECRET_STORE_NAME'
+              value: 'secretstore'
+            }
           ]
           probes: [
             {
