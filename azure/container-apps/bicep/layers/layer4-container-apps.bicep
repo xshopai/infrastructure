@@ -50,6 +50,16 @@ var resourcePrefix = '${projectName}-${environment}'
 // Using mcr.microsoft.com/k8se/quickstart as it's always available
 var placeholderImage = 'mcr.microsoft.com/k8se/quickstart:latest'
 
+// Key Vault Secret Naming Convention:
+// All secrets use service-prefixed names for clarity in multi-service architecture
+// Format: {service-name}-{secret-purpose}
+// Examples:
+//   - inventory-service-mysql-host
+//   - inventory-service-mysql-username
+//   - product-service-mongodb-connection-string
+//   - user-service-mongodb-password
+// This prevents naming conflicts and makes it clear which secrets belong to which service
+
 // ============================================================================
 // Existing Resources (from previous layers)
 // ============================================================================
@@ -759,6 +769,182 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
   }
 }
 
+// Inventory Service - Python/Flask backend for inventory management
+resource inventoryService 'Microsoft.App/containerApps@2023-05-01' = {
+  name: 'inventory-service'
+  location: location
+  tags: union(tags, {
+    service: 'inventory-service'
+    type: 'backend'
+  })
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentityId}': {}
+    }
+  }
+  properties: {
+    managedEnvironmentId: containerAppsEnv.id
+    configuration: {
+      activeRevisionsMode: 'Single'
+      ingress: {
+        external: true  // External access for API calls
+        targetPort: 8005
+        transport: 'http'
+        allowInsecure: false
+        traffic: [
+          {
+            weight: 100
+            latestRevision: true
+          }
+        ]
+      }
+      dapr: {
+        enabled: true
+        appId: 'inventory-service'
+        appPort: 8005
+        appProtocol: 'http'
+      }
+      registries: [
+        {
+          server: acrLoginServer
+          identity: managedIdentityId
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'inventory-service'
+          image: placeholderImage  // Placeholder - CI/CD will update
+          resources: {
+            cpu: json(environment == 'prod' ? '1' : '0.5')
+            memory: environment == 'prod' ? '2Gi' : '1Gi'
+          }
+          env: [
+            {
+              name: 'ENVIRONMENT'
+              value: 'production'
+            }
+            {
+              name: 'DEBUG'
+              value: 'false'
+            }
+            {
+              name: 'NAME'
+              value: 'inventory-service'
+            }
+            {
+              name: 'VERSION'
+              value: '1.0.0'
+            }
+            {
+              name: 'PORT'
+              value: '8005'
+            }
+            {
+              name: 'LOG_LEVEL'
+              value: environment == 'prod' ? 'WARNING' : 'INFO'
+            }
+            {
+              name: 'LOG_FORMAT'
+              value: 'json'
+            }
+            {
+              name: 'LOG_TO_CONSOLE'
+              value: 'true'
+            }
+            {
+              name: 'LOG_TO_FILE'
+              value: 'false'
+            }
+            {
+              name: 'DAPR_HOST'
+              value: 'localhost'
+            }
+            {
+              name: 'DAPR_HTTP_PORT'
+              value: '3500'
+            }
+            {
+              name: 'DAPR_GRPC_PORT'
+              value: '50005'
+            }
+            {
+              name: 'DAPR_APP_ID'
+              value: 'inventory-service'
+            }
+            {
+              name: 'DAPR_PUBSUB_NAME'
+              value: 'event-bus'
+            }
+            {
+              name: 'MYSQL_DATABASE'
+              value: 'inventory_service_db'
+            }
+            {
+              name: 'WORKERS'
+              value: environment == 'prod' ? '4' : '2'
+            }
+          ]
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/liveness'
+                port: 8005
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 30
+              failureThreshold: 3
+              timeoutSeconds: 5
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/readiness'
+                port: 8005
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              failureThreshold: 3
+              timeoutSeconds: 5
+            }
+            {
+              type: 'Startup'
+              httpGet: {
+                path: '/readiness'
+                port: 8005
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 0
+              periodSeconds: 10
+              failureThreshold: 30
+              timeoutSeconds: 5
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 1  // Always have at least 1 replica for health probes
+        maxReplicas: environment == 'prod' ? 10 : 5
+        rules: [
+          {
+            name: 'http-scaler'
+            http: {
+              metadata: {
+                concurrentRequests: '100'
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+
 // ============================================================================
 // Outputs
 // ============================================================================
@@ -816,3 +1002,12 @@ output userServiceId string = userService.id
 
 @description('User Service Container App Name')
 output userServiceName string = userService.name
+
+@description('Inventory Service Container App FQDN')
+output inventoryServiceFqdn string = inventoryService.properties.configuration.ingress.fqdn
+
+@description('Inventory Service Container App Resource ID')
+output inventoryServiceId string = inventoryService.id
+
+@description('Inventory Service Container App Name')
+output inventoryServiceName string = inventoryService.name

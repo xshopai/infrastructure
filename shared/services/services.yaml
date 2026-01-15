@@ -301,13 +301,13 @@ services:
     repository: xshopai/inventory-service
     language: python
     framework: fastapi
-    port: 8004
+    port: 8005
     healthPath: /health
     readinessPath: /health/ready
     dapr:
       enabled: true
       appId: inventory-service
-      appPort: 8004
+      appPort: 8005
     resources:
       cpu: 0.5
       memory: 1Gi

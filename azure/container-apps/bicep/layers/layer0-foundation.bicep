@@ -28,6 +28,28 @@ param tags object = {
 }
 
 // ============================================================================
+// Inventory Service Secret Parameters (Service-Prefixed Naming Convention)
+// Format: {service-name}-{secret-purpose}
+// See: docs/KEY_VAULT_SECRETS.md for complete naming convention
+// ============================================================================
+
+@description('MySQL server FQDN for inventory-service')
+@secure()
+param inventoryServiceMysqlHost string = ''
+
+@description('MySQL server port for inventory-service')
+@secure()
+param inventoryServiceMysqlPort string = '3306'
+
+@description('MySQL username for inventory-service')
+@secure()
+param inventoryServiceMysqlUsername string = ''
+
+@description('MySQL password for inventory-service')
+@secure()
+param inventoryServiceMysqlPassword string = ''
+
+// ============================================================================
 // Variables
 // ============================================================================
 
@@ -114,6 +136,42 @@ module logAnalyticsSecret '../modules/key-vault-secret.bicep' = {
     ]
   }
   // dependsOn not needed - Bicep infers from keyVault.outputs.name and logAnalytics.outputs.*
+}
+
+// ============================================================================
+// Store Inventory Service MySQL Secrets in Key Vault
+// Service-Prefixed Naming Convention: {service-name}-{secret-purpose}
+// See: docs/KEY_VAULT_SECRETS.md for complete naming convention
+// ============================================================================
+
+module inventoryServiceSecrets '../modules/key-vault-secret.bicep' = if (inventoryServiceMysqlHost != '' && inventoryServiceMysqlPassword != '') {
+  name: 'deploy-inventory-service-secrets'
+  scope: resourceGroup
+  params: {
+    keyVaultName: keyVault.outputs.name
+    secrets: [
+      {
+        name: 'inventory-service-mysql-host'
+        value: inventoryServiceMysqlHost
+        contentType: 'MySQL Server FQDN for inventory-service'
+      }
+      {
+        name: 'inventory-service-mysql-port'
+        value: inventoryServiceMysqlPort
+        contentType: 'MySQL Server Port for inventory-service'
+      }
+      {
+        name: 'inventory-service-mysql-username'
+        value: inventoryServiceMysqlUsername
+        contentType: 'MySQL Username for inventory-service'
+      }
+      {
+        name: 'inventory-service-mysql-password'
+        value: inventoryServiceMysqlPassword
+        contentType: 'MySQL Password for inventory-service'
+      }
+    ]
+  }
 }
 
 // ============================================================================
