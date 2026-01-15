@@ -13,13 +13,13 @@ services:
   - name: user-service
     repository: xshopai/user-service
     language: nodejs
-    port: 1002
+    port: 8002
     healthPath: /health
-    readinessPath: /health/ready
+    readinessPath: /readiness
     dapr:
       enabled: true
       appId: user-service
-      appPort: 1002
+      appPort: 8002
     resources:
       cpu: 0.5
       memory: 1Gi
