@@ -472,7 +472,7 @@ jobs:
           echo "Dapr components configured:" >> $GITHUB_STEP_SUMMARY
           echo "- pubsub (Service Bus)" >> $GITHUB_STEP_SUMMARY
           echo "- statestore (Redis)" >> $GITHUB_STEP_SUMMARY
-          echo "- secretstore (Key Vault)" >> $GITHUB_STEP_SUMMARY
+          echo "- secret-store (Key Vault)" >> $GITHUB_STEP_SUMMARY
           echo "- configstore (Key Vault)" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================

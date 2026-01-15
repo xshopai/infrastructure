@@ -372,7 +372,7 @@ The infrastructure configures these Dapr components:
 |-----------|------|-----------------|
 | `pubsub` | pubsub.azure.servicebus.topics | Azure Service Bus |
 | `statestore` | state.redis | Azure Cache for Redis |
-| `secretstore` | secretstores.azure.keyvault | Azure Key Vault |
+| `secret-store` | secretstores.azure.keyvault | Azure Key Vault |
 | `configstore` | configuration.redis | Azure Cache for Redis |
 
 ## 🔄 Service Deployment

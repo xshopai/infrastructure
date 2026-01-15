@@ -10,7 +10,7 @@ Dapr (Distributed Application Runtime) provides building blocks for microservice
 |-----------|---------|----------------------|
 | **pubsub** | Event-driven messaging | Azure Service Bus Topics |
 | **statestore** | State management | Azure Cache for Redis |
-| **secretstore** | Secrets management | Azure Key Vault |
+| **secret-store** | Secrets management | Azure Key Vault |
 | **configstore** | Configuration management | Azure Cache for Redis |
 
 ## Component Details
@@ -162,7 +162,7 @@ const cart = await daprClient.state.get('statestore', `cart-${userId}`);
 await daprClient.state.delete('statestore', `cart-${userId}`);
 ```
 
-### 3. Secret Store Component (`secretstore`)
+### 3. Secret Store Component (`secret-store`)
 
 **Type:** `secretstores.azure.keyvault`
 
@@ -173,7 +173,7 @@ Used for accessing secrets stored in Azure Key Vault.
 ```bicep
 resource daprSecretStore 'Microsoft.App/managedEnvironments/daprComponents@2023-05-01' = {
   parent: containerAppsEnvironment
-  name: 'secretstore'
+  name: 'secret-store'
   properties: {
     componentType: 'secretstores.azure.keyvault'
     version: 'v1'
@@ -201,11 +201,11 @@ resource daprSecretStore 'Microsoft.App/managedEnvironments/daprComponents@2023-
 
 ```javascript
 // Get single secret
-const secret = await daprClient.secret.get('secretstore', 'JWT-SECRET');
+const secret = await daprClient.secret.get('secret-store', 'JWT-SECRET');
 const jwtSecret = secret['JWT-SECRET'];
 
 // Get bulk secrets
-const secrets = await daprClient.secret.getBulk('secretstore');
+const secrets = await daprClient.secret.getBulk('secret-store');
 ```
 
 ### 4. Configuration Store Component (`configstore`)
@@ -335,12 +335,12 @@ spec:
       value: "localhost:6379"
 ```
 
-**secretstore.yaml:**
+**secret-store.yaml:**
 ```yaml
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:
-  name: secretstore
+  name: secret-store
 spec:
   type: secretstores.local.file
   version: v1

@@ -588,7 +588,7 @@ az containerapp show \
 │  ┌─────────────────────────────────────────────────────────────────────────┐│
 │  │                        Dapr Components (Bicep Resources)                 ││
 │  │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐        ││
-│  │  │  pubsub    │  │ statestore │  │secretstore │  │configstore │        ││
+│  │  │  pubsub    │  │ statestore │  │secret-store│  │configstore │        ││
 │  │  │ (SvcBus)   │  │  (Redis)   │  │ (KeyVault) │  │  (Redis)   │        ││
 │  │  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘        ││
 │  └────────┼───────────────┼───────────────┼───────────────┼────────────────┘│
@@ -671,7 +671,7 @@ const { DaprClient } = require('@dapr/dapr');
 const client = new DaprClient();
 
 // Get secret from Key Vault
-const secret = await client.secret.get('secretstore', 'MONGODB_CONNECTION_STRING');
+const secret = await client.secret.get('secret-store', 'MONGODB_CONNECTION_STRING');
 ```
 
 ```python
@@ -679,7 +679,7 @@ const secret = await client.secret.get('secretstore', 'MONGODB_CONNECTION_STRING
 from dapr.clients import DaprClient
 
 with DaprClient() as client:
-    secret = client.get_secret('secretstore', 'MONGODB_CONNECTION_STRING')
+    secret = client.get_secret('secret-store', 'MONGODB_CONNECTION_STRING')
 ```
 
 ---
