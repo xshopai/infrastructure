@@ -22,7 +22,7 @@ resource keyVaultSecrets 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = [for s
   name: secret.name
   properties: {
     value: secret.value
-    contentType: contains(secret, 'contentType') ? secret.contentType : 'text/plain'
+    contentType: secret.?contentType ?? 'text/plain'
   }
 }]
 

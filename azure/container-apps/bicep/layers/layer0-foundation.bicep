@@ -113,10 +113,7 @@ module logAnalyticsSecret '../modules/key-vault-secret.bicep' = {
       }
     ]
   }
-  dependsOn: [
-    keyVault
-    logAnalytics
-  ]
+  // dependsOn not needed - Bicep infers from keyVault.outputs.name and logAnalytics.outputs.*
 }
 
 // ============================================================================
