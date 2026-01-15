@@ -606,7 +606,7 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: false  // Internal only - accessed via Dapr service invocation
+        external: true  // External access for API calls and testing
         targetPort: 8002
         transport: 'http'
         allowInsecure: false
