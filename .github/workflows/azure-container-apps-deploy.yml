@@ -584,6 +584,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [layer0-foundation, layer1-core-platform, layer2-data-services, layer3-dapr-components, layer4-container-apps]
     if: always()
+    environment: ${{ github.event.inputs.environment || 'dev' }}
     steps:
       - name: Generate Summary
         run: |
