@@ -607,7 +607,7 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: false  // Internal only - accessed via Dapr service invocation
-        targetPort: 1002
+        targetPort: 8002
         transport: 'http'
         allowInsecure: false
         traffic: [
@@ -620,7 +620,7 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
       dapr: {
         enabled: true
         appId: 'user-service'
-        appPort: 1002
+        appPort: 8002
         appProtocol: 'http'
       }
       registries: [
@@ -646,7 +646,7 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
             }
             {
               name: 'PORT'
-              value: '1002'
+              value: '8002'
             }
             {
               name: 'NAME'
@@ -706,7 +706,7 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
               type: 'Liveness'
               httpGet: {
                 path: '/health'
-                port: 1002
+                port: 8002
                 scheme: 'HTTP'
               }
               initialDelaySeconds: 15
@@ -717,8 +717,8 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
             {
               type: 'Readiness'
               httpGet: {
-                path: '/health/ready'
-                port: 1002
+                path: '/readiness'
+                port: 8002
                 scheme: 'HTTP'
               }
               initialDelaySeconds: 5
@@ -729,8 +729,8 @@ resource userService 'Microsoft.App/containerApps@2023-05-01' = {
             {
               type: 'Startup'
               httpGet: {
-                path: '/health/ready'
-                port: 1002
+                path: '/readiness'
+                port: 8002
                 scheme: 'HTTP'
               }
               initialDelaySeconds: 0
