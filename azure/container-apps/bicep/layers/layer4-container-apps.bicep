@@ -427,7 +427,7 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
       activeRevisionsMode: 'Single'
       ingress: {
         external: true  // External access for API calls
-        targetPort: 1001
+        targetPort: 8001
         transport: 'http'
         allowInsecure: false
         traffic: [
@@ -440,7 +440,7 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
       dapr: {
         enabled: true
         appId: 'product-service'
-        appPort: 1001
+        appPort: 8001
         appProtocol: 'http'
       }
       registries: [
@@ -478,7 +478,7 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
             }
             {
               name: 'PORT'
-              value: '1001'
+              value: '8001'
             }
             {
               name: 'LOG_LEVEL'
@@ -534,7 +534,7 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
               type: 'Liveness'
               httpGet: {
                 path: '/health'
-                port: 1001
+                port: 8001
                 scheme: 'HTTP'
               }
               initialDelaySeconds: 15
@@ -546,7 +546,7 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
               type: 'Readiness'
               httpGet: {
                 path: '/readiness'
-                port: 1001
+                port: 8001
                 scheme: 'HTTP'
               }
               initialDelaySeconds: 5
@@ -558,7 +558,7 @@ resource productService 'Microsoft.App/containerApps@2023-05-01' = {
               type: 'Startup'
               httpGet: {
                 path: '/readiness'
-                port: 1001
+                port: 8001
                 scheme: 'HTTP'
               }
               initialDelaySeconds: 0
