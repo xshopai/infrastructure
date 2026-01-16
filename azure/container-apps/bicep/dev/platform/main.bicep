@@ -88,6 +88,9 @@ param mysqlAdminPassword string
 @allowed(['5.7', '8.0.21'])
 param mysqlVersion string = '8.0.21'
 
+@description('Key Vault name suffix for uniqueness (used when original name conflicts with soft-deleted vault)')
+param keyVaultSuffix string = '2'
+
 // ========================================
 // Module: Resource Group
 // ========================================
@@ -153,10 +156,10 @@ module managedIdentity 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/man
 // ========================================
 
 module keyVault 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault:v1.0.0' = {
-  name: 'kv-xshopai-${environment}'
+  name: 'kv-xshopai-${environment}${keyVaultSuffix}'
   scope: resourceGroup('rg-xshopai-${environment}')
   params: {
-    name: 'kv-xshopai-${environment}'
+    name: 'kv-xshopai-${environment}${keyVaultSuffix}'
     location: location
     sku: 'standard'
     enableRbacAuthorization: true
