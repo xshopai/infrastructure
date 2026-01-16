@@ -101,6 +101,7 @@ jobs:
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
             --parameters main.bicepparam \
+            --parameters location='${{ inputs.location }}' \
             --parameters postgresAdminPassword='${{ secrets.POSTGRES_ADMIN_PASSWORD }}' \
             --parameters sqlAdminPassword='${{ secrets.SQL_ADMIN_PASSWORD }}' \
             --parameters mysqlAdminPassword='${{ secrets.MYSQL_ADMIN_PASSWORD }}' \
@@ -120,6 +121,7 @@ jobs:
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
             --parameters main.bicepparam \
+            --parameters location='${{ inputs.location }}' \
             --parameters postgresAdminPassword='${{ secrets.POSTGRES_ADMIN_PASSWORD }}' \
             --parameters sqlAdminPassword='${{ secrets.SQL_ADMIN_PASSWORD }}' \
             --parameters mysqlAdminPassword='${{ secrets.MYSQL_ADMIN_PASSWORD }}' \

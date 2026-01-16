@@ -2,7 +2,7 @@
 // Development Environment Parameters
 // ========================================
 // Purpose: Parameter values for dev environment platform infrastructure
-// Usage: az deployment sub create --location eastus --template-file main.bicep --parameters main.bicepparam
+// Usage: az deployment sub create --location swedencentral --template-file main.bicep --parameters main.bicepparam
 // ========================================
 
 using './main.bicep'
@@ -11,7 +11,7 @@ using './main.bicep'
 // Environment Configuration
 // ========================================
 
-param location = 'eastus'
+param location = 'swedencentral'
 param environment = 'dev'
 
 // ========================================
@@ -117,20 +117,20 @@ To deploy this environment:
 
 1. Validate template:
    az deployment sub validate \
-     --location eastus \
+     --location swedencentral \
      --template-file main.bicep \
      --parameters main.bicepparam
 
 2. Deploy (What-If first):
    az deployment sub what-if \
-     --location eastus \
+     --location swedencentral \
      --template-file main.bicep \
      --parameters main.bicepparam
 
 3. Deploy (actual):
    az deployment sub create \
      --name "xshopai-dev-$(date +%Y%m%d-%H%M%S)" \
-     --location eastus \
+     --location swedencentral \
      --template-file main.bicep \
      --parameters main.bicepparam
 
