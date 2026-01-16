@@ -7,8 +7,24 @@
 name: Validate Bicep
 
 on:
-  workflow_dispatch:  # Allow manual trigger
-  
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to use for OIDC authentication'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment to use for OIDC authentication'
+        required: true
+        type: string
+
   pull_request:
     branches:
       - main
@@ -32,7 +48,8 @@ jobs:
   validate:
     name: Validate Bicep Templates
     runs-on: ubuntu-latest
-    environment: dev  # Required for OIDC - matches Azure federated credential configuration
+    # Use input environment if provided, otherwise default to 'dev' for PR/push triggers
+    environment: ${{ inputs.environment || 'dev' }}
     
     steps:
       - name: Checkout code
