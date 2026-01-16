@@ -35,6 +35,78 @@ param tags = {
 param logAnalyticsRetentionDays = 30
 
 // ========================================
+// PostgreSQL Configuration
+// ========================================
+
+// PostgreSQL admin username (shared across all databases)
+param postgresAdminUsername = 'xshopadmin'
+
+// PostgreSQL version
+param postgresVersion = '16'
+
+// NOTE: postgresAdminPassword is a secure parameter and must be provided at deployment time
+// DO NOT commit passwords to source control!
+// Provide via:
+//   - GitHub Actions secret: secrets.POSTGRES_ADMIN_PASSWORD
+//   - Azure Key Vault reference
+//   - Command line parameter (for testing only)
+
+// ========================================
+// Redis Configuration
+// ========================================
+
+// Redis SKU: Basic, Standard, or Premium
+param redisSku = 'Basic'
+
+// Redis family: C (Basic/Standard) or P (Premium)
+param redisFamily = 'C'
+
+// Redis capacity: 0-6 (size tier within family)
+// C0 = 250MB, C1 = 1GB, C2 = 2.5GB, etc.
+param redisCapacity = 0
+
+// ========================================
+// Service Bus Configuration
+// ========================================
+
+// Service Bus SKU: Basic, Standard, or Premium
+param serviceBusSku = 'Standard'
+
+// ========================================
+// SQL Server Configuration
+// ========================================
+
+// SQL Server admin username
+param sqlAdminUsername = 'sqladmin'
+
+// SQL Server version
+param sqlVersion = '12.0'
+
+// NOTE: sqlAdminPassword is a secure parameter and must be provided at deployment time
+// DO NOT commit passwords to source control!
+// Provide via:
+//   - GitHub Actions secret: secrets.SQL_ADMIN_PASSWORD
+//   - Azure Key Vault reference
+//   - Command line parameter (for testing only)
+
+// ========================================
+// MySQL Configuration
+// ========================================
+
+// MySQL admin username
+param mysqlAdminUsername = 'mysqladmin'
+
+// MySQL version
+param mysqlVersion = '8.0'
+
+// NOTE: mysqlAdminPassword is a secure parameter and must be provided at deployment time
+// DO NOT commit passwords to source control!
+// Provide via:
+//   - GitHub Actions secret: secrets.MYSQL_ADMIN_PASSWORD
+//   - Azure Key Vault reference
+//   - Command line parameter (for testing only)
+
+// ========================================
 // Deployment Notes
 // ========================================
 /*
@@ -71,5 +143,29 @@ Expected Resources Created:
 - Managed Identity: id-xshopai-dev
 - Key Vault: kv-xshopai-dev
 
-Estimated Monthly Cost (Dev): ~$50-100 USD
+Database Infrastructure:
+- PostgreSQL Servers (3):
+  * psql-xshopai-product-dev (for product-service)
+  * psql-xshopai-user-dev (for user-service)
+  * psql-xshopai-order-dev (for order-service)
+- Cosmos DB: cosmos-xshopai-dev (MongoDB API, shared)
+- SQL Server: sql-xshopai-dev
+  * SQL Database: sqldb-order-dev (for order-service)
+  * SQL Database: sqldb-payment-dev (for payment-service)
+- MySQL Server: mysql-xshopai-cart-dev (for cart-service)
+
+Messaging & Caching:
+- Service Bus: sb-xshopai-dev (topics, queues, subscriptions)
+- Redis Cache: redis-xshopai-dev (C0 Basic, 250MB)
+
+Estimated Monthly Cost (Dev): ~$350-450 USD
+  - Container Apps Environment: ~$50
+  - PostgreSQL (3x B1ms): ~$30 each = $90
+  - Cosmos DB (serverless): ~$25-50
+  - SQL Server + 2 DBs (Basic): ~$10
+  - MySQL (B1ms): ~$30
+  - Service Bus (Standard): ~$10
+  - Redis (C0 Basic): ~$20
+  - Log Analytics: ~$20
+  - Key Vault: ~$5
 */

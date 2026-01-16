@@ -29,6 +29,64 @@ param tags object = {
 @description('Log Analytics workspace retention in days')
 param logAnalyticsRetentionDays int = 30
 
+@description('PostgreSQL administrator username')
+param postgresAdminUsername string = 'xshopadmin'
+
+@description('PostgreSQL administrator password')
+@secure()
+param postgresAdminPassword string
+
+@description('PostgreSQL version')
+param postgresVersion string = '16'
+
+// ========================================
+// Redis Configuration
+// ========================================
+
+@description('Redis SKU (Basic, Standard, Premium)')
+param redisSku string = 'Basic'
+
+@description('Redis SKU family (C for Basic/Standard, P for Premium)')
+param redisFamily string = 'C'
+
+@description('Redis capacity (0-6 for Basic/Standard, 1-5 for Premium)')
+param redisCapacity int = 0
+
+// ========================================
+// Service Bus Configuration
+// ========================================
+
+@description('Service Bus SKU (Basic, Standard, Premium)')
+param serviceBusSku string = 'Standard'
+
+// ========================================
+// SQL Server Configuration
+// ========================================
+
+@description('SQL Server administrator username')
+param sqlAdminUsername string = 'sqladmin'
+
+@description('SQL Server administrator password')
+@secure()
+param sqlAdminPassword string
+
+@description('SQL Server version')
+param sqlVersion string = '12.0'
+
+// ========================================
+// MySQL Configuration
+// ========================================
+
+@description('MySQL administrator username')
+param mysqlAdminUsername string = 'mysqladmin'
+
+@description('MySQL administrator password')
+@secure()
+param mysqlAdminPassword string
+
+@description('MySQL version')
+param mysqlVersion string = '8.0'
+
 // ========================================
 // Module: Resource Group
 // ========================================
@@ -106,7 +164,260 @@ module keyVault 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault:
 }
 
 // ========================================
-// Outputs (for Service Deployments)
+// RBAC: Grant Managed Identity Access to Key Vault Secrets
+// ========================================
+// Allows Container Apps (using Managed Identity) to read secrets from Key Vault
+// Built-in Role: "Key Vault Secrets User" (read-only access to secret contents)
+// ========================================
+
+resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: resourceGroup('rg-xshopai-${environment}')
+  name: guid(keyVault.outputs.resourceId, managedIdentity.outputs.id, 'Key Vault Secrets User')
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions', 
+      '4633458b-17de-408a-b874-0445c86b69e6'  // Microsoft built-in role: "Key Vault Secrets User" (permanent global ID)
+    )
+    principalId: managedIdentity.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// ========================================
+// Database Infrastructure
+// ========================================
+
+// PostgreSQL for product-service
+module postgresProduct 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
+  name: 'psql-product-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'psql-xshopai-product-${environment}'
+    location: location
+    administratorLogin: postgresAdminUsername
+    administratorPassword: postgresAdminPassword
+    version: postgresVersion
+    skuName: 'Standard_B1ms'
+    storageSizeGB: 32
+    backupRetentionDays: 7
+    tags: tags
+  }
+}
+
+// PostgreSQL for user-service
+module postgresUser 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
+  name: 'psql-user-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'psql-xshopai-user-${environment}'
+    location: location
+    administratorLogin: postgresAdminUsername
+    administratorPassword: postgresAdminPassword
+    version: postgresVersion
+@description('PostgreSQL Product Server FQDN')
+output postgresProductFqdn string = postgresProduct.outputs.fqdn
+
+@description('PostgreSQL User Server FQDN')
+output postgresUserFqdn string = postgresUser.outputs.fqdn
+
+@description('PostgreSQL Order Server FQDN')
+output postgresOrderFqdn string = postgresOrder.outputs.fqdn
+
+@description('Cosmos DB Connection String')
+@secure()
+output cosmosConnectionString string = cosmosShared.outputs.connectionString
+
+@description('Cosmos DB Resource ID')
+output cosmosResourceId string = cosmosShared.outputs.resourceId
+
+// ========================================
+// Redis Outputs
+// ========================================
+
+@description('Redis Cache Hostname')
+output redisHostname string = redis.outputs.hostname
+
+@description('Redis Cache Port')
+output redisPort int = redis.outputs.sslPort
+
+@description('Redis Primary Key')
+@secure()
+output redisPrimaryKey string = redis.outputs.primaryKey
+
+// ========================================
+// Service Bus Outputs
+// ========================================
+
+@description('Service Bus Namespace Name')
+output serviceBusNamespace string = serviceBus.outputs.namespaceName
+
+@description('Service Bus Primary Connection String')
+@secure()
+output serviceBusConnectionString string = serviceBus.outputs.primaryConnectionString
+
+// ========================================
+// SQL Server Outputs
+// ========================================
+
+@description('SQL Server FQDN')
+output sqlServerFqdn string = sqlServer.outputs.fqdn
+
+@description('SQL Server Name')
+output sqlServerName string = sqlServer.outputs.serverName
+
+@description('SQL Database (Order) Connection String')
+@secure()
+output sqlDbOrderConnectionString string = sqlDbOrder.outputs.connectionString
+
+@description('SQL Database (Payment) Connection String')
+@secure()
+output sqlDbPaymentConnectionString string = sqlDbPayment.outputs.connectionString
+
+// ========================================
+// MySQL Outputs
+// ========================================
+
+@description('MySQL Cart Server FQDN')
+output mysqlCartFqdn string = mysqlCart.outputs.fqdn
+
+    skuName: 'Standard_B1ms'
+    storageSizeGB: 32
+    backupRetentionDays: 7
+    tags: tags
+  }
+}
+
+// PostgreSQL for order-service
+module postgresOrder 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
+  name: 'psql-order-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'psql-xshopai-order-${environment}'
+    location: location
+    administratorLogin: postgresAdminUsername
+    administratorPassword: postgresAdminPassword
+    version: postgresVersion
+    skuName: 'Standard_B1ms'
+    storageSizeGB: 32
+    backupRetentionDays: 7
+    tags: tags
+  }
+}
+
+// MongoDB (Cosmos DB) for shared services
+module cosmosShared 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/cosmos-database:v1.0.0' = {
+  name: 'cosmos-shared-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'cosmos-xshopai-${environment}'
+    location: location
+    apiType: 'MongoDB'
+    serverless: true
+    tags: tags
+  }
+}
+
+// ========================================// Azure Cache for Redis (Caching, Session Management)
+// ========================================
+
+module redis 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/redis-cache:v1.0.0' = {
+  name: 'redis-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'redis-xshopai-${environment}'
+    location: location
+    sku: redisSku
+    family: redisFamily
+    capacity: redisCapacity
+    enableNonSslPort: false
+    minimumTlsVersion: '1.2'
+    tags: tags
+  }
+}
+
+// ========================================
+// Azure Service Bus (Messaging Backbone)
+// ========================================
+
+module serviceBus 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/service-bus:v1.0.0' = {
+  name: 'sb-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'sb-xshopai-${environment}'
+    location: location
+    sku: serviceBusSku
+    tags: tags
+  }
+}
+
+// ========================================
+// Azure SQL Database (for .NET services)
+// ========================================
+
+// SQL Server for order-service and payment-service
+module sqlServer 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-server:v1.0.0' = {
+  name: 'sql-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'sql-xshopai-${environment}'
+    location: location
+    administratorLogin: sqlAdminUsername
+    administratorPassword: sqlAdminPassword
+    version: sqlVersion
+    tags: tags
+  }
+}
+
+// SQL Database for order-service
+module sqlDbOrder 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-database:v1.0.0' = {
+  name: 'sqldb-order-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'sqldb-order-${environment}'
+    serverName: sqlServer.outputs.serverName
+    location: location
+    skuName: 'Basic'
+    maxSizeBytes: 2147483648 // 2 GB
+    tags: tags
+  }
+}
+
+// SQL Database for payment-service
+module sqlDbPayment 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-database:v1.0.0' = {
+  name: 'sqldb-payment-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'sqldb-payment-${environment}'
+    serverName: sqlServer.outputs.serverName
+    location: location
+    skuName: 'Basic'
+    maxSizeBytes: 2147483648 // 2 GB
+    tags: tags
+  }
+}
+
+// ========================================
+// Azure Database for MySQL (if needed)
+// ========================================
+
+// MySQL Flexible Server for cart-service
+module mysqlCart 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/mysql-database:v1.0.0' = {
+  name: 'mysql-cart-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    name: 'mysql-xshopai-cart-${environment}'
+    location: location
+    administratorLogin: mysqlAdminUsername
+    administratorPassword: mysqlAdminPassword
+    version: mysqlVersion
+    skuName: 'Standard_B1ms'
+    storageSizeGB: 32
+    backupRetentionDays: 7
+    tags: tags
+  }
+}
+
+// ========================================// Outputs (for Service Deployments)
 // ========================================
 
 @description('Resource Group name')
