@@ -5,8 +5,8 @@
 # foundational infrastructure needed before any modules can be published.
 #
 # Creates:
-# - Resource group: rg-xshopai-shared-{env}
-# - Azure Container Registry: xshopaimodules (for hosting Bicep modules)
+# - Resource group: rg-xshopai-bootstrap-{env}
+# - Azure Container Registry: xshopaimodules{env} (e.g., xshopaimodulesdev)
 # - User-Assigned Managed Identity (for GitHub Actions OIDC authentication)
 # - Role assignments (AcrPush permissions)
 #
@@ -67,32 +67,32 @@ jobs:
           echo "name=bootstrap-infra-${TIMESTAMP}" >> $GITHUB_OUTPUT
 
       - name: Validate Bicep template
-        working-directory: azure/container-apps/bicep/bicep-registry
+        working-directory: azure/container-apps/bicep/${{ inputs.environment }}/bootstrap
         run: |
           echo "🔍 Validating Bicep template..."
           az bicep build --file main.bicep
           echo "✅ Template is valid"
 
       - name: What-If Analysis
-        working-directory: azure/container-apps/bicep/bicep-registry
+        working-directory: azure/container-apps/bicep/${{ inputs.environment }}/bootstrap
         run: |
           echo "🔮 Running what-if analysis..."
           az deployment sub what-if \
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
-            --parameters parameters.${{ inputs.environment }}.bicepparam
+            --parameters main.bicepparam
 
       - name: Deploy Bootstrap Infrastructure
         if: ${{ inputs.dry_run == false }}
-        working-directory: azure/container-apps/bicep/bicep-registry
+        working-directory: azure/container-apps/bicep/${{ inputs.environment }}/bootstrap
         run: |
           echo "🚀 Deploying bootstrap infrastructure..."
           az deployment sub create \
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
-            --parameters parameters.${{ inputs.environment }}.bicepparam \
+            --parameters main.bicepparam \
             --verbose
 
       - name: Get Deployment Outputs

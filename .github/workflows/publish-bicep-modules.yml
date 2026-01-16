@@ -57,8 +57,8 @@ jobs:
         run: |
           ENV="${{ github.event.inputs.environment || 'prod' }}"
           echo "environment=${ENV}" >> $GITHUB_OUTPUT
-          echo "resource-group=rg-xshopai-shared-${ENV}" >> $GITHUB_OUTPUT
-          echo "acr-name=xshopaimodules" >> $GITHUB_OUTPUT
+          echo "resource-group=rg-xshopai-bootstrap-${ENV}" >> $GITHUB_OUTPUT
+          echo "acr-name=xshopaimodules${ENV}" >> $GITHUB_OUTPUT
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2
@@ -127,7 +127,27 @@ jobs:
             "resource-group"
             "service-bus"
             "sql-server"
+            "storage-account"
           )
+          
+          # Auto-discover modules if array is empty (fallback)
+          if [ ${#MODULES[@]} -eq 0 ]; then
+            echo "📦 Auto-discovering modules from modules/ directory..."
+            for module_dir in ${{ env.BICEP_MODULES_PATH }}/*/; do
+              if [ -d "$module_dir" ]; then
+                module_name=$(basename "$module_dir")
+                MODULES+=("$module_name")
+              fi
+            done
+            echo "✅ Discovered ${#MODULES[@]} modules"
+          fi
+          
+          # Validate module count
+          expected_count=16
+          actual_count=${#MODULES[@]}
+          if [ $actual_count -ne $expected_count ]; then
+            echo "⚠️ Warning: Expected $expected_count modules, found $actual_count"
+          fi
           
           PUBLISHED_COUNT=0
           FAILED_COUNT=0
@@ -177,7 +197,7 @@ jobs:
           echo "**Registry**: \`${{ steps.acr-login.outputs.acr-login-server }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Resource Group**: \`${{ steps.env-vars.outputs.resource-group }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Modules Published (15):" >> $GITHUB_STEP_SUMMARY
+          echo "### Modules Published (16):" >> $GITHUB_STEP_SUMMARY
           echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| acr | ✓ |" >> $GITHUB_STEP_SUMMARY
@@ -195,6 +215,7 @@ jobs:
           echo "| resource-group | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| service-bus | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| sql-server | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| storage-account | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage Example:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bicep" >> $GITHUB_STEP_SUMMARY

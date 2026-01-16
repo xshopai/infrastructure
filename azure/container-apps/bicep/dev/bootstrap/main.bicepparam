@@ -2,7 +2,7 @@ using './main.bicep'
 
 param environment = 'dev'
 param location = 'swedencentral'
-param acrName = 'xshopaimodules'
+param acrName = 'xshopaimodulesdev'
 param acrSku = 'Basic'
 param tags = {
   Environment: 'Development'

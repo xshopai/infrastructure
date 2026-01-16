@@ -1,12 +1,12 @@
 // ============================================================================
-// Bicep Module Registry - Creates ACR for hosting reusable Bicep modules
+// Dev Bootstrap - Creates ACR for hosting reusable Bicep modules
 // ============================================================================
-// This template creates the shared resources needed BEFORE the CI/CD pipeline
-// can publish Bicep modules. Run this ONCE to bootstrap the environment.
+// This template creates the dev-specific ACR needed for the CI/CD pipeline
+// to publish Bicep modules for the dev environment.
 //
 // Resources created:
-// - Resource Group for shared infrastructure (using resource-group module)
-// - Azure Container Registry for Bicep module storage (using acr module)
+// - Resource Group for dev bootstrap infrastructure
+// - Azure Container Registry for dev Bicep module storage
 // ============================================================================
 
 targetScope = 'subscription'
@@ -16,14 +16,13 @@ targetScope = 'subscription'
 // ============================================================================
 
 @description('Environment name')
-@allowed(['dev', 'prod'])
-param environment string = 'prod'
+param environment string = 'dev'
 
 @description('Azure region for resources')
 param location string = 'swedencentral'
 
 @description('Name of the Azure Container Registry for Bicep modules (must be globally unique)')
-param acrName string = 'xshopaimodules'
+param acrName string = 'xshopaimodulesdev'
 
 @description('SKU for the Azure Container Registry')
 @allowed(['Basic', 'Standard', 'Premium'])
@@ -32,7 +31,7 @@ param acrSku string = 'Basic'
 @description('Tags to apply to all resources')
 param tags object = {
   environment: environment
-  purpose: 'shared-infrastructure'
+  purpose: 'bootstrap-infrastructure'
   managedBy: 'bicep'
   project: 'xshopai'
 }
@@ -41,13 +40,13 @@ param tags object = {
 // Variables
 // ============================================================================
 
-var resourceGroupName = 'rg-xshopai-shared-${environment}'
+var resourceGroupName = 'rg-xshopai-bootstrap-${environment}'
 
 // ============================================================================
 // Resource Group (using module)
 // ============================================================================
 
-module sharedResourceGroup '../modules/resource-group.bicep' = {
+module bootstrapResourceGroup '../../modules/resource-group.bicep' = {
   name: 'deploy-rg-${resourceGroupName}'
   params: {
     name: resourceGroupName
@@ -60,10 +59,10 @@ module sharedResourceGroup '../modules/resource-group.bicep' = {
 // Azure Container Registry for Bicep Modules (using module)
 // ============================================================================
 
-module acr '../modules/acr.bicep' = {
+module acr '../../modules/acr.bicep' = {
   scope: resourceGroup(resourceGroupName)
   name: 'deploy-acr-${acrName}'
-  dependsOn: [sharedResourceGroup]
+  dependsOn: [bootstrapResourceGroup]
   params: {
     name: acrName
     location: location
@@ -80,10 +79,10 @@ module acr '../modules/acr.bicep' = {
 // ============================================================================
 
 @description('Name of the created resource group')
-output resourceGroupName string = sharedResourceGroup.outputs.name
+output resourceGroupName string = bootstrapResourceGroup.outputs.name
 
 @description('Location of the resource group')
-output resourceGroupLocation string = sharedResourceGroup.outputs.location
+output resourceGroupLocation string = bootstrapResourceGroup.outputs.location
 
 @description('Name of the Azure Container Registry')
 output acrName string = acr.outputs.name
