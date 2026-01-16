@@ -264,7 +264,6 @@ module redis 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/redis:v1.0.0'
     name: 'redis-xshopai-${environment}'
     location: location
     sku: redisSku
-    family: redisFamily
     capacity: redisCapacity
     enableNonSslPort: false
     minimumTlsVersion: '1.2'
@@ -283,6 +282,7 @@ module serviceBus 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/service-
     name: 'sb-xshopai-${environment}'
     location: location
     sku: serviceBusSku
+    managedIdentityPrincipalId: managedIdentity.outputs.principalId
     tags: tags
   }
 }
@@ -295,18 +295,14 @@ module serviceBus 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/service-
 module sqlServer 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-server:v1.0.0' = {
   name: 'sql-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
-  pabaseName: 'sql-xshopai'
+  params: {
+    baseName: 'sql-xshopai'
     uniqueSuffix: environment
     location: location
+    administratorLogin: sqlAdminUsername
     administratorLoginPassword: sqlAdminPassword
     keyVaultName: keyVault.outputs.name
-    managedIdentityPrincipalId: managedIdentity.outputs.principalId
     tags: tags
-  }
-  dependsOn: [
-    keyVault
-    managedIdentity
-  ] tags: tags
   }
 }
 
@@ -332,30 +328,6 @@ module mysqlCart 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/mysql-dat
 }
 
 // ========================================// Outputs (for Service Deployments)
-// ========================================
-
-@description('Resource Group name')
-output resourceGroupName string = rg.outputs.name
-
-@description('Container Apps Environment ID')
-output containerAppsEnvironmentId string = containerEnv.outputs.resourceId
-
-@description('Container Apps Environment name')
-output containerAppsEnvironmentName string = containerEnv.outputs.name
-
-@description('Log Analytics Workspace ID')
-output logAnalyticsWorkspaceId string = logAnalytics.outputs.workspaceId
-
-@description('Log Analytics Workspace name')
-output logAnalyticsWorkspaceName string = logAnalytics.outputs.workspaceName
-
-@description('Managed Identity principal ID')
-output managedIdentityPrincipalId string = managedIdentity.outputs.principalId
-
-@description('Managed Identity ID')
-output managedIdentityId string = managedIdentity.outputs.id
-
-// Outputs (for Service Deployments)
 // ========================================
 
 @description('Resource Group name')
@@ -406,7 +378,7 @@ output cosmosConnectionString string = cosmosShared.outputs.connectionString
 output cosmosResourceId string = cosmosShared.outputs.resourceId
 
 @description('Redis Cache Hostname')
-output redisHostname string = redis.outputs.hostname
+output redisHostname string = redis.outputs.hostName
 
 @description('Redis Cache Port')
 output redisPort int = redis.outputs.sslPort
@@ -420,13 +392,13 @@ output serviceBusNamespace string = serviceBus.outputs.namespaceName
 
 @description('Service Bus Primary Connection String')
 @secure()
-output serviceBusConnectionString string = serviceBus.outputs.primaryConnectionString
+output serviceBusConnectionString string = serviceBus.outputs.connectionString
 
 @description('SQL Server FQDN')
-output sqlServerFqdn string = sqlServer.outputs.fqdn
+output sqlServerFqdn string = sqlServer.outputs.serverFqdn
 
 @description('SQL Server Name')
-output sqlServerName string = sqlServer.outputs.name
+output sqlServerName string = sqlServer.outputs.serverName
 
 @description('MySQL Cart Server FQDN')
 output mysqlCartFqdn string = mysqlCart.outputs.fqdn
