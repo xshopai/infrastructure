@@ -32,6 +32,11 @@ on:
         description: 'Version tag (e.g., v1.0.0)'
         required: true
         default: 'v1.0.0'
+      force_overwrite:
+        description: 'Force overwrite existing module versions (use only for dev)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   id-token: write
@@ -55,7 +60,7 @@ jobs:
       - name: Set environment variables
         id: env-vars
         run: |
-          ENV="${{ github.event.inputs.environment || 'prod' }}"
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
           echo "environment=${ENV}" >> $GITHUB_OUTPUT
           echo "resource-group=rg-xshopai-${ENV}" >> $GITHUB_OUTPUT
           echo "acr-name=xshopaimodules${ENV}" >> $GITHUB_OUTPUT
@@ -109,6 +114,15 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           ACR_SERVER="${{ steps.acr-login.outputs.acr-login-server }}"
+          FORCE_FLAG=""
+          
+          # Add --force flag if force_overwrite is enabled
+          if [ "${{ github.event.inputs.force_overwrite }}" == "true" ]; then
+            FORCE_FLAG="--force"
+            echo "⚠️  Force overwrite enabled - existing modules will be overwritten"
+          else
+            echo "ℹ️  Publishing with version immutability (no --force)"
+          fi
           
           # Define all modules to publish
           MODULES=(
@@ -119,6 +133,7 @@ jobs:
             "dapr-components"
             "key-vault"
             "key-vault-secrets"
+            "key-vault-role-assignment"
             "log-analytics"
             "managed-identity"
             "mysql-database"
@@ -127,7 +142,6 @@ jobs:
             "resource-group"
             "service-bus"
             "sql-server"
-            "storage-account"
           )
           
           # Auto-discover modules if array is empty (fallback)
@@ -161,12 +175,14 @@ jobs:
               
               if az bicep publish \
                 --file "$MODULE_PATH" \
-                --target "br:${ACR_SERVER}/${MODULE_NAME}:${VERSION}"; then
+                --target "br:${ACR_SERVER}/${MODULE_NAME}:${VERSION}" \
+                $FORCE_FLAG; then
                 
                 # Also tag as 'latest'
                 az bicep publish \
                   --file "$MODULE_PATH" \
-                  --target "br:${ACR_SERVER}/${MODULE_NAME}:latest"
+                  --target "br:${ACR_SERVER}/${MODULE_NAME}:latest" \
+                  $FORCE_FLAG
                 
                 echo "✅ Published ${MODULE_NAME}:${VERSION}"
                 PUBLISHED_COUNT=$((PUBLISHED_COUNT + 1))
@@ -187,6 +203,18 @@ jobs:
           echo "========================================"
           echo "📊 Summary: ${PUBLISHED_COUNT} published, ${FAILED_COUNT} failed"
           echo "========================================"
+          
+          # Fail the workflow if any modules failed to publish
+          if [ $FAILED_COUNT -gt 0 ]; then
+            echo "❌ Workflow failed: ${FAILED_COUNT} module(s) failed to publish"
+            echo "💡 Tip: Use force_overwrite=true to overwrite existing versions, or increment the version number"
+            exit 1
+          fi
+          
+          if [ $PUBLISHED_COUNT -eq 0 ]; then
+            echo "❌ Workflow failed: No modules were published"
+            exit 1
+          fi
 
       - name: Summary
         run: |
@@ -196,6 +224,7 @@ jobs:
           echo "**Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: \`${{ steps.acr-login.outputs.acr-login-server }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Resource Group**: \`${{ steps.env-vars.outputs.resource-group }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Force Overwrite**: \`${{ github.event.inputs.force_overwrite || 'false' }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Modules Published (16):" >> $GITHUB_STEP_SUMMARY
           echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
@@ -207,6 +236,7 @@ jobs:
           echo "| dapr-components | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| key-vault | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| key-vault-secrets | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| key-vault-role-assignment | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| log-analytics | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| managed-identity | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| mysql-database | ✓ |" >> $GITHUB_STEP_SUMMARY
@@ -215,7 +245,6 @@ jobs:
           echo "| resource-group | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| service-bus | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "| sql-server | ✓ |" >> $GITHUB_STEP_SUMMARY
-          echo "| storage-account | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage Example:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bicep" >> $GITHUB_STEP_SUMMARY

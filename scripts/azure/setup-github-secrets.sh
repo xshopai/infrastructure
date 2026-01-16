@@ -125,6 +125,10 @@ echo "  Setting GitHub Organization Secrets"
 echo "========================================================"
 echo ""
 
+# ============================================================================
+# AZURE OIDC SECRETS
+# ============================================================================
+
 # Set AZURE_CLIENT_ID
 log_info "Setting AZURE_CLIENT_ID..."
 if gh secret set AZURE_CLIENT_ID --org "$GITHUB_ORG" --body "$CLIENT_ID" 2>/dev/null; then
@@ -155,6 +159,115 @@ else
     log_success "AZURE_SUBSCRIPTION_ID set successfully"
 fi
 
+# ============================================================================
+# DATABASE ADMIN PASSWORDS
+# ============================================================================
+
+echo ""
+log_info "Database passwords are required for deploying infrastructure."
+log_info "These will be used as admin passwords for PostgreSQL, SQL Server, and MySQL."
+echo ""
+log_warning "Password Requirements:"
+echo "  - Minimum 8 characters (16+ recommended)"
+echo "  - Include uppercase, lowercase, numbers, special characters"
+echo "  - Example: MySecure\$Pass123!"
+echo ""
+
+# Prompt for PostgreSQL admin password
+while true; do
+    read -sp "Enter PostgreSQL admin password: " POSTGRES_ADMIN_PASSWORD
+    echo ""
+    read -sp "Confirm PostgreSQL admin password: " POSTGRES_ADMIN_PASSWORD_CONFIRM
+    echo ""
+    
+    if [ "$POSTGRES_ADMIN_PASSWORD" = "$POSTGRES_ADMIN_PASSWORD_CONFIRM" ]; then
+        if [ ${#POSTGRES_ADMIN_PASSWORD} -ge 8 ]; then
+            break
+        else
+            log_error "Password must be at least 8 characters long"
+        fi
+    else
+        log_error "Passwords do not match. Please try again."
+    fi
+done
+
+# Prompt for SQL Server admin password
+while true; do
+    read -sp "Enter SQL Server admin password: " SQL_ADMIN_PASSWORD
+    echo ""
+    read -sp "Confirm SQL Server admin password: " SQL_ADMIN_PASSWORD_CONFIRM
+    echo ""
+    
+    if [ "$SQL_ADMIN_PASSWORD" = "$SQL_ADMIN_PASSWORD_CONFIRM" ]; then
+        if [ ${#SQL_ADMIN_PASSWORD} -ge 8 ]; then
+            break
+        else
+            log_error "Password must be at least 8 characters long"
+        fi
+    else
+        log_error "Passwords do not match. Please try again."
+    fi
+done
+
+# Prompt for MySQL admin password
+while true; do
+    read -sp "Enter MySQL admin password: " MYSQL_ADMIN_PASSWORD
+    echo ""
+    read -sp "Confirm MySQL admin password: " MYSQL_ADMIN_PASSWORD_CONFIRM
+    echo ""
+    
+    if [ "$MYSQL_ADMIN_PASSWORD" = "$MYSQL_ADMIN_PASSWORD_CONFIRM" ]; then
+        if [ ${#MYSQL_ADMIN_PASSWORD} -ge 8 ]; then
+            break
+        else
+            log_error "Password must be at least 8 characters long"
+        fi
+    else
+        log_error "Passwords do not match. Please try again."
+    fi
+done
+
+echo ""
+log_success "All passwords captured successfully"
+
+# Set POSTGRES_ADMIN_PASSWORD
+log_info "Setting POSTGRES_ADMIN_PASSWORD..."
+if gh secret set POSTGRES_ADMIN_PASSWORD --org "$GITHUB_ORG" --body "$POSTGRES_ADMIN_PASSWORD" 2>/dev/null; then
+    log_success "POSTGRES_ADMIN_PASSWORD set successfully"
+else
+    log_warning "Failed to set POSTGRES_ADMIN_PASSWORD at org level. Trying with visibility flag..."
+    gh secret set POSTGRES_ADMIN_PASSWORD --org "$GITHUB_ORG" --visibility all --body "$POSTGRES_ADMIN_PASSWORD"
+    log_success "POSTGRES_ADMIN_PASSWORD set successfully"
+fi
+
+# Set SQL_ADMIN_PASSWORD
+log_info "Setting SQL_ADMIN_PASSWORD..."
+if gh secret set SQL_ADMIN_PASSWORD --org "$GITHUB_ORG" --body "$SQL_ADMIN_PASSWORD" 2>/dev/null; then
+    log_success "SQL_ADMIN_PASSWORD set successfully"
+else
+    log_warning "Failed to set SQL_ADMIN_PASSWORD at org level. Trying with visibility flag..."
+    gh secret set SQL_ADMIN_PASSWORD --org "$GITHUB_ORG" --visibility all --body "$SQL_ADMIN_PASSWORD"
+    log_success "SQL_ADMIN_PASSWORD set successfully"
+fi
+
+# Set MYSQL_ADMIN_PASSWORD
+log_info "Setting MYSQL_ADMIN_PASSWORD..."
+if gh secret set MYSQL_ADMIN_PASSWORD --org "$GITHUB_ORG" --body "$MYSQL_ADMIN_PASSWORD" 2>/dev/null; then
+    log_success "MYSQL_ADMIN_PASSWORD set successfully"
+else
+    log_warning "Failed to set MYSQL_ADMIN_PASSWORD at org level. Trying with visibility flag..."
+    gh secret set MYSQL_ADMIN_PASSWORD --org "$GITHUB_ORG" --visibility all --body "$MYSQL_ADMIN_PASSWORD"
+    log_success "MYSQL_ADMIN_PASSWORD set successfully"
+fi
+
+# Clear password variables from memory
+unset POSTGRES_ADMIN_PASSWORD
+unset POSTGRES_ADMIN_PASSWORD_CONFIRM
+unset SQL_ADMIN_PASSWORD
+unset SQL_ADMIN_PASSWORD_CONFIRM
+unset MYSQL_ADMIN_PASSWORD
+unset MYSQL_ADMIN_PASSWORD_CONFIRM
+
 echo ""
 echo "========================================================"
 echo "  Verifying Secrets"
@@ -169,11 +282,17 @@ echo "========================================================"
 echo "  Setup Complete!"
 echo "========================================================"
 echo ""
-echo "The following secrets have been configured for the '$GITHUB_ORG' organization:"
+log_success "All 6 GitHub Organization Secrets Configured Successfully!"
 echo ""
-echo "  AZURE_CLIENT_ID ......... $CLIENT_ID"
-echo "  AZURE_TENANT_ID ......... $TENANT_ID"
-echo "  AZURE_SUBSCRIPTION_ID ... $SUBSCRIPTION_ID"
+echo "OIDC Authentication Secrets:"
+echo "  ✓ AZURE_CLIENT_ID ......... $CLIENT_ID"
+echo "  ✓ AZURE_TENANT_ID ......... $TENANT_ID"
+echo "  ✓ AZURE_SUBSCRIPTION_ID ... $SUBSCRIPTION_ID"
+echo ""
+echo "Database Admin Passwords:"
+echo "  ✓ POSTGRES_ADMIN_PASSWORD .. (configured securely)"
+echo "  ✓ SQL_ADMIN_PASSWORD ....... (configured securely)"
+echo "  ✓ MYSQL_ADMIN_PASSWORD ..... (configured securely)"
 echo ""
 echo "These secrets are now available to all repositories in the organization."
 echo ""

@@ -177,21 +177,87 @@ gh api repos/xshopai/product-service/environments
 
 #### Step 3: Configure GitHub Secrets
 
-```bash
-# Automated script
-./setup-github-secrets.sh
+**⚠️ REQUIRED**: Configure all 6 secrets before deploying infrastructure!
 
-# Or manually in GitHub UI:
-# Settings → Secrets and variables → Actions → New organization secret
+##### Option A: Automated Script (Recommended)
+
+```bash
+# Configure all secrets automatically
+./setup-github-secrets.sh
 ```
 
-**Secrets to add**:
+The script will prompt you for:
+- Azure OIDC credentials (from Step 1 output)
+- Database admin passwords (you create these)
 
-| Secret                  | Value              | Purpose             |
-| ----------------------- | ------------------ | ------------------- |
-| `AZURE_CLIENT_ID`       | From script output | App Registration ID |
-| `AZURE_TENANT_ID`       | From script output | Azure AD Tenant ID  |
-| `AZURE_SUBSCRIPTION_ID` | From script output | Subscription ID     |
+##### Option B: Manual Configuration (GitHub CLI)
+
+```bash
+# Azure OIDC Secrets (from setup-azure-oidc.sh output)
+gh secret set AZURE_CLIENT_ID --body "abc-123-def-456..."
+gh secret set AZURE_TENANT_ID --body "tenant-id-here"
+gh secret set AZURE_SUBSCRIPTION_ID --body "subscription-id-here"
+
+# Database Admin Passwords (create secure passwords)
+gh secret set POSTGRES_ADMIN_PASSWORD --body "YourSecurePostgresPassword123!"
+gh secret set SQL_ADMIN_PASSWORD --body "YourSecureSqlPassword123!"
+gh secret set MYSQL_ADMIN_PASSWORD --body "YourSecureMySQLPassword123!"
+```
+
+##### Option C: GitHub UI
+
+1. Navigate to: **Settings** → **Secrets and variables** → **Actions**
+2. Click **New repository secret** (or **New organization secret** for all repos)
+3. Add each secret below
+
+##### Complete Secrets Reference
+
+| Secret                     | Value                    | Purpose                                      | Used By                |
+| -------------------------- | ------------------------ | -------------------------------------------- | ---------------------- |
+| `AZURE_CLIENT_ID`          | From script output       | Azure AD App Registration ID for OIDC        | All deployment workflows |
+| `AZURE_TENANT_ID`          | From script output       | Azure AD Tenant ID                           | All deployment workflows |
+| `AZURE_SUBSCRIPTION_ID`    | From script output       | Azure Subscription ID                        | All deployment workflows |
+| `POSTGRES_ADMIN_PASSWORD`  | You create (secure!)     | Admin password for PostgreSQL servers        | Platform infrastructure  |
+| `SQL_ADMIN_PASSWORD`       | You create (secure!)     | Admin password for SQL Server                | Platform infrastructure  |
+| `MYSQL_ADMIN_PASSWORD`     | You create (secure!)     | Admin password for MySQL server              | Platform infrastructure  |
+
+##### Password Requirements
+
+**Must meet Azure complexity requirements**:
+- Minimum 8 characters (16+ recommended)
+- Include uppercase, lowercase, numbers, special characters
+- Example: `MySecure$Pass123!`
+
+**Security Best Practices**:
+- Use different passwords for each database
+- Store passwords in a password manager
+- Rotate passwords every 90 days
+- Never commit passwords to Git
+
+##### Environment-Specific Secrets (Optional)
+
+For different passwords in dev/prod:
+
+```bash
+# Set environment-specific secrets
+gh secret set POSTGRES_ADMIN_PASSWORD --env dev --body "DevPassword123!"
+gh secret set POSTGRES_ADMIN_PASSWORD --env prod --body "ProdPassword456!"
+```
+
+##### Verify Secrets are Configured
+
+```bash
+# List all repository secrets
+gh secret list
+
+# Expected output:
+# AZURE_CLIENT_ID          Updated 2025-01-16
+# AZURE_TENANT_ID          Updated 2025-01-16
+# AZURE_SUBSCRIPTION_ID    Updated 2025-01-16
+# POSTGRES_ADMIN_PASSWORD  Updated 2025-01-16
+# SQL_ADMIN_PASSWORD       Updated 2025-01-16
+# MYSQL_ADMIN_PASSWORD     Updated 2025-01-16
+```
 
 ---
 
