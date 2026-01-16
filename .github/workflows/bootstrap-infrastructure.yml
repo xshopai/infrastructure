@@ -81,18 +81,23 @@ jobs:
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
-            --parameters main.bicepparam
+            --parameters main.bicepparam \
+            --parameters location='${{ inputs.location }}'
 
       - name: Deploy Bootstrap Infrastructure
         if: ${{ inputs.dry_run == false }}
         working-directory: azure/container-apps/bicep/${{ inputs.environment }}/bootstrap
         run: |
           echo "🚀 Deploying bootstrap infrastructure..."
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Location: ${{ inputs.location }}"
+          echo ""
           az deployment sub create \
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
             --parameters main.bicepparam \
+            --parameters location='${{ inputs.location }}' \
             --verbose
 
       - name: Get Deployment Outputs

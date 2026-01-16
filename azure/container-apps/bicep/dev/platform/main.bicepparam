@@ -11,6 +11,9 @@ using './main.bicep'
 // Environment Configuration
 // ========================================
 
+// NOTE: location is overridden at deployment time via workflow input:
+//   --parameters location='${{ inputs.location }}'
+// This default is only used for local testing/validation
 param location = 'swedencentral'
 param environment = 'dev'
 
