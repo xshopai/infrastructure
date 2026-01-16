@@ -23,7 +23,7 @@ on:
       environment:
         description: 'Target environment'
         required: true
-        default: 'prod'
+        default: 'dev'
         type: choice
         options:
           - dev
@@ -57,7 +57,7 @@ jobs:
         run: |
           ENV="${{ github.event.inputs.environment || 'prod' }}"
           echo "environment=${ENV}" >> $GITHUB_OUTPUT
-          echo "resource-group=rg-xshopai-bootstrap-${ENV}" >> $GITHUB_OUTPUT
+          echo "resource-group=rg-xshopai-${ENV}" >> $GITHUB_OUTPUT
           echo "acr-name=xshopaimodules${ENV}" >> $GITHUB_OUTPUT
 
       - name: Azure Login (OIDC)
