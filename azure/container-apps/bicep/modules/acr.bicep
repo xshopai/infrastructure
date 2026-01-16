@@ -27,9 +27,6 @@ param sku string = 'Basic'
 @description('Enable admin user for the registry')
 param adminUserEnabled bool = false
 
-@description('Enable anonymous pull for public images')
-param anonymousPullEnabled bool = false
-
 @description('Tags to apply to the resource')
 param tags object = {}
 
@@ -45,8 +42,6 @@ resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   }
   properties: {
     adminUserEnabled: adminUserEnabled
-    anonymousPullEnabled: anonymousPullEnabled
-    publicNetworkAccess: 'Enabled'
     policies: {
       retentionPolicy: {
         status: sku == 'Premium' ? 'enabled' : 'disabled'

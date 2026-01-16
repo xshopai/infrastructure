@@ -72,7 +72,6 @@ module acr '../modules/acr.bicep' = {
       purpose: 'bicep-module-registry'
     })
     adminUserEnabled: false
-    publicNetworkAccess: 'Enabled'
   }
 }
 
