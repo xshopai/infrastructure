@@ -44,12 +44,13 @@ param postgresAdminUsername = 'xshopadmin'
 // PostgreSQL version
 param postgresVersion = '16'
 
-// NOTE: postgresAdminPassword is a secure parameter and must be provided at deployment time
-// DO NOT commit passwords to source control!
-// Provide via:
+// NOTE: postgresAdminPassword is a secure parameter
+// DO NOT commit actual passwords to source control!
+// This placeholder will be overridden at deployment time via:
 //   - GitHub Actions secret: secrets.POSTGRES_ADMIN_PASSWORD
 //   - Azure Key Vault reference
 //   - Command line parameter (for testing only)
+param postgresAdminPassword = '' // Empty placeholder - MUST be provided at deployment
 
 // ========================================
 // Redis Configuration
@@ -82,12 +83,13 @@ param sqlAdminUsername = 'sqladmin'
 // SQL Server version
 param sqlVersion = '12.0'
 
-// NOTE: sqlAdminPassword is a secure parameter and must be provided at deployment time
-// DO NOT commit passwords to source control!
-// Provide via:
+// NOTE: sqlAdminPassword is a secure parameter
+// DO NOT commit actual passwords to source control!
+// This placeholder will be overridden at deployment time via:
 //   - GitHub Actions secret: secrets.SQL_ADMIN_PASSWORD
 //   - Azure Key Vault reference
 //   - Command line parameter (for testing only)
+param sqlAdminPassword = '' // Empty placeholder - MUST be provided at deployment
 
 // ========================================
 // MySQL Configuration
@@ -99,12 +101,13 @@ param mysqlAdminUsername = 'mysqladmin'
 // MySQL version
 param mysqlVersion = '8.0'
 
-// NOTE: mysqlAdminPassword is a secure parameter and must be provided at deployment time
-// DO NOT commit passwords to source control!
-// Provide via:
+// NOTE: mysqlAdminPassword is a secure parameter
+// DO NOT commit actual passwords to source control!
+// This placeholder will be overridden at deployment time via:
 //   - GitHub Actions secret: secrets.MYSQL_ADMIN_PASSWORD
 //   - Azure Key Vault reference
 //   - Command line parameter (for testing only)
+param mysqlAdminPassword = '' // Empty placeholder - MUST be provided at deployment
 
 // ========================================
 // Deployment Notes
