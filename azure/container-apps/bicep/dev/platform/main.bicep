@@ -306,6 +306,7 @@ module sqlServer 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-serve
     administratorLogin: sqlAdminUsername
     administratorLoginPassword: sqlAdminPassword
     keyVaultName: keyVault.outputs.name
+    azureAdOnlyAuthentication: false  // Use SQL auth instead of Azure AD-only
     tags: tags
   }
 }
