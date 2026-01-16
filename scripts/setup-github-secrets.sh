@@ -193,13 +193,13 @@ done
 
 # Prompt for SQL Server admin password
 while true; do
-    read -sp "Enter SQL Server admin password: " SQL_ADMIN_PASSWORD
+    read -sp "Enter SQL Server admin password: " SQL_SERVER_ADMIN_PASSWORD
     echo ""
-    read -sp "Confirm SQL Server admin password: " SQL_ADMIN_PASSWORD_CONFIRM
+    read -sp "Confirm SQL Server admin password: " SQL_SERVER_ADMIN_PASSWORD_CONFIRM
     echo ""
     
-    if [ "$SQL_ADMIN_PASSWORD" = "$SQL_ADMIN_PASSWORD_CONFIRM" ]; then
-        if [ ${#SQL_ADMIN_PASSWORD} -ge 8 ]; then
+    if [ "$SQL_SERVER_ADMIN_PASSWORD" = "$SQL_SERVER_ADMIN_PASSWORD_CONFIRM" ]; then
+        if [ ${#SQL_SERVER_ADMIN_PASSWORD} -ge 8 ]; then
             break
         else
             log_error "Password must be at least 8 characters long"
@@ -240,14 +240,14 @@ else
     log_success "POSTGRES_ADMIN_PASSWORD set successfully"
 fi
 
-# Set SQL_ADMIN_PASSWORD
-log_info "Setting SQL_ADMIN_PASSWORD..."
-if gh secret set SQL_ADMIN_PASSWORD --org "$GITHUB_ORG" --body "$SQL_ADMIN_PASSWORD" 2>/dev/null; then
-    log_success "SQL_ADMIN_PASSWORD set successfully"
+# Set SQL_SERVER_ADMIN_PASSWORD
+log_info "Setting SQL_SERVER_ADMIN_PASSWORD..."
+if gh secret set SQL_SERVER_ADMIN_PASSWORD --org "$GITHUB_ORG" --body "$SQL_SERVER_ADMIN_PASSWORD" 2>/dev/null; then
+    log_success "SQL_SERVER_ADMIN_PASSWORD set successfully"
 else
-    log_warning "Failed to set SQL_ADMIN_PASSWORD at org level. Trying with visibility flag..."
-    gh secret set SQL_ADMIN_PASSWORD --org "$GITHUB_ORG" --visibility all --body "$SQL_ADMIN_PASSWORD"
-    log_success "SQL_ADMIN_PASSWORD set successfully"
+    log_warning "Failed to set SQL_SERVER_ADMIN_PASSWORD at org level. Trying with visibility flag..."
+    gh secret set SQL_SERVER_ADMIN_PASSWORD --org "$GITHUB_ORG" --visibility all --body "$SQL_SERVER_ADMIN_PASSWORD"
+    log_success "SQL_SERVER_ADMIN_PASSWORD set successfully"
 fi
 
 # Set MYSQL_ADMIN_PASSWORD
@@ -263,8 +263,8 @@ fi
 # Clear password variables from memory
 unset POSTGRES_ADMIN_PASSWORD
 unset POSTGRES_ADMIN_PASSWORD_CONFIRM
-unset SQL_ADMIN_PASSWORD
-unset SQL_ADMIN_PASSWORD_CONFIRM
+unset SQL_SERVER_ADMIN_PASSWORD
+unset SQL_SERVER_ADMIN_PASSWORD_CONFIRM
 unset MYSQL_ADMIN_PASSWORD
 unset MYSQL_ADMIN_PASSWORD_CONFIRM
 
@@ -290,9 +290,9 @@ echo "  ✓ AZURE_TENANT_ID ......... $TENANT_ID"
 echo "  ✓ AZURE_SUBSCRIPTION_ID ... $SUBSCRIPTION_ID"
 echo ""
 echo "Database Admin Passwords:"
-echo "  ✓ POSTGRES_ADMIN_PASSWORD .. (configured securely)"
-echo "  ✓ SQL_ADMIN_PASSWORD ....... (configured securely)"
-echo "  ✓ MYSQL_ADMIN_PASSWORD ..... (configured securely)"
+echo "  ✓ POSTGRES_ADMIN_PASSWORD ....... (configured securely)"
+echo "  ✓ SQL_SERVER_ADMIN_PASSWORD ..... (configured securely)"
+echo "  ✓ MYSQL_ADMIN_PASSWORD .......... (configured securely)"
 echo ""
 echo "These secrets are now available to all repositories in the organization."
 echo ""
