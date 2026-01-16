@@ -21,7 +21,7 @@ on:
       environment:
         description: 'Target environment'
         required: true
-        default: 'prod'
+        default: 'dev'
         type: choice
         options:
           - dev

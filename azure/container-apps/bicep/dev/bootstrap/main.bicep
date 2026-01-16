@@ -40,13 +40,13 @@ param tags object = {
 // Variables
 // ============================================================================
 
-var resourceGroupName = 'rg-xshopai-bootstrap-${environment}'
+var resourceGroupName = 'rg-xshopai-${environment}'
 
 // ============================================================================
 // Resource Group (using module)
 // ============================================================================
 
-module bootstrapResourceGroup '../../modules/resource-group.bicep' = {
+module resourceGroup '../../modules/resource-group.bicep' = {
   name: 'deploy-rg-${resourceGroupName}'
   params: {
     name: resourceGroupName
@@ -62,7 +62,7 @@ module bootstrapResourceGroup '../../modules/resource-group.bicep' = {
 module acr '../../modules/acr.bicep' = {
   scope: resourceGroup(resourceGroupName)
   name: 'deploy-acr-${acrName}'
-  dependsOn: [bootstrapResourceGroup]
+  dependsOn: [resourceGroup]
   params: {
     name: acrName
     location: location
@@ -79,10 +79,10 @@ module acr '../../modules/acr.bicep' = {
 // ============================================================================
 
 @description('Name of the created resource group')
-output resourceGroupName string = bootstrapResourceGroup.outputs.name
+output resourceGroupName string = resourceGroup.outputs.name
 
 @description('Location of the resource group')
-output resourceGroupLocation string = bootstrapResourceGroup.outputs.location
+output resourceGroupLocation string = resourceGroup.outputs.location
 
 @description('Name of the Azure Container Registry')
 output acrName string = acr.outputs.name

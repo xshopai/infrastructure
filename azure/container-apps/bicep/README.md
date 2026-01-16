@@ -1,366 +1,219 @@
-# Azure Container Apps - Bicep Deployment Architecture
+# Azure Container Apps - Deployment Guide
 
-Modular, reusable Bicep infrastructure for deploying xshopai microservices platform to Azure Container Apps with Dapr integration.
+Complete guide for deploying the xshopai microservices platform to Azure Container Apps from scratch.
 
-## 🎯 Architecture Overview
+## 📋 Table of Contents
 
-This deployment architecture follows a **modular, registry-based approach** with:
+1. [Overview](#overview)
+2. [Prerequisites](#prerequisites)
+3. [Quick Start](#quick-start)
+4. [Deployment Phases](#deployment-phases)
+5. [Architecture](#architecture)
+6. [Resource Naming](#resource-naming)
+7. [Module Catalog](#module-catalog)
+8. [Environment Configuration](#environment-configuration)
+9. [Troubleshooting](#troubleshooting)
+10. [Cost Management](#cost-management)
 
-- **15 reusable Bicep modules** for infrastructure components
-- **Environment-specific orchestration** (dev, prod) with parameter files
-- **Azure Container Registry (ACR)** as module registry for versioning
-- **Dapr integration** for pub/sub messaging, state management, and service invocation
-- **Zero-downtime deployments** via GitHub Actions workflows
+---
 
-### Key Architectural Decisions
+## Overview
 
-1. **Modular Design**: Each infrastructure component is a standalone module
-2. **Registry Pattern**: Modules published to ACR for versioning and reuse
-3. **Server-Only Pattern**: Databases deployed as servers; schemas managed via migrations
+### Architecture Approach
+
+This deployment uses a **modular, registry-based Bicep architecture**:
+
+- **15 reusable Bicep modules** published to Azure Container Registry
+- **Environment-specific orchestration** (dev/prod) with parameter files
+- **Dapr integration** for service mesh (pub/sub, state, secrets, config)
+- **OIDC authentication** for GitHub Actions (no service principal secrets)
+- **Zero-downtime deployments** via GitHub Actions
+
+### Key Design Principles
+
+1. **Modular Design**: Each infrastructure component is a standalone, versioned module
+2. **Registry Pattern**: Modules published to ACR (`xshopaimodules.azurecr.io`) for reuse
+3. **Server-Only Pattern**: Database servers deployed; app databases created via migrations
 4. **Event-Driven**: Service Bus + Dapr pub/sub for async communication (9 topics)
-5. **Security-First**: RBAC, managed identities, Key Vault integration, TLS 1.2+
-6. **Observability**: Log Analytics workspace for monitoring and diagnostics
+5. **Security-First**: RBAC, managed identities, Key Vault, TLS 1.2+, OIDC
+6. **Observability**: Log Analytics workspace for centralized monitoring
 
 ---
 
-## 🚀 Getting Started: Complete Deployment Guide
+## Prerequisites
 
-This guide walks you through deploying the entire xshopai platform infrastructure from scratch, assuming you've cloned all repositories.
+### Required Tools
 
-### Prerequisites
+| Tool | Version | Installation |
+|------|---------|--------------|
+| Azure CLI | 2.50+ | `az upgrade` or [download](https://aka.ms/installazurecliwindows) |
+| Git | 2.40+ | `winget install Git.Git` |
+| PowerShell | 7.3+ | `winget install Microsoft.PowerShell` |
 
-Before starting, ensure you have:
+### Azure Requirements
 
-- **Azure Subscription** with Owner or Contributor access
-- **Azure CLI** installed and authenticated (`az login`)
-- **GitHub CLI** installed (`gh auth login`)
-- **Git** for repository management
-- **GitHub Organization**: `xshopai` (or your organization name)
-- **Cloned Repositories**: All service repositories cloned locally
+- Active Azure subscription with **Contributor** or **Owner** role
+- Ability to create Azure AD applications
+- Sufficient quotas: Container Apps, ACR Premium, Databases
 
-### Deployment Architecture
+### GitHub Requirements
 
-The deployment follows a **3-phase approach**:
+- GitHub organization (e.g., `xshopai`)
+- Admin access to configure secrets
+- Actions enabled for CI/CD
 
+---
+
+## Quick Start
+
+Deploy the complete platform in 5 commands:
+
+```bash
+# 1. Clone repository
+cd c:/gh/xshopai/infrastructure/scripts/azure
+
+# 2. Login to Azure
+az login
+az account set --subscription "YOUR_SUBSCRIPTION_ID"
+
+# 3. Setup Azure OIDC (one-time)
+./setup-azure-oidc.sh
+
+# 4. Deploy infrastructure (~20 minutes)
+gh workflow run deploy-platform-infrastructure.yml \
+  --field environment=dev \
+  --field location=swedencentral \
+  --field dry_run=false
+
+# 5. Deploy microservices (~15 minutes)
+cd ../../../  # Navigate to each service repo
+# Deploy each service via its GitHub Actions workflow
 ```
-Phase 1: Bootstrap Infrastructure
-  └─ Creates ACR for hosting Bicep modules and container images
 
-Phase 2: Platform Infrastructure  
-  └─ Deploys 14 shared resources (databases, messaging, Key Vault, Container Apps Environment)
-
-Phase 3: Service Deployment
-  └─ Deploys 12 microservices as Container Apps
-```
+**Total deployment time**: ~35-40 minutes
 
 ---
 
-### 📋 Phase 0: Azure & GitHub Initial Setup (One-Time)
+## Deployment Phases
 
-These steps configure **Azure OIDC (Federated Credentials)** for secure, password-less authentication between GitHub Actions and Azure.
+### Phase 0: Azure & GitHub Setup (One-Time)
 
-#### Why OIDC Instead of Service Principal with Secrets?
+**Goal**: Configure OIDC authentication for GitHub Actions.
 
-**OIDC Approach** (Recommended - Used by our scripts):
-- ✅ **No secrets to manage** - Uses federated credentials (no client secret!)
-- ✅ **More secure** - Short-lived tokens issued per workflow run
-- ✅ **No secret rotation** - Credentials don't expire
-- ✅ **Simpler** - Only 3 GitHub secrets needed
-- ✅ **Environment-based** - Only 2 credentials for ALL services (dev + prod)
-- ✅ **Modern approach** - Industry best practice (Microsoft recommended)
+#### Why OIDC?
 
-**Service Principal with Secrets** (Older Approach - Don't use):
-- ❌ Requires managing long-lived client secret
-- ❌ Secret needs rotation (expires)
-- ❌ 7+ GitHub secrets needed (including database passwords)
-- ❌ Less secure (shared secret can be compromised)
+- ✅ No `AZURE_CLIENT_SECRET` stored in GitHub
+- ✅ Token auto-rotated by Azure
+- ✅ Scoped per environment (dev/prod)
+- ✅ Better security posture
 
----
-
-#### Step 1: Authenticate GitHub CLI
-
-First, ensure GitHub CLI is authenticated:
+#### Run Setup Script
 
 ```bash
 cd infrastructure/scripts/azure
-
-# Authenticate GitHub CLI (if not already)
-./gh-auth.sh
-```
-
-This will guide you through the GitHub authentication process.
-
-#### Step 2: Set Up Azure OIDC (Federated Credentials)
-
-Run the automated script to create Azure AD Application with OIDC:
-
-```bash
-# Still in infrastructure/scripts/azure directory
 ./setup-azure-oidc.sh
 ```
 
-**This script will:**
-1. ✅ Create Azure AD Application: `xshopai-github-actions`
-2. ✅ Create Service Principal with roles:
-   - Contributor (deploy resources)
-   - User Access Administrator (manage identities)
-   - AcrPush (push container images)
-3. ✅ Configure all GitHub repos for environment-only OIDC
-4. ✅ Create 2 federated credentials:
-   - `xshopai-dev` → subject: `environment:dev`
-   - `xshopai-prod` → subject: `environment:prod`
-5. ✅ Display Azure values needed for GitHub secrets
+**Script creates**:
+1. Azure AD App Registration: `xshopai-github-actions`
+2. Service Principal with `Contributor` role
+3. Federated credentials for `environment:dev` and `environment:prod`
 
-**Key Benefits:**
-- All services deploying to `dev` share ONE credential
-- All services deploying to `prod` share ONE credential  
-- No dependency on repository names or workflow filenames
-- Can rename repos/workflows freely without breaking authentication
+**Expected output**:
+```
+✅ Azure AD App created: xshopai-github-actions
+✅ Federated credentials configured (dev, prod)
 
-**Expected Output:**
-```bash
-============================================
-✅ Azure OIDC Setup Complete!
-============================================
-
-📋 Summary:
-   Azure AD Application: xshopai-github-actions
-   Client ID: 12345678-1234-1234-1234-123456789abc
-   Tenant ID: 11111111-1111-1111-1111-111111111111
-   Subscription ID: 87654321-4321-4321-4321-cba987654321
-
-🔐 GitHub Organization Secrets to Configure
-============================================
-Go to: https://github.com/organizations/xshopai/settings/secrets/actions
-
-Add these secrets at the ORGANIZATION level:
-   AZURE_CLIENT_ID       = 12345678-1234-1234-1234-123456789abc
-   AZURE_TENANT_ID       = 11111111-1111-1111-1111-111111111111
-   AZURE_SUBSCRIPTION_ID = 87654321-4321-4321-4321-cba987654321
+📋 Configure these GitHub Secrets:
+   AZURE_CLIENT_ID=abc-123...
+   AZURE_TENANT_ID=def-456...
+   AZURE_SUBSCRIPTION_ID=ghi-789...
 ```
 
-#### Step 3: Configure GitHub Organization Secrets
-
-Run the automated script to set GitHub secrets:
+#### Configure GitHub Secrets
 
 ```bash
-# Still in infrastructure/scripts/azure directory
+# Automated script
 ./setup-github-secrets.sh
+
+# Or manually in GitHub UI:
+# Settings → Secrets and variables → Actions → New organization secret
 ```
 
-**This script will:**
-1. ✅ Retrieve Client ID, Tenant ID, Subscription ID from Azure
-2. ✅ Automatically set all 3 GitHub organization secrets
-3. ✅ Verify secrets are configured correctly
+**Secrets to add**:
 
-**GitHub Secrets Created:**
-
-| Secret Name | Value | Description |
-|-------------|-------|-------------|
-| `AZURE_CLIENT_ID` | From Azure AD App | Application (client) ID for OIDC |
-| `AZURE_TENANT_ID` | From Azure | Azure AD Tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | From Azure | Azure Subscription ID |
-
-**That's it!** Only 3 secrets, no passwords needed at this stage.
-
-**Note:** Database admin passwords are generated automatically during platform infrastructure deployment and stored securely in Azure Key Vault.
-
-#### Step 4: Verify OIDC Setup
-
-Verify the configuration:
-
-```bash
-# List GitHub organization secrets
-gh secret list --org xshopai
-
-# Expected output:
-# AZURE_CLIENT_ID       Updated 2026-01-16
-# AZURE_TENANT_ID       Updated 2026-01-16
-# AZURE_SUBSCRIPTION_ID Updated 2026-01-16
-
-# View Azure AD federated credentials
-az ad app federated-credential list \
-  --id $(az ad app list --display-name "xshopai-github-actions" --query "[0].id" -o tsv) \
-  --query "[].{Name:name, Subject:subject}" \
-  --output table
-
-# Expected output:
-# Name          Subject
-# ------------  ----------------
-# xshopai-dev   environment:dev
-# xshopai-prod  environment:prod
-```
-
-#### Alternative: Manual OIDC Setup (If Scripts Fail)
-
-If the automated scripts don't work, you can manually configure OIDC:
-
-<details>
-<summary>Click to expand manual steps</summary>
-
-**1. Create Azure AD Application:**
-```bash
-APP_NAME="xshopai-github-actions"
-APP_ID=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv)
-echo "Client ID: $APP_ID"
-```
-
-**2. Create Service Principal:**
-```bash
-az ad sp create --id $APP_ID
-SP_ID=$(az ad sp show --id $APP_ID --query id -o tsv)
-
-# Assign roles
-az role assignment create --assignee $SP_ID --role "Contributor" --scope "/subscriptions/$(az account show --query id -o tsv)"
-az role assignment create --assignee $SP_ID --role "User Access Administrator" --scope "/subscriptions/$(az account show --query id -o tsv)"
-az role assignment create --assignee $SP_ID --role "AcrPush" --scope "/subscriptions/$(az account show --query id -o tsv)"
-```
-
-**3. Create Federated Credentials:**
-```bash
-APP_OBJECT_ID=$(az ad app show --id $APP_ID --query id -o tsv)
-GITHUB_ORG="xshopai"
-
-# Dev environment credential
-az ad app federated-credential create \
-  --id $APP_OBJECT_ID \
-  --parameters '{
-    "name": "xshopai-dev",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "environment:dev",
-    "description": "GitHub Actions OIDC for dev environment",
-    "audiences": ["api://AzureADTokenExchange"]
-  }'
-
-# Prod environment credential
-az ad app federated-credential create \
-  --id $APP_OBJECT_ID \
-  --parameters '{
-    "name": "xshopai-prod",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "environment:prod",
-    "description": "GitHub Actions OIDC for prod environment",
-    "audiences": ["api://AzureADTokenExchange"]
-  }'
-```
-
-**4. Set GitHub Secrets:**
-```bash
-TENANT_ID=$(az account show --query tenantId -o tsv)
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-
-gh secret set AZURE_CLIENT_ID --org xshopai --body "$APP_ID"
-gh secret set AZURE_TENANT_ID --org xshopai --body "$TENANT_ID"
-gh secret set AZURE_SUBSCRIPTION_ID --org xshopai --body "$SUBSCRIPTION_ID"
-```
-
-</details>
+| Secret | Value | Purpose |
+|--------|-------|---------|
+| `AZURE_CLIENT_ID` | From script output | App Registration ID |
+| `AZURE_TENANT_ID` | From script output | Azure AD Tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | From script output | Subscription ID |
 
 ---
 
-### 📋 Phase 1: Bootstrap Infrastructure (ACR Creation)
+### Phase 1: Bootstrap Infrastructure
 
-Bootstrap creates the Azure Container Registry that hosts Bicep modules.
+**Goal**: Deploy Azure Container Registry for hosting Bicep modules.
 
-#### Step 1: Navigate to Infrastructure Repository
-
-```bash
-cd infrastructure
-```
-
-#### Step 2: Validate Bootstrap Template
+#### Deploy Bootstrap
 
 ```bash
-az bicep build --file azure/container-apps/bicep/dev/bootstrap/main.bicep
-```
-
-**Expected output:** ✅ Template validation succeeded
-
-#### Step 3: Deploy Bootstrap via GitHub Actions
-
-**Option A: Via GitHub UI**
-1. Go to: https://github.com/xshopai/infrastructure/actions
-2. Select workflow: "Deploy Bootstrap Infrastructure"
-3. Click "Run workflow"
-4. Parameters:
-   - `environment`: **dev**
-   - `location`: **swedencentral** (or your preferred region)
-5. Click "Run workflow"
-
-**Option B: Via GitHub CLI**
-```bash
+# Via GitHub Actions
 gh workflow run deploy-bootstrap-infrastructure.yml \
   --field environment=dev \
   --field location=swedencentral
 ```
 
-#### Step 4: Verify Bootstrap Deployment
+**Resources created**:
+- Resource Group: `rg-xshopai-bootstrap-dev`
+- Azure Container Registry: `xshopaimodulesdev.azurecr.io` (Premium SKU)
 
+**Validation**:
 ```bash
-# Check if resource group was created
-az group show --name rg-xshopai-bootstrap-dev
-
-# Check if ACR was created
 az acr show --name xshopaimodulesdev
-
-# Verify you can log in to ACR
 az acr login --name xshopaimodulesdev
 ```
 
-**Expected Resources:**
-- ✅ Resource Group: `rg-xshopai-bootstrap-dev`
-- ✅ Azure Container Registry: `xshopaimodulesdev.azurecr.io`
-
 ---
 
-### 📋 Phase 2: Publish Bicep Modules to ACR
+### Phase 2: Publish Bicep Modules
 
-Before deploying the platform, publish all reusable Bicep modules to the ACR.
+**Goal**: Publish 15 reusable modules to ACR.
 
-#### Step 1: Run Publish Workflow
+#### Publish Modules
 
-**Option A: Via GitHub UI**
-1. Go to: https://github.com/xshopai/infrastructure/actions
-2. Select workflow: "Publish Bicep Modules"
-3. Click "Run workflow"
-4. Parameters:
-   - `environment`: **dev**
-   - `version`: **v1.0.0**
-5. Click "Run workflow"
-
-**Option B: Via GitHub CLI**
 ```bash
+# Via GitHub Actions
 gh workflow run publish-bicep-modules.yml \
   --field environment=dev \
   --field version=v1.0.0
 ```
 
-#### Step 2: Verify Module Publishing
+**Published modules** (15 total):
+```
+br:xshopaimodules dev.azurecr.io/bicep/container-apps/
+├── acr:v1.0.0
+├── container-app:v1.0.0
+├── container-apps-environment:v1.0.0
+├── cosmos-database:v1.0.0
+├── key-vault:v1.0.0
+├── log-analytics:v1.0.0
+├── managed-identity:v1.0.0
+├── mysql-database:v1.0.0
+├── postgresql-database:v1.0.0
+├── redis-cache:v1.0.0
+├── resource-group:v1.0.0
+├── service-bus:v1.0.0
+├── sql-server:v1.0.0
+├── sql-database:v1.0.0
+└── key-vault-secrets:v1.0.0
+```
 
+**Validation**:
 ```bash
-# List all published modules
-az acr repository list \
-  --name xshopaimodulesdev \
-  --output table
+# List modules
+az acr repository list --name xshopaimodulesdev --output table
 
-# Expected 15 modules:
-# - bicep/container-apps/acr
-# - bicep/container-apps/container-app
-# - bicep/container-apps/container-apps-environment
-# - bicep/container-apps/cosmos-database
-# - bicep/container-apps/key-vault
-# - bicep/container-apps/log-analytics
-# - bicep/container-apps/managed-identity
-# - bicep/container-apps/mysql-database
-# - bicep/container-apps/postgresql-database
-# - bicep/container-apps/redis-cache
-# - bicep/container-apps/resource-group
-# - bicep/container-apps/service-bus
-# - bicep/container-apps/sql-server
-# - bicep/container-apps/sql-database
-# - bicep/container-apps/key-vault-secrets
-
-# Check a specific module version
+# Check specific version
 az acr repository show-tags \
   --name xshopaimodulesdev \
   --repository bicep/container-apps/container-app
@@ -368,1058 +221,528 @@ az acr repository show-tags \
 
 ---
 
-### 📋 Phase 3: Deploy Platform Infrastructure
+### Phase 3: Platform Infrastructure
 
-Platform infrastructure includes databases, messaging, caching, and the Container Apps Environment.
+**Goal**: Deploy shared resources (databases, messaging, Container Apps Environment).
 
-#### Step 1: Review Platform Configuration
-
-```bash
-# Review parameter file
-cat azure/container-apps/bicep/dev/platform/main.bicepparam
-
-# Review what will be deployed
-cat azure/container-apps/bicep/dev/platform/main.bicep | grep "^module"
-```
-
-#### Step 2: Run What-If Analysis (Dry Run)
+#### Deploy Platform
 
 ```bash
+# Via GitHub Actions
 gh workflow run deploy-platform-infrastructure.yml \
   --field environment=dev \
   --field location=swedencentral \
-  --field dry_run=true
+  --field dry_run=false  # Set true for what-if analysis
 ```
 
-**Review the output** to see what resources will be created:
-- ✅ Resource Group: `rg-xshopai-dev`
-- ✅ Container Apps Environment
-- ✅ Log Analytics Workspace
-- ✅ Managed Identity
-- ✅ Key Vault (with RBAC role assignment)
-- ✅ PostgreSQL Servers (3): product, user, order
-- ✅ Cosmos DB (MongoDB API)
-- ✅ SQL Server + 2 databases (order, payment)
-- ✅ MySQL Server (cart)
-- ✅ Redis Cache
-- ✅ Service Bus
+**Resources deployed** (~14-17 resources):
 
-**Total: ~14-17 resources**
+| Resource | Name | Purpose |
+|----------|------|---------|
+| Resource Group | `rg-xshopai-dev` | Container for all resources |
+| Log Analytics | `log-xshopai-dev` | Centralized logging |
+| Container Apps Environment | `cae-xshopai-dev` | App hosting platform |
+| Managed Identity | `id-xshopai-dev` | Azure resource access |
+| Key Vault | `kv-xshopai-dev` | Secrets storage |
+| PostgreSQL | `psql-xshopai-product-dev` | Product database |
+| PostgreSQL | `psql-xshopai-user-dev` | User database |
+| PostgreSQL | `psql-xshopai-order-dev` | Order database |
+| Cosmos DB | `cosmos-xshopai-dev` | NoSQL database |
+| SQL Server | `sql-xshopai-dev` | Relational database |
+| Redis Cache | `redis-xshopai-dev` | Caching layer |
+| Service Bus | `sb-xshopai-dev` | Event messaging |
 
-#### Step 3: Deploy Platform (Actual Deployment)
-
+**Validation**:
 ```bash
-gh workflow run deploy-platform-infrastructure.yml \
-  --field environment=dev \
-  --field location=swedencentral \
-  --field dry_run=false
-```
+# Check deployment
+az deployment sub show \
+  --name platform-infra-dev \
+  --query properties.provisioningState
 
-**⏱️ Expected duration:** 25-30 minutes (databases take time to provision)
-
-#### Step 4: Monitor Deployment
-
-**Option A: GitHub Actions UI**
-1. Go to: https://github.com/xshopai/infrastructure/actions
-2. Click on the running workflow
-3. Monitor real-time logs
-
-**Option B: Azure Portal**
-1. Navigate to: https://portal.azure.com
-2. Search for resource group: `rg-xshopai-dev`
-3. Watch resources being created
-
-#### Step 5: Verify Platform Deployment
-
-```bash
-# Check resource group
-az group show --name rg-xshopai-dev
-
-# List all resources in the group
-az resource list \
-  --resource-group rg-xshopai-dev \
-  --output table
+# List resources
+az resource list --resource-group rg-xshopai-dev --output table
 
 # Test Container Apps Environment
 az containerapp env show \
   --name cae-xshopai-dev \
   --resource-group rg-xshopai-dev
-
-# Test Key Vault access
-az keyvault show \
-  --name kv-xshopai-dev \
-  --resource-group rg-xshopai-dev
-
-# Verify database servers (examples)
-az postgres flexible-server show \
-  --name psql-xshopai-product-dev \
-  --resource-group rg-xshopai-dev
-
-az sql server show \
-  --name sql-xshopai-dev \
-  --resource-group rg-xshopai-dev
-```
-
-#### Step 6: Retrieve Platform Outputs
-
-These values are needed for service deployments:
-
-```bash
-# Get deployment name (use latest)
-DEPLOYMENT_NAME=$(az deployment sub list \
-  --query "[?contains(name, 'platform-infra')].name | [0]" \
-  --output tsv)
-
-# Get all outputs
-az deployment sub show \
-  --name $DEPLOYMENT_NAME \
-  --query properties.outputs \
-  --output json > platform-outputs.json
-
-# Key outputs to note:
-# - containerAppsEnvironmentId
-# - managedIdentityId  
-# - managedIdentityPrincipalId
-# - keyVaultName
-# - keyVaultUri
-# - postgresProductFqdn
-# - postgresUserFqdn
-# - postgresOrderFqdn
-# - sqlServerFqdn
-# - mysqlCartFqdn
-# - redisHostname
-# - serviceBusNamespace
 ```
 
 ---
 
-### 📋 Phase 4: Deploy Microservices
+### Phase 4: Microservice Deployment
 
-Each microservice is deployed independently using its own deployment configuration.
+**Goal**: Deploy 12 containerized microservices.
 
-#### Architecture
+#### Service List
 
-```
-Each service repository contains:
-├── .azure/
-│   ├── deploy.bicep                    # Container App config
-│   ├── deploy.parameters.dev.json      # Dev parameters
-│   └── deploy.parameters.prod.json     # Prod parameters
-├── .github/workflows/
-│   ├── ci-build.yml                    # Build & test
-│   └── cd-deploy.yml                   # Deploy to Container Apps
-└── Dockerfile                          # Container image
-```
+| Service | Language | Port | GitHub Workflow Command |
+|---------|----------|------|-------------------------|
+| **auth-service** | Node.js | 8002 | `gh workflow run cd-deploy.yml --repo xshopai/auth-service` |
+| **user-service** | Node.js | 8002 | `gh workflow run cd-deploy.yml --repo xshopai/user-service` |
+| **product-service** | Python | 8001 | `gh workflow run cd-deploy.yml --repo xshopai/product-service` |
+| **inventory-service** | Python | 8004 | `gh workflow run cd-deploy.yml --repo xshopai/inventory-service` |
+| **cart-service** | Java | 8005 | `gh workflow run cd-deploy.yml --repo xshopai/cart-service` |
+| **order-service** | .NET | 8006 | `gh workflow run cd-deploy.yml --repo xshopai/order-service` |
+| **payment-service** | .NET | 8009 | `gh workflow run cd-deploy.yml --repo xshopai/payment-service` |
+| **notification-service** | Node.js | 8008 | `gh workflow run cd-deploy.yml --repo xshopai/notification-service` |
+| **audit-service** | Node.js | 8009 | `gh workflow run cd-deploy.yml --repo xshopai/audit-service` |
+| **review-service** | Node.js | 8010 | `gh workflow run cd-deploy.yml --repo xshopai/review-service` |
+| **web-bff** | Node.js | 3100 | `gh workflow run cd-deploy.yml --repo xshopai/web-bff` |
+| **customer-ui** | React | 3000 | `gh workflow run cd-deploy.yml --repo xshopai/customer-ui` |
 
-#### Step 1: Deploy Individual Services
-
-**Services to deploy (in recommended order):**
-
-1. **Infrastructure Services** (no dependencies):
-   ```bash
-   # Deploy auth-service
-   cd ../auth-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   
-   # Deploy user-service
-   cd ../user-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   ```
-
-2. **Core Services**:
-   ```bash
-   # Deploy product-service
-   cd ../product-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   
-   # Deploy inventory-service
-   cd ../inventory-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   
-   # Deploy cart-service
-   cd ../cart-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   ```
-
-3. **Business Services**:
-   ```bash
-   # Deploy order-service
-   cd ../order-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   
-   # Deploy payment-service
-   cd ../payment-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   
-   # Deploy review-service
-   cd ../review-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   ```
-
-4. **Supporting Services**:
-   ```bash
-   # Deploy notification-service
-   cd ../notification-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   
-   # Deploy audit-service
-   cd ../audit-service
-   gh workflow run cd-deploy.yml --field environment=dev
-   ```
-
-5. **API Gateway**:
-   ```bash
-   # Deploy web-bff
-   cd ../web-bff
-   gh workflow run cd-deploy.yml --field environment=dev
-   ```
-
-#### Step 2: Verify Service Deployments
+#### Deploy Script (Automated)
 
 ```bash
-# List all container apps
+# Deploy all services
+for service in auth-service user-service product-service inventory-service \
+               cart-service order-service payment-service notification-service \
+               audit-service review-service web-bff customer-ui; do
+    cd ../$service
+    gh workflow run cd-deploy.yml --field environment=dev
+done
+```
+
+**Validation**:
+```bash
+# List all apps
 az containerapp list \
   --resource-group rg-xshopai-dev \
   --output table
 
-# Check specific service status
+# Check app health
 az containerapp show \
   --name product-service \
   --resource-group rg-xshopai-dev \
-  --query "properties.{fqdn:configuration.ingress.fqdn,replicas:template.scale.maxReplicas,health:runningStatus}" \
-  --output table
+  --query "properties.{status:runningStatus,replicas:template.scale.maxReplicas}"
 
-# Test service health endpoint
-curl https://product-service.${CONTAINER_ENV_DOMAIN}/health
-```
-
-#### Step 3: Initialize Databases
-
-Each service needs to create its application database and user:
-
-**Example for product-service (PostgreSQL):**
-```bash
-# Connect to PostgreSQL admin
-PGHOST=$(az postgres flexible-server show \
-  --name psql-xshopai-product-dev \
-  --resource-group rg-xshopai-dev \
-  --query fullyQualifiedDomainName -o tsv)
-
-# Run database initialization (in service deployment workflow)
-psql -h $PGHOST -U postgresadmin -d postgres << EOF
-CREATE DATABASE IF NOT EXISTS productdb;
-CREATE USER IF NOT EXISTS productapp WITH PASSWORD '${PRODUCT_DB_PASSWORD}';
-GRANT ALL PRIVILEGES ON DATABASE productdb TO productapp;
-EOF
-
-# Store app connection string in Key Vault
-az keyvault secret set \
-  --vault-name kv-xshopai-dev \
-  --name product-db-connection-string \
-  --value "Host=$PGHOST;Database=productdb;Username=productapp;Password=${PRODUCT_DB_PASSWORD}"
-```
-
-**This step is typically automated in each service's deployment workflow.**
-
----
-
-### 📋 Post-Deployment Configuration
-
-#### Step 1: Configure Custom Domains (Optional)
-
-```bash
-# Add custom domain to Container Apps Environment
-az containerapp env certificate upload \
-  --name cae-xshopai-dev \
-  --resource-group rg-xshopai-dev \
-  --certificate-file ./ssl-cert.pfx \
-  --password <cert-password>
-
-# Bind custom domain to service
-az containerapp hostname add \
+# View logs
+az containerapp logs show \
   --name product-service \
   --resource-group rg-xshopai-dev \
-  --hostname api.xshopai.com
-```
-
-#### Step 2: Configure Monitoring Alerts
-
-```bash
-# Create alert for service health
-az monitor metrics alert create \
-  --name "product-service-availability" \
-  --resource-group rg-xshopai-dev \
-  --scopes $(az containerapp show --name product-service --resource-group rg-xshopai-dev --query id -o tsv) \
-  --condition "avg Percentage CPU > 80" \
-  --description "Alert when CPU exceeds 80%" \
-  --evaluation-frequency 5m \
-  --window-size 15m \
-  --action <action-group-id>
-```
-
-#### Step 3: Review Costs
-
-```bash
-# View cost analysis for dev environment
-az consumption usage list \
-  --start-date $(date -d '30 days ago' +%Y-%m-%d) \
-  --end-date $(date +%Y-%m-%d) \
-  --query "[?contains(instanceName, 'xshopai-dev')]" \
-  --output table
-
-# Expected monthly cost (dev environment): $350-450 USD
+  --follow
 ```
 
 ---
 
-### 🔍 Troubleshooting Common Issues
+## Architecture
 
-#### Issue 1: "Module not found in registry"
+### Runtime Architecture
 
-**Error:** `Module 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/container-app:v1.0.0' not found`
-
-**Solution:**
-```bash
-# Verify module was published
-az acr repository list --name xshopaimodulesdev
-
-# Re-publish modules
-gh workflow run publish-bicep-modules.yml --field environment=dev --field version=v1.0.0
+```
+┌─────────────────────────────────────────────────────────────┐
+│           Azure Container Apps Environment                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │         Dapr Sidecar Injection (Service Mesh)         │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │  │
+│  │  │  auth    │ │  user    │ │ product  │ │  order   │ │  │
+│  │  │ +Dapr    │ │ +Dapr    │ │ +Dapr    │ │ +Dapr    │ │  │
+│  │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘ │  │
+│  └───────┼────────────┼────────────┼────────────┼────────┘  │
+│          │            │            │            │            │
+│          ▼            ▼            ▼            ▼            │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │          Dapr Components (5 types)                    │  │
+│  │ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐        │  │
+│  │ │pubsub│ │state │ │secret│ │config│ │bind  │        │  │
+│  │ └───┬──┘ └───┬──┘ └───┬──┘ └───┬──┘ └───┬──┘        │  │
+│  └─────┼────────┼────────┼────────┼────────┼────────────┘  │
+└────────┼────────┼────────┼────────┼────────┼───────────────┘
+         │        │        │        │        │
+         ▼        ▼        ▼        ▼        ▼
+   ┌──────────┐ ┌────┐ ┌───────┐ ┌────┐ ┌──────────┐
+   │ Service  │ │Redis│ │  Key  │ │Redis│ │ Service  │
+   │   Bus    │ │     │ │ Vault │ │     │ │   Bus    │
+   └──────────┘ └────┘ └───────┘ └────┘ └──────────┘
+        │
+        ▼
+   ┌─────────────────────────────┐
+   │       Databases             │
+   │ ┌─────────┐ ┌─────────┐    │
+   │ │Cosmos DB│ │PostgreSQL│   │
+   │ │(MongoDB)│ │          │    │
+   │ └─────────┘ └─────────┘    │
+   └─────────────────────────────┘
 ```
 
-#### Issue 2: "Insufficient permissions"
+### Deployment Architecture
 
-**Error:** `The client '...' does not have authorization to perform action 'Microsoft.Resources/deployments/write'`
+```
+Phase 0: Azure AD Setup (OIDC)
+    └─ App Registration + Federated Credentials
 
-**Solution:**
-```bash
-# Grant Contributor role to Service Principal
-az role assignment create \
-  --assignee <AZURE_CLIENT_ID> \
-  --role "Contributor" \
-  --scope "/subscriptions/<AZURE_SUBSCRIPTION_ID>"
+Phase 1: Bootstrap
+    └─ ACR (xshopaimodules.azurecr.io)
+
+Phase 2: Module Publishing
+    └─ 15 Bicep modules → ACR
+
+Phase 3: Platform Infrastructure
+    ├─ Container Apps Environment
+    ├─ 3x PostgreSQL Servers
+    ├─ Cosmos DB
+    ├─ SQL Server
+    ├─ Redis Cache
+    ├─ Service Bus
+    ├─ Key Vault
+    └─ Log Analytics
+
+Phase 4: Microservices
+    └─ 12 Container Apps (with Dapr)
 ```
 
-#### Issue 3: "Key Vault access denied"
+---
 
-**Error:** `The user, group or application does not have secrets get permission`
+## Resource Naming
 
-**Solution:**
+All resources follow the pattern: `{type}-xshopai-{environment}[-suffix]`
+
+| Resource Type | Dev | Prod | Notes |
+|---------------|-----|------|-------|
+| Resource Group | `rg-xshopai-dev` | `rg-xshopai-prod` | Container for resources |
+| Container Apps Env | `cae-xshopai-dev` | `cae-xshopai-prod` | App platform |
+| ACR | `xshopaimodulesdev` | `xshopaimodulesprod` | Globally unique |
+| Key Vault | `kv-xshopai-dev` | `kv-xshopai-prod` | Secrets storage |
+| Service Bus | `sb-xshopai-dev` | `sb-xshopai-prod` | Event messaging |
+| Cosmos DB | `cosmos-xshopai-dev` | `cosmos-xshopai-prod` | NoSQL database |
+| PostgreSQL | `psql-xshopai-{name}-dev` | `psql-xshopai-{name}-prod` | 3 instances |
+| Redis | `redis-xshopai-dev` | `redis-xshopai-prod` | Cache |
+| Managed Identity | `id-xshopai-dev` | `id-xshopai-prod` | Azure access |
+| Log Analytics | `log-xshopai-dev` | `log-xshopai-prod` | Monitoring |
+
+---
+
+## Module Catalog
+
+### Core Platform (3 modules)
+
+#### `resource-group.bicep`
+- Creates subscription-scope resource group
+- Parameters: `name`, `location` (20+ regions supported)
+- Outputs: `id`, `name`, `location`
+
+#### `log-analytics.bicep`
+- Centralized monitoring workspace
+- Parameters: `name`, `location`, `retentionInDays` (30-730)
+- Outputs: `workspaceId`, `customerId`, `primarySharedKey`
+
+#### `container-apps-environment.bicep`
+- Managed hosting platform for Container Apps
+- Parameters: `name`, `location`, `logAnalyticsWorkspaceId`
+- Features: Dapr enabled, VNet integration, zone redundancy
+- Outputs: `id`, `defaultDomain`, `staticIp`
+
+### Data Layer (6 modules)
+
+#### `cosmos-database.bicep`
+- NoSQL database (MongoDB/SQL/Cassandra APIs)
+- Parameters: `name`, `apiType`, `serverless` (true/false)
+- Outputs: `connectionString`, `resourceId`
+
+#### `postgresql-database.bicep`
+- PostgreSQL Flexible Server
+- Parameters: `serverName`, `administratorLogin`, `version` (11-15)
+- Outputs: `serverFqdn`, `connectionStringTemplate`
+
+#### `mysql-database.bicep`
+- MySQL Flexible Server
+- Parameters: `serverName`, `version` (5.7/8.0), `sku`
+- Outputs: `serverFqdn`, `connectionStringTemplate`
+
+#### `sql-server.bicep`
+- SQL Server with Azure AD authentication
+- Parameters: `baseName`, `administratorLogin`, `keyVaultName`
+- Features: Firewall rules, Key Vault integration
+- Outputs: `serverFqdn`, `serverId`
+
+#### `redis-cache.bicep`
+- Azure Cache for Redis
+- Parameters: `name`, `sku` (Basic/Standard/Premium), `capacity` (0-6)
+- Security: TLS 1.2+, SSL-only
+- Outputs: `hostName`, `primaryKey`, `connectionString`
+
+### Security & Identity (3 modules)
+
+#### `managed-identity.bicep`
+- User-assigned managed identity for services
+- Parameters: `name`, `location`, `tags`
+- Outputs: `id`, `principalId`, `clientId`
+
+#### `key-vault.bicep`
+- Secrets management with RBAC
+- Parameters: `name`, `enableRbacAuthorization` (true)
+- Features: Soft delete (90 days), purge protection
+- Outputs: `name`, `uri`, `resourceId`
+
+#### `key-vault-secrets.bicep`
+- Bulk secret creation
+- Parameters: `keyVaultName`, `secrets` (array of {name, value})
+- Outputs: `secretNames`, `secretCount`
+
+### Messaging & Dapr (2 modules)
+
+#### `service-bus.bicep`
+- Event-driven messaging backbone
+- Creates: Namespace + 9 topics (order, payment, inventory, etc.)
+- Features: RBAC role assignment to managed identity
+- Outputs: `namespaceName`, `connectionString`, `endpoint`
+
+#### `dapr-components.bicep` (Planned)
+- Configures 5 Dapr component types
+- Components: pubsub, statestore, secretstore, configstore, bindings
+
+### Application Layer (2 modules)
+
+#### `acr.bicep`
+- Azure Container Registry
+- Parameters: `name`, `sku` (Basic/Standard/Premium)
+- Outputs: `name`, `loginServer`, `resourceId`
+
+#### `container-app.bicep`
+- Individual microservice deployment
+- Parameters: 15 config options (image, CPU, memory, Dapr, etc.)
+- Features: Auto-scaling (0-30 replicas), health probes, Dapr sidecar
+- Outputs: `fqdn`, `url`, `latestRevisionName`
+
+---
+
+## Environment Configuration
+
+### Accessing Secrets via Dapr
+
+Services retrieve secrets from Key Vault at runtime using Dapr secret store component:
+
+**Node.js example**:
+```javascript
+const { DaprClient } = require('@dapr/dapr');
+const client = new DaprClient();
+
+// Get secret from Key Vault
+const secret = await client.secret.get('secret-store', 'POSTGRES_CONNECTION_STRING');
+console.log('Connection:', secret.POSTGRES_CONNECTION_STRING);
+```
+
+**Python example**:
+```python
+from dapr.clients import DaprClient
+
+with DaprClient() as client:
+    secret = client.get_secret('secret-store', 'POSTGRES_CONNECTION_STRING')
+    print(f'Connection: {secret.secrets["POSTGRES_CONNECTION_STRING"]}')
+```
+
+### Environment Variables
+
+Each Container App receives environment variables:
+
+```yaml
+env:
+  - name: DAPR_HTTP_PORT
+    value: "3500"
+  - name: DAPR_GRPC_PORT
+    value: "50001"
+  - name: ENVIRONMENT
+    value: "dev"
+  - name: LOG_LEVEL
+    value: "debug"
+  - name: SERVICE_NAME
+    value: "product-service"
+```
+
+---
+
+## Troubleshooting
+
+### 1. OIDC Login Fails
+
+**Error**: `AADSTS700016: Application with identifier 'xxx' was not found`
+
+**Cause**: Federated credential not configured or subject mismatch.
+
+**Solution**:
 ```bash
-# Verify RBAC role assignment exists
-az role assignment list \
-  --scope $(az keyvault show --name kv-xshopai-dev --query id -o tsv) \
+# List existing credentials
+az ad app federated-credential list \
+  --id $(az ad app list --display-name "xshopai-github-actions" --query "[0].id" -o tsv)
+
+# Verify subject matches GitHub environment
+# Expected: "environment:dev" or "environment:prod"
+```
+
+### 2. ACR Push Unauthorized
+
+**Error**: `unauthorized: authentication required`
+
+**Cause**: ACR admin user not enabled.
+
+**Solution**:
+```bash
+az acr update --name xshopaimodulesdev --admin-enabled true
+```
+
+### 3. Container App Won't Start
+
+**Symptoms**: App shows "Failed", continuous restarts.
+
+**Diagnosis**:
+```bash
+# Check system logs (Dapr sidecar)
+az containerapp logs show \
+  --name product-service \
+  --resource-group rg-xshopai-dev \
+  --type system
+
+# Check console logs (application)
+az containerapp logs show \
+  --name product-service \
+  --resource-group rg-xshopai-dev \
+  --type console
+```
+
+**Common causes**:
+- Missing environment variables
+- Health probe path incorrect (check `/health` endpoint)
+- Database not accessible (check firewall rules)
+
+### 4. Dapr Component Connection Issues
+
+**Error**: `Error connecting to Dapr sidecar`
+
+**Solution**:
+```bash
+# List Dapr components
+az containerapp env dapr-component list \
+  --name cae-xshopai-dev \
+  --resource-group rg-xshopai-dev \
   --output table
 
-# If missing, redeploy platform to create role assignment
-gh workflow run deploy-platform-infrastructure.yml --field environment=dev --field dry_run=false
-```
-
-#### Issue 4: "Database connection failed"
-
-**Error:** Container app logs show database connection errors
-
-**Solution:**
-```bash
-# 1. Verify database server is running
-az postgres flexible-server show --name psql-xshopai-product-dev --resource-group rg-xshopai-dev
-
-# 2. Check firewall rules allow Container Apps subnet
-az postgres flexible-server firewall-rule list \
-  --resource-group rg-xshopai-dev \
-  --server-name psql-xshopai-product-dev
-
-# 3. Verify connection string in Key Vault
+# Verify Service Bus connection string in Key Vault
 az keyvault secret show \
   --vault-name kv-xshopai-dev \
-  --name product-db-connection-string
+  --name servicebus-connection-string
+```
+
+### 5. Module Not Found in Registry
+
+**Error**: `Module 'br:xshopaimodules.azurecr.io/bicep/container-apps/container-app:v1.0.0' not found`
+
+**Solution**:
+```bash
+# Verify module exists
+az acr repository list --name xshopaimodulesdev
+
+# Re-publish if missing
+gh workflow run publish-bicep-modules.yml \
+  --field environment=dev \
+  --field version=v1.0.0
+```
+
+### 6. Deployment Quota Exceeded
+
+**Error**: `QuotaExceeded`
+
+**Solution**:
+```bash
+# Check quotas
+az vm list-usage --location swedencentral --output table
+
+# Request increase via Azure Portal:
+# Subscription → Usage + quotas → Request increase
 ```
 
 ---
 
-### 📊 Deployment Summary
+## Cost Management
 
-After completing all phases, you should have:
+### Monthly Cost Estimate (Dev Environment)
 
-| Resource Type | Count | Status |
-|--------------|-------|--------|
-| **Resource Groups** | 2 | ✅ bootstrap-dev, dev |
-| **Azure Container Registry** | 1 | ✅ Hosts modules + images |
-| **Container Apps Environment** | 1 | ✅ Hosts all microservices |
-| **Container Apps** | 12 | ✅ All microservices deployed |
-| **PostgreSQL Servers** | 3 | ✅ product, user, order |
-| **SQL Server + Databases** | 3 | ✅ Server + 2 databases |
-| **MySQL Server** | 1 | ✅ cart database |
-| **Cosmos DB** | 1 | ✅ MongoDB API |
-| **Redis Cache** | 1 | ✅ Session + state |
-| **Service Bus** | 1 | ✅ 9 topics configured |
-| **Key Vault** | 1 | ✅ Secrets + RBAC configured |
-| **Managed Identity** | 1 | ✅ With Key Vault access |
-| **Log Analytics** | 1 | ✅ Centralized logging |
+| Resource | SKU | Estimated Cost |
+|----------|-----|----------------|
+| Container Apps | Consumption (0-1 replicas) | $0-20 |
+| ACR | Premium | $40 |
+| Cosmos DB | Serverless | $0-25 (pay-per-RU) |
+| PostgreSQL (3x) | Burstable B1ms | $45 ($15 each) |
+| SQL Server | Basic | $5 |
+| Redis | Basic C0 | $15 |
+| Service Bus | Basic | $0.05/million ops |
+| Key Vault | Standard | $0.03/10k ops |
+| Log Analytics | Pay-as-you-go | $2-5 |
+| **Total** | | **$130-160/month** |
 
-**Total Azure Resources:** ~30-35 resources
+### Cost Optimization Tips
 
-**Monthly Cost Estimate (Dev):** $350-450 USD
+**Development**:
+- ✅ Use consumption plan for Container Apps (scale to 0)
+- ✅ Use Burstable SKUs for databases
+- ✅ Use serverless Cosmos DB
+- ✅ Set log retention to 7-14 days
+- ✅ Delete unused Container App revisions
+
+**Production**:
+- Use reserved capacity for databases (1-3 year commitment)
+- Enable autoscaling with min/max replicas
+- Monitor costs via Azure Cost Management
+
+### Cleanup Resources
+
+```bash
+# Delete entire resource group (⚠️ destroys everything)
+az group delete --name rg-xshopai-dev --yes --no-wait
+
+# Stop databases to reduce costs
+az postgres flexible-server stop \
+  --name psql-xshopai-product-dev \
+  --resource-group rg-xshopai-dev
+```
 
 ---
 
-### 🔗 Next Steps
+## Directory Structure
 
-1. **Configure CI/CD Pipelines**: Set up automated deployments for all services
-2. **Set Up Monitoring**: Create dashboards in Azure Monitor
-3. **Configure Alerts**: Set up notifications for critical metrics
-4. **Load Testing**: Test platform under expected load
-5. **Security Review**: Run Azure Security Center recommendations
-6. **Documentation**: Document service endpoints and API contracts
-7. **Production Deployment**: Repeat process for production environment with higher SKUs
+```
+azure/container-apps/bicep/
+├── bicepconfig.json              # ACR registry alias
+├── README.md                     # This guide
+├── modules/                      # 15 reusable modules
+│   ├── acr.bicep
+│   ├── container-app.bicep
+│   ├── container-apps-environment.bicep
+│   ├── cosmos-database.bicep
+│   ├── key-vault.bicep
+│   ├── key-vault-secrets.bicep
+│   ├── log-analytics.bicep
+│   ├── managed-identity.bicep
+│   ├── mysql-database.bicep
+│   ├── postgresql-database.bicep
+│   ├── redis-cache.bicep
+│   ├── resource-group.bicep
+│   ├── service-bus.bicep
+│   ├── sql-database.bicep
+│   └── sql-server.bicep
+└── environments/                 # Environment orchestration
+    ├── dev/
+    │   ├── main.bicep           # Dev orchestration
+    │   └── main.bicepparam      # Dev parameters
+    └── prod/
+        ├── main.bicep           # Prod orchestration
+        └── main.bicepparam      # Prod parameters
+```
 
 ---
 
-### 📚 Additional Resources
+## Additional Resources
 
 - [Azure Container Apps Documentation](https://learn.microsoft.com/azure/container-apps/)
 - [Bicep Documentation](https://learn.microsoft.com/azure/azure-resource-manager/bicep/)
 - [Dapr on Container Apps](https://learn.microsoft.com/azure/container-apps/dapr-overview)
 - [GitHub Actions for Azure](https://learn.microsoft.com/azure/developer/github/github-actions)
-- [Azure Well-Architected Framework](https://learn.microsoft.com/azure/architecture/framework/)
 
-## 📁 Directory Structure
-
-```
-azure/container-apps/bicep/
-├── bicepconfig.json              # ACR registry alias configuration
-├── README.md                     # This comprehensive documentation
-├── bicep-registry/               # ACR infrastructure deployment
-│   ├── main.bicep               # Deploys ACR for module registry
-│   └── README.md                # Registry setup guide
-├── modules/                      # 15 reusable Bicep modules (all validated ✅)
-│   ├── acr.bicep                           # Azure Container Registry
-│   ├── container-app.bicep                 # Individual microservice deployment
-│   ├── container-apps-environment.bicep    # Managed environment (hosting platform)
-│   ├── cosmos-database.bicep               # Cosmos DB NoSQL database
-│   ├── dapr-components.bicep               # 5 Dapr components configuration
-│   ├── key-vault.bicep                     # Azure Key Vault for secrets
-│   ├── key-vault-secrets.bicep             # Bulk secret creation
-│   ├── log-analytics.bicep                 # Log Analytics workspace
-│   ├── managed-identity.bicep              # User-assigned managed identity
-│   ├── mysql-database.bicep                # MySQL Flexible Server
-│   ├── postgresql-database.bicep           # PostgreSQL Flexible Server
-│   ├── redis.bicep                         # Azure Cache for Redis
-│   ├── resource-group.bicep                # Subscription-scope resource group
-│   ├── service-bus.bicep                   # Service Bus with 9 topics + RBAC
-│   └── sql-server.bicep                    # SQL Server with Key Vault integration
-└── environments/                 # Environment orchestration (TO BE CREATED)
-    ├── dev/
-    │   ├── main.bicep           # Dev orchestration (references all modules)
-    │   └── main.bicepparam      # Dev-specific parameters
-    └── prod/
-        └── main.bicepparam      # Prod-specific parameters (higher SKUs)
-```
-
-## �️ Module Catalog (15 Modules - All Validated ✅)
-
-### 1. Resource Group & Foundational Infrastructure
-
-#### `resource-group.bicep`
-- **Purpose**: Subscription-scope resource group creation
-- **Parameters**: `name`, `location` (20+ allowed locations, default: swedencentral)
-- **Outputs**: `id`, `name`, `location`
-- **Use Case**: First deployment step for any environment
-
-#### `log-analytics.bicep`
-- **Purpose**: Central monitoring and diagnostics workspace
-- **Parameters**: `name`, `location`, `retentionInDays` (30-730), `sku` (PerGB2018)
-- **Outputs**: `workspaceId`, `workspaceName`, `customerId`, `primarySharedKey`
-- **Integration**: Required by `container-apps-environment.bicep`
-
-#### `managed-identity.bicep`
-- **Purpose**: User-assigned managed identity for services
-- **Parameters**: `name`, `location`, `tags`
-- **Outputs**: `id`, `principalId`, `clientId`, `name`
-- **Integration**: 
-  - `principalId` → Service Bus RBAC role assignment
-  - `clientId` → Dapr Key Vault component authentication
-
-#### `acr.bicep`
-- **Purpose**: Container registry for Docker images and Bicep modules
-- **Parameters**: `name`, `location`, `sku` (Basic/Standard/Premium), `adminUserEnabled` (false)
-- **Outputs**: `name`, `loginServer`, `resourceId`
-- **Use Case**: Hosts both container images AND published Bicep modules
-
-### 2. Container Apps Platform
-
-#### `container-apps-environment.bicep` ⭐ Core Platform
-- **Purpose**: Managed environment hosting all microservices
-- **Parameters**: 
-  - `name`, `location`
-  - `logAnalyticsWorkspaceId` (required)
-  - `internalOnly` (false), `zoneRedundant` (false)
-- **Features**:
-  - Integrates Log Analytics via `reference()` and `listKeys()`
-  - Supports VNet internal-only mode
-  - Zone redundancy for high availability
-- **Outputs**: `name`, `resourceId`, `defaultDomain`, `staticIp`
-- **Integration**: 
-  - Input: `logAnalyticsWorkspaceId` from `log-analytics.bicep`
-  - Output: `resourceId` consumed by `container-app.bicep` and `dapr-components.bicep`
-
-#### `container-app.bicep` ⭐ Microservice Deployment
-- **Purpose**: Deploy individual microservice with auto-scaling and health probes
-- **Parameters** (15 total):
-  - Core: `name`, `location`, `environmentId`, `containerImage`
-  - Resources: `cpu` (0.25-4.0), `memory` (0.5Gi-8Gi)
-  - Networking: `targetPort`, `externalIngress`, `allowInsecure`
-  - Scaling: `minReplicas` (0), `maxReplicas` (30)
-  - Configuration: `envVars`, `secrets`, `healthProbePath`
-  - Dapr: `daprEnabled`, `daprAppId`, `daprAppPort`
-- **Features**:
-  - Auto-scaling: 0-30 replicas based on HTTP traffic
-  - Health probes: Liveness (startup + ongoing) and readiness
-  - Dapr sidecar: Optional integration for service mesh
-  - Registry authentication: ACR integration
-  - Secret management: Secure environment variables
-- **Outputs**: `name`, `fqdn`, `url`, `resourceId`, `latestRevisionName`
-- **Integration**: 
-  - Requires `environmentId` from `container-apps-environment.bicep`
-  - Optional managed identity for ACR authentication
-
-### 3. Dapr Components
-
-#### `dapr-components.bicep` ⭐ Service Mesh Configuration
-- **Purpose**: Configure 5 Dapr components for service-to-service communication
-- **Parameters**: 
-  - `containerAppsEnvName` (parent environment name)
-  - `serviceBusConnectionString`, `redisHost`, `redisPassword`
-  - `keyVaultName`, `managedIdentityClientId`
-- **Components Created**:
-
-1. **pubsub** (Service Bus Topics)
-   - Type: `pubsub.azure.servicebus`
-   - Backend: Service Bus Topics (not queues)
-   - Scoped to: 12 services (user, product, order, payment, inventory, notification, cart, review, audit, auth, admin, order-processor)
-   - Topics: 9 pre-created topics (user-events, product-events, etc.)
-
-2. **statestore** (Redis)
-   - Type: `state.redis`
-   - Backend: Azure Cache for Redis
-   - Scoped to: 5 services (user, product, order, cart, auth)
-   - Use Case: Session state, shopping cart persistence
-
-3. **cosmos-binding** (Cosmos DB)
-   - Type: `bindings.azure.cosmosdb`
-   - Backend: Cosmos DB (MongoDB/SQL API)
-   - Scoped to: audit-service only
-   - Use Case: Audit log storage with change feed
-
-4. **secret-store** (Key Vault)
-   - Type: `secretstores.azure.keyvault`
-   - Backend: Azure Key Vault
-   - Authentication: Managed Identity (clientId)
-   - Scoped to: 13 apps (12 services + web-bff)
-   - Use Case: Runtime secret retrieval
-
-5. **configstore** (Redis)
-   - Type: `configuration.redis`
-   - Backend: Azure Cache for Redis
-   - Scoped to: 2 services (web-bff, admin)
-   - Use Case: Dynamic configuration management
-
-- **Integration**:
-  - Depends on: `container-apps-environment`, `service-bus`, `redis`, `key-vault`, `managed-identity`, `cosmos-database`
-  - Secret references: Uses `secretRef` pattern for sensitive data
-
-### 4. Messaging & Eventing
-
-#### `service-bus.bicep` ⭐ Message Broker
-- **Purpose**: Async pub/sub messaging backbone for event-driven architecture
-- **Parameters**: `namespaceName`, `location`, `sku` (Standard), `managedIdentityPrincipalId`
-- **Resources Created**:
-  - **Namespace**: Service Bus namespace (Standard SKU for topics)
-  - **9 Topics**: Pre-created with default settings
-    - `user-events` - User registration, profile updates
-    - `product-events` - Product catalog changes
-    - `order-events` - Order lifecycle events
-    - `payment-events` - Payment processing events
-    - `inventory-events` - Stock level changes
-    - `notification-events` - Notification triggers
-    - `cart-events` - Cart operations
-    - `review-events` - Product reviews
-    - `audit-events` - Audit trail events
-  - **RBAC Role Assignment**: Azure Service Bus Data Owner to managed identity
-- **Outputs**: `id`, `namespaceName`, `connectionString`, `endpoint`
-- **Security**: RBAC-based access (no shared access keys in Dapr components)
-
-### 5. Data Storage
-
-#### `redis.bicep`
-- **Purpose**: In-memory cache for state and configuration
-- **Parameters**: `name`, `location`, `sku` (Basic/Standard/Premium), `capacity` (0-6)
-- **Security**: 
-  - `enableNonSslPort: false` (TLS required)
-  - `minimumTlsVersion: '1.2'`
-- **Outputs**: `id`, `name`, `hostName`, `sslPort`, `primaryKey`, `connectionString`
-- **Integration**: Used by `dapr-components.bicep` (statestore + configstore)
-
-#### `cosmos-database.bicep`
-- **Purpose**: NoSQL database for audit logs and flexible schema data
-- **Parameters**: `name`, `location`, `apiType` (MongoDB/Sql/Cassandra/Gremlin/Table), `serverless` (false)
-- **Outputs**: `connectionString`, `resourceId`
-- **Integration**: Used by `dapr-components.bicep` (cosmos-binding)
-
-#### `sql-server.bicep` ⭐ SQL Database Server
-- **Purpose**: Relational database server with Key Vault integration
-- **Parameters**: 
-  - `location`, `baseName`, `administratorLogin`, `administratorLoginPassword`
-  - `publicNetworkAccess` (Enabled/Disabled), `allowedIpAddresses` (array)
-  - `keyVaultName` (for secret storage)
-  - `azureAdAdminObjectId`, `azureAdOnlyAuthentication` (false)
-- **Resources Created**:
-  - SQL Server with Azure AD admin
-  - Firewall rules for allowed IPs
-  - Allow Azure Services rule
-  - 3 Key Vault secrets: admin-login, admin-password, server-fqdn
-- **Pattern**: Server-only deployment (databases created via migrations)
-- **Outputs**: `serverName`, `serverFqdn`, `serverId`, `connectionStringTemplate`
-- **Security**: Azure AD authentication, Key Vault secret storage
-
-#### `mysql-database.bicep`
-- **Purpose**: MySQL Flexible Server
-- **Parameters**: `serverName`, `location`, `administratorLogin`, `administratorLoginPassword`, `sku` (Burstable/GeneralPurpose/MemoryOptimized), `version` (5.7/8.0)
-- **Pattern**: Server-only deployment (databases via migrations)
-- **Outputs**: `serverName`, `serverFqdn`, `serverId`, `connectionStringTemplate`
-
-#### `postgresql-database.bicep`
-- **Purpose**: PostgreSQL Flexible Server
-- **Parameters**: `serverName`, `location`, `administratorLogin`, `administratorLoginPassword`, `sku`, `version` (11/12/13/14/15)
-- **Pattern**: Server-only deployment (databases via migrations)
-- **Outputs**: `serverName`, `serverFqdn`, `serverId`, `connectionStringTemplate`
-
-### 6. Security & Secrets
-
-#### `key-vault.bicep` ⭐ Secrets Management
-- **Purpose**: Centralized secrets storage for all services
-- **Parameters**: 
-  - `name`, `location`, `sku` (Standard/Premium)
-  - `enableSoftDelete` (true, 90-day retention)
-  - `enablePurgeProtection` (true)
-  - `enableRbacAuthorization` (true)
-- **Security Features**:
-  - Soft delete with 90-day recovery window
-  - Purge protection (cannot permanently delete)
-  - RBAC-based access (no access policies)
-- **Outputs**: `name`, `uri`, `resourceId`
-- **Integration**: 
-  - Used by `key-vault-secrets.bicep` for bulk secret creation
-  - Used by `sql-server.bicep` for storing DB credentials
-  - Used by `dapr-components.bicep` (secret-store component)
-
-#### `key-vault-secrets.bicep`
-- **Purpose**: Bulk secret creation in Key Vault
-- **Parameters**: 
-  - `keyVaultName` (existing Key Vault)
-  - `secrets` (array of {name, value} objects)
-- **Outputs**: `secretNames` (array), `secretCount`
-- **Use Case**: Batch secret deployment for multiple services
 ---
 
-## 🚀 Application Deployment Pattern
+## Support
 
-### Separation of Concerns
-
-This repository contains **platform infrastructure** (Container Apps Environment, databases, Service Bus, etc.). Each **microservice** (like `product-service`) maintains its own deployment configuration in its service folder.
-
-```
-📦 Repository Structure
-├── infrastructure/azure/container-apps/bicep/    # ← Platform Infrastructure (THIS REPO)
-│   ├── modules/                                   # 15 reusable Bicep modules
-│   ├── environments/                              # Platform orchestration (dev/prod)
-│   └── README.md                                  # This file
-│
-├── product-service/                               # ← Application Code + Deployment
-│   ├── src/                                       # Python/FastAPI application code
-│   ├── tests/                                     # Unit/integration tests
-│   ├── Dockerfile                                 # Container image definition
-│   ├── .azure/                                    # 🔥 Application deployment config
-│   │   ├── deploy.bicep                           # References infrastructure modules
-│   │   ├── deploy.parameters.dev.json             # Dev-specific app config
-│   │   └── deploy.parameters.prod.json            # Prod-specific app config
-│   └── .github/workflows/
-│       ├── ci-build.yml                           # Build & test on PR
-│       └── cd-deploy.yml                          # Deploy to Container Apps
-│
-├── user-service/                                  # Another microservice
-│   ├── src/
-│   ├── .azure/                                    # 🔥 Its own deployment config
-│   └── .github/workflows/
-│
-└── (other services...)
-```
-
-### Example: Product Service Deployment
-
-#### `product-service/.azure/deploy.bicep`
-```bicep
-// Product Service deployment configuration
-// References base infrastructure modules from the platform repository
-
-targetScope = 'resourceGroup'
-
-// ============================================================================
-// PARAMETERS - Service-specific configuration
-// ============================================================================
-
-@description('Environment name (dev, staging, prod)')
-param environment string
-
-@description('Product service container image (with tag)')
-param containerImage string
-
-@description('Container Apps Environment resource ID (from platform deployment)')
-param containerAppsEnvironmentId string
-
-@description('Container Apps Environment name')
-param containerAppsEnvironmentName string
-
-@description('Managed Identity Client ID (for Key Vault access)')
-param managedIdentityClientId string
-
-@description('Key Vault name for secrets')
-param keyVaultName string
-
-@description('Location for resources')
-param location string = resourceGroup().location
-
-// ============================================================================
-// MODULE REFERENCE - Use infrastructure modules from ACR
-// ============================================================================
-
-module productServiceApp 'br/xshopai:container-app:v1.0.0' = {
-  name: 'product-service-app'
-  params: {
-    name: 'product-service'
-    location: location
-    environmentId: containerAppsEnvironmentId
-    containerImage: containerImage
-    targetPort: 8001
-    cpu: '1.0'
-    memory: '2Gi'
-    minReplicas: 1
-    maxReplicas: 10
-    externalIngress: true
-    allowInsecure: false
-    
-    // Dapr configuration
-    daprEnabled: true
-    daprAppId: 'product-service'
-    daprAppPort: 8001
-    
-    // Environment variables
-    envVars: [
-      {
-        name: 'ENVIRONMENT'
-        value: environment
-      }
-      {
-        name: 'SERVICE_NAME'
-        value: 'product-service'
-      }
-      {
-        name: 'SERVICE_PORT'
-        value: '8001'
-      }
-      {
-        name: 'DAPR_HTTP_PORT'
-        value: '3501'
-      }
-      {
-        name: 'DAPR_GRPC_PORT'
-        value: '50001'
-      }
-      {
-        name: 'LOG_LEVEL'
-        value: environment == 'prod' ? 'info' : 'debug'
-      }
-      // Key Vault reference (runtime secrets via Dapr secret-store)
-      {
-        name: 'KEY_VAULT_NAME'
-        value: keyVaultName
-      }
-      {
-        name: 'MANAGED_IDENTITY_CLIENT_ID'
-        value: managedIdentityClientId
-      }
-    ]
-    
-    // Secrets (sensitive configuration)
-    secrets: [
-      {
-        name: 'mongodb-connection-string'
-        keyVaultUrl: 'https://${keyVaultName}.vault.azure.net/secrets/product-mongodb-connection-string'
-        identity: managedIdentityClientId
-      }
-    ]
-    
-    // Health probe configuration
-    healthProbePath: '/health'
-  }
-}
-
-// ============================================================================
-// OUTPUTS
-// ============================================================================
-
-output productServiceUrl string = productServiceApp.outputs.url
-output productServiceFqdn string = productServiceApp.outputs.fqdn
-output latestRevision string = productServiceApp.outputs.latestRevisionName
-```
-
-#### `product-service/.azure/deploy.parameters.dev.json`
-```json
-{
-  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
-  "contentVersion": "1.0.0.0",
-  "parameters": {
-    "environment": {
-      "value": "dev"
-    },
-    "containerImage": {
-      "value": "xshopaimodules.azurecr.io/product-service:${BUILD_TAG}"
-    },
-    "containerAppsEnvironmentId": {
-      "reference": {
-        "keyVault": {
-          "id": "/subscriptions/{subscription-id}/resourceGroups/xshopai-dev-rg/providers/Microsoft.KeyVault/vaults/xshopai-dev-kv"
-        },
-        "secretName": "container-apps-environment-id"
-      }
-    },
-    "containerAppsEnvironmentName": {
-      "value": "xshopai-dev-env"
-    },
-    "managedIdentityClientId": {
-      "reference": {
-        "keyVault": {
-          "id": "/subscriptions/{subscription-id}/resourceGroups/xshopai-dev-rg/providers/Microsoft.KeyVault/vaults/xshopai-dev-kv"
-        },
-        "secretName": "managed-identity-client-id"
-      }
-    },
-    "keyVaultName": {
-      "value": "xshopai-dev-kv"
-    }
-  }
-}
-```
-
-#### `product-service/.github/workflows/cd-deploy.yml`
-```yaml
-name: Deploy Product Service
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'product-service/**'
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to deploy to'
-        required: true
-        default: 'dev'
-        type: choice
-        options:
-          - dev
-          - prod
-
-env:
-  ACR_NAME: xshopaimodules
-  SERVICE_NAME: product-service
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    
-    steps:
-      # 1. Build and push container image
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Log in to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      - name: Log in to ACR
-        run: az acr login --name ${{ env.ACR_NAME }}
-      
-      - name: Build and push Docker image
-        working-directory: ./product-service
-        run: |
-          IMAGE_TAG="${{ github.sha }}"
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.SERVICE_NAME }}:${IMAGE_TAG} .
-          docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.SERVICE_NAME }}:${IMAGE_TAG}
-          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
-      
-      # 2. Deploy to Container Apps using Bicep
-      - name: Deploy to Container Apps
-        uses: azure/arm-deploy@v2
-        with:
-          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          resourceGroupName: xshopai-${{ inputs.environment }}-rg
-          template: ./product-service/.azure/deploy.bicep
-          parameters: >
-            ./product-service/.azure/deploy.parameters.${{ inputs.environment }}.json
-            containerImage=${{ env.ACR_NAME }}.azurecr.io/${{ env.SERVICE_NAME }}:${{ env.IMAGE_TAG }}
-          deploymentName: deploy-product-service-${{ github.run_number }}
-      
-      # 3. Verify deployment
-      - name: Get deployment outputs
-        id: deployment
-        run: |
-          DEPLOYMENT_NAME="deploy-product-service-${{ github.run_number }}"
-          PRODUCT_URL=$(az deployment group show \
-            --resource-group xshopai-${{ inputs.environment }}-rg \
-            --name $DEPLOYMENT_NAME \
-            --query properties.outputs.productServiceUrl.value -o tsv)
-          echo "Product Service URL: $PRODUCT_URL"
-          echo "url=$PRODUCT_URL" >> $GITHUB_OUTPUT
-      
-      - name: Health check
-        run: |
-          echo "Waiting 30 seconds for service to start..."
-          sleep 30
-          curl -f ${{ steps.deployment.outputs.url }}/health || exit 1
-          echo "✅ Health check passed!"
-```
-
-### Key Points
-
-#### 1. **Infrastructure vs. Application Deployment**
-
-| Concern | Location | Responsibility | Examples |
-|---------|----------|----------------|----------|
-| **Platform Infrastructure** | `infrastructure/azure/container-apps/bicep/` | Platform team | Container Apps Environment, Service Bus, databases, Key Vault, ACR |
-| **Application Deployment** | `{service}/.azure/` | Service team | Container App configuration, environment variables, scaling rules |
-
-#### 2. **Module References**
-
-Applications reference infrastructure modules from ACR:
-```bicep
-// ✅ DO THIS (Production pattern)
-module productServiceApp 'br/xshopai:container-app:v1.0.0' = { ... }
-
-// ❌ DON'T DO THIS (Tight coupling)
-module productServiceApp '../../../../infrastructure/azure/container-apps/bicep/modules/container-app.bicep' = { ... }
-```
-
-#### 3. **Deployment Order**
-
-1. **Platform Infrastructure** (One-time setup per environment)
-   ```bash
-   # Deploy platform infrastructure (Container Apps Environment, databases, etc.)
-   gh workflow run deploy-container-apps.yml --field environment=dev
-   ```
-
-2. **Application Deployment** (Per service, on every release)
-   ```bash
-   # Build and deploy product-service
-   gh workflow run product-service/cd-deploy.yml --field environment=dev
-   
-   # Build and deploy user-service
-   gh workflow run user-service/cd-deploy.yml --field environment=dev
-   
-   # ... (repeat for all 12 services)
-   ```
-
-#### 4. **Required Infrastructure Outputs**
-
-Each service deployment needs these values from platform infrastructure:
-
-- **Container Apps Environment ID**: `containerAppsEnvironmentId`
-- **Managed Identity Client ID**: `managedIdentityClientId`
-- **Key Vault Name**: `keyVaultName`
-- **ACR Name**: `acrName`
-
-**Best Practice**: Store these in Key Vault and reference them in parameter files.
-
-#### 5. **Service-Specific Configuration**
-
-Each service folder (`product-service/`, `user-service/`, etc.) should contain:
-
-```
-{service-name}/
-├── .azure/
-│   ├── deploy.bicep                    # Container App deployment
-│   ├── deploy.parameters.dev.json      # Dev configuration
-│   └── deploy.parameters.prod.json     # Prod configuration
-├── .github/workflows/
-│   ├── ci-build.yml                    # Build & test
-│   └── cd-deploy.yml                   # Deploy to Azure
-├── Dockerfile                          # Container image
-├── src/                                # Application code
-└── tests/                              # Tests
-```
-
-### Next Steps for Application Deployments
-
-After completing the platform infrastructure deployment:
-
-1. **Create `.azure/` folder in each service** (12 services)
-2. **Create `deploy.bicep`** for each service (reference the example above)
-3. **Create parameter files** for dev and prod
-4. **Create GitHub workflows** for CI/CD
-5. **Deploy services incrementally** (one at a time, test each)
-
-**Example Services**:
-- `product-service` (Python/FastAPI - shown above)
-- `user-service` (Node.js/Express)
-- `order-service` (.NET/C#)
-- `cart-service` (Java/Spring Boot)
-- ... (8 more services)
-
----
-## 🔐 Registry Configuration
-
-The `bicepconfig.json` configures the ACR alias:
-
-```json
-{
-  "moduleAliases": {
-    "br": {
-      "xshopai": {
-        "registry": "xshopaimodules.azurecr.io",
-        "modulePath": "bicep/container-apps"
-      }
-    }
-  }
-}
-```
-
-## 📋 Publishing Modules
-
-Modules are published via GitHub Actions workflow:
-
-```bash
-# Manual publish (requires Azure CLI login)
-az bicep publish \
-  --file modules/container-app.bicep \
-  --target br:xshopaimodules.azurecr.io/bicep/container-apps/container-app:v1.0.0
-```
-
-## 🏷️ Versioning
-
-Modules use semantic versioning:
-- `v1.0.0` - Initial release
-- `v1.1.0` - New features (backward compatible)
-- `v2.0.0` - Breaking changes
-
-## 🔗 Related Documentation
-
-- [Azure Container Apps Documentation](https://learn.microsoft.com/azure/container-apps/)
-- [Bicep Documentation](https://learn.microsoft.com/azure/azure-resource-manager/bicep/)
-- [Dapr on Container Apps](https://learn.microsoft.com/azure/container-apps/dapr-overview)
+For issues:
+1. Check [Troubleshooting](#troubleshooting) section
+2. Review GitHub Actions workflow logs
+3. Check Azure Portal for resource health
+4. Open issue in `xshopai/infrastructure` repository
