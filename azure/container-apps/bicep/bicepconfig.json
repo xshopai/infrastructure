@@ -1,0 +1,14 @@
+{
+  "moduleAliases": {
+    "br": {
+      "xshopai": {
+        "registry": "xshopaimodules.azurecr.io",
+        "modulePath": "bicep/container-apps"
+      }
+    }
+  },
+  "experimentalFeaturesEnabled": {
+    "userDefinedTypes": true,
+    "extensibility": true
+  }
+}

@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'azure/bicep/modules/**'
+      - 'azure/container-apps/bicep/modules/**'
       - '.github/workflows/publish-bicep-modules.yml'
   workflow_dispatch:
     inputs:
@@ -20,8 +20,8 @@ permissions:
 
 env:
   AZURE_RESOURCE_GROUP: rg-xshopai-shared-prod
-  AZURE_CONTAINER_REGISTRY: xshopaiacr
-  BICEP_MODULES_PATH: azure/bicep/modules
+  AZURE_CONTAINER_REGISTRY: xshopaimodules
+  BICEP_MODULES_PATH: azure/container-apps/bicep/modules
 
 jobs:
   publish-modules:
@@ -81,7 +81,7 @@ jobs:
       - name: Publish container-app module
         run: |
           MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/container-app.bicep"
-          MODULE_NAME="bicep/modules/container-app"
+          MODULE_NAME="bicep/container-apps/container-app"
           VERSION="${{ steps.version.outputs.version }}"
           
           echo "Publishing ${MODULE_NAME}:${VERSION}..."
@@ -99,7 +99,7 @@ jobs:
       - name: Publish mysql-database module
         run: |
           MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/mysql-database.bicep"
-          MODULE_NAME="bicep/modules/mysql-database"
+          MODULE_NAME="bicep/container-apps/mysql-database"
           VERSION="${{ steps.version.outputs.version }}"
           
           echo "Publishing ${MODULE_NAME}:${VERSION}..."
@@ -116,7 +116,7 @@ jobs:
       - name: Publish cosmos-database module
         run: |
           MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/cosmos-database.bicep"
-          MODULE_NAME="bicep/modules/cosmos-database"
+          MODULE_NAME="bicep/container-apps/cosmos-database"
           VERSION="${{ steps.version.outputs.version }}"
           
           echo "Publishing ${MODULE_NAME}:${VERSION}..."
@@ -133,7 +133,7 @@ jobs:
       - name: Publish postgresql-database module
         run: |
           MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/postgresql-database.bicep"
-          MODULE_NAME="bicep/modules/postgresql-database"
+          MODULE_NAME="bicep/container-apps/postgresql-database"
           VERSION="${{ steps.version.outputs.version }}"
           
           echo "Publishing ${MODULE_NAME}:${VERSION}..."
@@ -150,7 +150,7 @@ jobs:
       - name: Publish sql-database module
         run: |
           MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/sql-database.bicep"
-          MODULE_NAME="bicep/modules/sql-database"
+          MODULE_NAME="bicep/container-apps/sql-database"
           VERSION="${{ steps.version.outputs.version }}"
           
           echo "Publishing ${MODULE_NAME}:${VERSION}..."

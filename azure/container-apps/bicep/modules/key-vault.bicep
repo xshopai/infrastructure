@@ -1,30 +1,47 @@
 // ============================================================================
 // Azure Key Vault Module
-// Secure storage for secrets, keys, and certificates
+// ============================================================================
+// Creates an Azure Key Vault for secrets management
 // ============================================================================
 
-@description('Name of the Key Vault')
+// ============================================================================
+// Parameters
+// ============================================================================
+
+@description('Name of the Key Vault (must be globally unique)')
+@minLength(3)
+@maxLength(24)
 param name string
 
-@description('Azure region')
-param location string
+@description('Azure region for the Key Vault. Default: Sweden Central')
+param location string = 'swedencentral'
 
-@description('Resource tags')
-param tags object
+@description('SKU for the Key Vault')
+@allowed([
+  'standard'
+  'premium'
+])
+param sku string = 'standard'
 
-@description('Managed Identity Principal ID for access')
-param managedIdentityPrincipalId string
-
-@description('Enable soft delete')
+@description('Enable soft delete for the Key Vault')
 param enableSoftDelete bool = true
 
-@description('Soft delete retention days')
+@description('Number of days to retain soft-deleted secrets')
 @minValue(7)
 @maxValue(90)
-param softDeleteRetentionInDays int = 7
+param softDeleteRetentionInDays int = 90
 
-@description('Enable purge protection')
-param enablePurgeProtection bool = false
+@description('Enable purge protection (cannot be disabled once enabled)')
+param enablePurgeProtection bool = true
+
+@description('Enable RBAC authorization (recommended over access policies)')
+param enableRbacAuthorization bool = true
+
+@description('Tenant ID for the Key Vault')
+param tenantId string = subscription().tenantId
+
+@description('Tags to apply to the resource')
+param tags object = {}
 
 // ============================================================================
 // Resources
@@ -33,48 +50,37 @@ param enablePurgeProtection bool = false
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: name
   location: location
-  tags: tags
   properties: {
+    tenantId: tenantId
     sku: {
       family: 'A'
-      name: 'standard'
+      name: sku
     }
-    tenantId: subscription().tenantId
-    enableRbacAuthorization: true
     enableSoftDelete: enableSoftDelete
     softDeleteRetentionInDays: softDeleteRetentionInDays
-    enablePurgeProtection: enablePurgeProtection ? true : null
-    enabledForDeployment: false
-    enabledForDiskEncryption: false
-    enabledForTemplateDeployment: true
+    enablePurgeProtection: enablePurgeProtection
+    enableRbacAuthorization: enableRbacAuthorization
     publicNetworkAccess: 'Enabled'
     networkAcls: {
       defaultAction: 'Allow'
       bypass: 'AzureServices'
     }
   }
-}
-
-// Grant Secrets User role to managed identity
-resource secretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, managedIdentityPrincipalId, 'Key Vault Secrets User')
-  scope: keyVault
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6') // Key Vault Secrets User
-    principalId: managedIdentityPrincipalId
-    principalType: 'ServicePrincipal'
-  }
+  tags: union(tags, {
+    'managed-by': 'bicep'
+    'deployment-target': 'container-apps'
+  })
 }
 
 // ============================================================================
 // Outputs
 // ============================================================================
 
-@description('Key Vault Resource ID')
-output id string = keyVault.id
-
-@description('Key Vault Name')
+@description('The name of the Key Vault')
 output name string = keyVault.name
 
-@description('Key Vault URI')
+@description('The URI of the Key Vault')
 output uri string = keyVault.properties.vaultUri
+
+@description('The resource ID of the Key Vault')
+output resourceId string = keyVault.id

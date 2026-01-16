@@ -1,108 +1,146 @@
 // ============================================================================
 // Container App Module
 // ============================================================================
-// Deploys a single Container App instance for a microservice
-// Used by individual service CI/CD pipelines after infrastructure is provisioned
+// Reusable module for deploying Azure Container Apps
+// Supports: HTTP services, background workers, Dapr sidecars
+// ============================================================================
+
+// ============================================================================
+// Parameters
 // ============================================================================
 
 @description('Name of the Container App')
 param name string
 
-@description('Location for the Container App')
-param location string = resourceGroup().location
+@description('Azure region for deployment. Default: Sweden Central')
+param location string = 'swedencentral'
 
-@description('Environment name (dev, staging, prod)')
-@allowed(['dev', 'staging', 'prod'])
-param environment string
+@description('Resource ID of the Container Apps Environment')
+param environmentId string
 
-@description('Container Apps Environment resource ID')
-param containerAppsEnvironmentId string
-
-@description('User-assigned Managed Identity resource ID')
-param managedIdentityId string
-
-@description('Container Registry login server (e.g., crxshopaidev.azurecr.io)')
-param containerRegistryServer string
-
-@description('Full container image with tag (e.g., crxshopaidev.azurecr.io/user-service:v1.0.0)')
+@description('Container image to deploy (e.g., myregistry.azurecr.io/myapp:latest)')
 param containerImage string
 
-@description('Container port to expose')
-param containerPort int = 3000
+@description('Container registry server (e.g., myregistry.azurecr.io)')
+param containerRegistryServer string = ''
+
+@description('Container registry username')
+@secure()
+param containerRegistryUsername string = ''
+
+@description('Container registry password')
+@secure()
+param containerRegistryPassword string = ''
+
+@description('CPU cores allocated to the container (e.g., 0.25, 0.5, 1, 2)')
+@allowed([
+  '0.25'
+  '0.5'
+  '0.75'
+  '1'
+  '1.25'
+  '1.5'
+  '1.75'
+  '2'
+])
+param cpu string = '0.5'
+
+@description('Memory allocated to the container (e.g., 0.5Gi, 1Gi, 2Gi)')
+@allowed([
+  '0.5Gi'
+  '1Gi'
+  '1.5Gi'
+  '2Gi'
+  '2.5Gi'
+  '3Gi'
+  '3.5Gi'
+  '4Gi'
+])
+param memory string = '1Gi'
+
+@description('Port the container listens on')
+param targetPort int = 8080
+
+@description('Enable external ingress (accessible from internet)')
+param externalIngress bool = true
+
+@description('Minimum number of replicas')
+@minValue(0)
+@maxValue(30)
+param minReplicas int = 0
+
+@description('Maximum number of replicas')
+@minValue(1)
+@maxValue(30)
+param maxReplicas int = 10
 
 @description('Environment variables for the container')
 param envVars array = []
 
-@description('Secrets for the container (name/value pairs from Key Vault references)')
+@description('Secret references for the container')
+@secure()
 param secrets array = []
 
-@description('Health check path')
-param healthCheckPath string = '/health'
-
 @description('Enable Dapr sidecar')
-param daprEnabled bool = true
+param daprEnabled bool = false
 
-@description('Dapr app ID (defaults to container app name)')
+@description('Dapr application ID')
 param daprAppId string = ''
 
-@description('Dapr app port (defaults to container port)')
+@description('Dapr application port')
 param daprAppPort int = 0
 
-@description('Minimum number of replicas')
-param minReplicas int = 1
+@description('Dapr application protocol (http or grpc)')
+@allowed([
+  'http'
+  'grpc'
+])
+param daprAppProtocol string = 'http'
 
-@description('Maximum number of replicas')
-param maxReplicas int = 3
+@description('Custom health probe path')
+param healthProbePath string = '/health'
 
-@description('CPU allocation (e.g., 0.5, 1.0, 2.0)')
-param cpu string = '0.5'
-
-@description('Memory allocation (e.g., 1.0Gi, 2.0Gi)')
-param memory string = '1.0Gi'
-
-@description('Enable external ingress')
-param externalIngress bool = true
-
-@description('Tags to apply to resources')
+@description('Tags to apply to the resource')
 param tags object = {}
 
 // ============================================================================
 // Variables
 // ============================================================================
 
-var effectiveDaprAppId = empty(daprAppId) ? name : daprAppId
-var effectiveDaprAppPort = daprAppPort == 0 ? containerPort : daprAppPort
+var hasRegistryCredentials = !empty(containerRegistryUsername) && !empty(containerRegistryPassword)
 
-var defaultTags = {
-  service: name
-  environment: environment
-  managedBy: 'bicep'
-}
+var registrySecrets = hasRegistryCredentials ? [
+  {
+    name: 'registry-password'
+    value: containerRegistryPassword
+  }
+] : []
 
-var allTags = union(defaultTags, tags)
+var allSecrets = concat(registrySecrets, secrets)
+
+var registries = hasRegistryCredentials ? [
+  {
+    server: containerRegistryServer
+    username: containerRegistryUsername
+    passwordSecretRef: 'registry-password'
+  }
+] : []
 
 // ============================================================================
-// Container App
+// Resources
 // ============================================================================
 
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: name
   location: location
-  tags: allTags
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${managedIdentityId}': {}
-    }
-  }
   properties: {
-    managedEnvironmentId: containerAppsEnvironmentId
+    environmentId: environmentId
     configuration: {
       activeRevisionsMode: 'Single'
-      ingress: {
+      ingress: externalIngress || targetPort > 0 ? {
         external: externalIngress
-        targetPort: containerPort
-        transport: 'http'
+        targetPort: targetPort
+        transport: 'auto'
         allowInsecure: false
         traffic: [
           {
@@ -110,49 +148,15 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             latestRevision: true
           }
         ]
-        corsPolicy: {
-          allowedOrigins: environment == 'prod' ? [
-            'https://xshopai.com'
-            'https://www.xshopai.com'
-            'https://admin.xshopai.com'
-          ] : [
-            '*'
-          ]
-          allowedMethods: [
-            'GET'
-            'POST'
-            'PUT'
-            'PATCH'
-            'DELETE'
-            'OPTIONS'
-          ]
-          allowedHeaders: [
-            '*'
-          ]
-          exposeHeaders: [
-            '*'
-          ]
-          allowCredentials: true
-          maxAge: 3600
-        }
-      }
+      } : null
+      secrets: allSecrets
+      registries: registries
       dapr: daprEnabled ? {
         enabled: true
-        appId: effectiveDaprAppId
-        appPort: effectiveDaprAppPort
-        appProtocol: 'http'
-        enableApiLogging: environment != 'prod'
-        logLevel: environment == 'prod' ? 'warn' : 'info'
-      } : {
-        enabled: false
-      }
-      secrets: secrets
-      registries: [
-        {
-          server: containerRegistryServer
-          identity: managedIdentityId
-        }
-      ]
+        appId: daprAppId
+        appPort: daprAppPort > 0 ? daprAppPort : targetPort
+        appProtocol: daprAppProtocol
+      } : null
     }
     template: {
       containers: [
@@ -168,38 +172,22 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               type: 'Liveness'
               httpGet: {
-                path: healthCheckPath
-                port: containerPort
-                scheme: 'HTTP'
+                path: healthProbePath
+                port: targetPort
               }
-              initialDelaySeconds: 15
+              initialDelaySeconds: 30
               periodSeconds: 30
               failureThreshold: 3
-              timeoutSeconds: 5
             }
             {
               type: 'Readiness'
               httpGet: {
-                path: healthCheckPath
-                port: containerPort
-                scheme: 'HTTP'
+                path: healthProbePath
+                port: targetPort
               }
-              initialDelaySeconds: 5
+              initialDelaySeconds: 10
               periodSeconds: 10
               failureThreshold: 3
-              timeoutSeconds: 5
-            }
-            {
-              type: 'Startup'
-              httpGet: {
-                path: healthCheckPath
-                port: containerPort
-                scheme: 'HTTP'
-              }
-              initialDelaySeconds: 0
-              periodSeconds: 10
-              failureThreshold: 30
-              timeoutSeconds: 5
             }
           ]
         }
@@ -209,7 +197,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         maxReplicas: maxReplicas
         rules: [
           {
-            name: 'http-scaler'
+            name: 'http-scaling'
             http: {
               metadata: {
                 concurrentRequests: '100'
@@ -220,26 +208,27 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
       }
     }
   }
+  tags: union(tags, {
+    'managed-by': 'bicep'
+    'deployment-target': 'container-apps'
+  })
 }
 
 // ============================================================================
 // Outputs
 // ============================================================================
 
-@description('Container App resource ID')
-output id string = containerApp.id
+@description('The name of the Container App')
+output name string = containerApp.name
 
-@description('Container App name')
-output appName string = containerApp.name
+@description('The FQDN of the Container App')
+output fqdn string = containerApp.properties.configuration.ingress != null ? containerApp.properties.configuration.ingress.fqdn : ''
 
-@description('Container App FQDN')
-output fqdn string = containerApp.properties.configuration.ingress.fqdn
+@description('The URL of the Container App')
+output url string = containerApp.properties.configuration.ingress != null ? 'https://${containerApp.properties.configuration.ingress.fqdn}' : ''
 
-@description('Container App URL')
-output url string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
+@description('The resource ID of the Container App')
+output resourceId string = containerApp.id
 
-@description('Container App latest revision name')
+@description('The latest revision name')
 output latestRevisionName string = containerApp.properties.latestRevisionName
-
-@description('Dapr app ID')
-output daprAppId string = effectiveDaprAppId
