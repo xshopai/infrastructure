@@ -1,16 +1,19 @@
 # ============================================================================
-# Deploy Bicep Module Registry
+# Bootstrap Infrastructure
 # ============================================================================
-# This workflow deploys the Azure Container Registry (ACR) that hosts reusable
-# Bicep modules for the xshopai platform. Run this ONCE when setting up a new
-# environment before publishing any Bicep modules.
+# This workflow performs the ONE-TIME bootstrap deployment to create the
+# foundational infrastructure needed before any modules can be published.
 #
 # Creates:
 # - Resource group: rg-xshopai-shared-{env}
 # - Azure Container Registry: xshopaimodules (for hosting Bicep modules)
+# - User-Assigned Managed Identity (for GitHub Actions OIDC authentication)
+# - Role assignments (AcrPush permissions)
+#
+# Run this ONCE per environment before publishing any Bicep modules.
 # ============================================================================
 
-name: Deploy Bicep Module Registry
+name: Bootstrap Infrastructure
 
 on:
   workflow_dispatch:
@@ -41,8 +44,8 @@ env:
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
-  deploy-registry:
-    name: Deploy Bicep Module Registry
+  bootstrap-infrastructure:
+    name: Bootstrap Infrastructure
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     
@@ -61,7 +64,7 @@ jobs:
         id: deployment-name
         run: |
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          echo "name=bicep-registry-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "name=bootstrap-infra-${TIMESTAMP}" >> $GITHUB_OUTPUT
 
       - name: Validate Bicep template
         working-directory: azure/container-apps/bicep/bicep-registry
@@ -80,11 +83,11 @@ jobs:
             --template-file main.bicep \
             --parameters ${{ inputs.environment }}.bicepparam
 
-      - name: Deploy Bicep Module Registry
+      - name: Deploy Bootstrap Infrastructure
         if: ${{ inputs.dry_run == false }}
         working-directory: azure/container-apps/bicep/bicep-registry
         run: |
-          echo "🚀 Deploying Bicep module registry..."
+          echo "🚀 Deploying bootstrap infrastructure..."
           az deployment sub create \
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
@@ -117,7 +120,7 @@ jobs:
       - name: Summary
         if: ${{ inputs.dry_run == false }}
         run: |
-          echo "## ✅ Bicep Module Registry Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Bootstrap Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
