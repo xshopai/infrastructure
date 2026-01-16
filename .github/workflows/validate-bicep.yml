@@ -24,6 +24,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  id-token: write  # Required for OIDC authentication
 
 jobs:
   validate:
@@ -33,6 +34,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR (for Bicep module resolution)
+        run: |
+          az acr login --name xshopaimodulesdev
 
       - name: Setup Bicep
         run: |
@@ -48,33 +60,37 @@ jobs:
           for module in azure/container-apps/bicep/modules/*.bicep; do
             if [ -f "$module" ]; then
               echo "Validating $(basename $module)..."
-              if ! az bicep build --file "$module" --stdout > /dev/null 2>&1; then
+              OUTPUT=$(az bicep build --file "$module" --stdout 2>&1) || {
                 echo "❌ Failed: $module"
+                echo "$OUTPUT"
                 FAILED=1
-              else
-                echo "✅ $(basename $module)"
-              fi
+                continue
+              }
+              echo "✅ $(basename $module)"
             fi
           done
           
           # Validate dev/bootstrap
           if [ -f "azure/container-apps/bicep/dev/bootstrap/main.bicep" ]; then
             echo "Validating dev/bootstrap/main.bicep..."
-            if ! az bicep build --file azure/container-apps/bicep/dev/bootstrap/main.bicep --stdout > /dev/null 2>&1; then
+            OUTPUT=$(az bicep build --file azure/container-apps/bicep/dev/bootstrap/main.bicep --stdout 2>&1) || {
               echo "❌ Failed: dev/bootstrap/main.bicep"
+              echo "$OUTPUT"
               FAILED=1
-            else
+            }
+            if [ $? -eq 0 ]; then
               echo "✅ dev/bootstrap/main.bicep"
             fi
             
             # Validate bicepparam file
             if [ -f "azure/container-apps/bicep/dev/bootstrap/main.bicepparam" ]; then
               echo "Validating dev/bootstrap/main.bicepparam syntax..."
-              # Basic syntax check (full validation requires resource group)
-              if ! az bicep build-params --file azure/container-apps/bicep/dev/bootstrap/main.bicepparam --stdout > /dev/null 2>&1; then
+              OUTPUT=$(az bicep build-params --file azure/container-apps/bicep/dev/bootstrap/main.bicepparam --stdout 2>&1) || {
                 echo "❌ Failed: dev/bootstrap/main.bicepparam"
+                echo "$OUTPUT"
                 FAILED=1
-              else
+              }
+              if [ $? -eq 0 ]; then
                 echo "✅ dev/bootstrap/main.bicepparam"
               fi
             fi
@@ -83,20 +99,24 @@ jobs:
           # Validate dev/platform
           if [ -f "azure/container-apps/bicep/dev/platform/main.bicep" ]; then
             echo "Validating dev/platform/main.bicep..."
-            if ! az bicep build --file azure/container-apps/bicep/dev/platform/main.bicep --stdout > /dev/null 2>&1; then
+            OUTPUT=$(az bicep build --file azure/container-apps/bicep/dev/platform/main.bicep --stdout 2>&1) || {
               echo "❌ Failed: dev/platform/main.bicep"
+              echo "$OUTPUT"
               FAILED=1
-            else
+            }
+            if [ $? -eq 0 ]; then
               echo "✅ dev/platform/main.bicep"
             fi
             
             # Validate bicepparam file
             if [ -f "azure/container-apps/bicep/dev/platform/main.bicepparam" ]; then
               echo "Validating dev/platform/main.bicepparam syntax..."
-              if ! az bicep build-params --file azure/container-apps/bicep/dev/platform/main.bicepparam --stdout > /dev/null 2>&1; then
+              OUTPUT=$(az bicep build-params --file azure/container-apps/bicep/dev/platform/main.bicepparam --stdout 2>&1) || {
                 echo "❌ Failed: dev/platform/main.bicepparam"
+                echo "$OUTPUT"
                 FAILED=1
-              else
+              }
+              if [ $? -eq 0 ]; then
                 echo "✅ dev/platform/main.bicepparam"
               fi
             fi
@@ -108,22 +128,24 @@ jobs:
             for dir in azure/container-apps/bicep/prod/*/; do
               if [ -f "${dir}main.bicep" ]; then
                 echo "Validating prod/$(basename $dir)/main.bicep..."
-                if ! az bicep build --file "${dir}main.bicep" --stdout > /dev/null 2>&1; then
+                OUTPUT=$(az bicep build --file "${dir}main.bicep" --stdout 2>&1) || {
                   echo "❌ Failed: prod/$(basename $dir)/main.bicep"
+                  echo "$OUTPUT"
                   FAILED=1
-                else
-                  echo "✅ prod/$(basename $dir)/main.bicep"
-                fi
+                  continue
+                }
+                echo "✅ prod/$(basename $dir)/main.bicep"
                 
                 # Validate bicepparam file
                 if [ -f "${dir}main.bicepparam" ]; then
                   echo "Validating prod/$(basename $dir)/main.bicepparam syntax..."
-                  if ! az bicep build-params --file "${dir}main.bicepparam" --stdout > /dev/null 2>&1; then
+                  OUTPUT=$(az bicep build-params --file "${dir}main.bicepparam" --stdout 2>&1) || {
                     echo "❌ Failed: prod/$(basename $dir)/main.bicepparam"
+                    echo "$OUTPUT"
                     FAILED=1
-                  else
-                    echo "✅ prod/$(basename $dir)/main.bicepparam"
-                  fi
+                    continue
+                  }
+                  echo "✅ prod/$(basename $dir)/main.bicepparam"
                 fi
               fi
             done
