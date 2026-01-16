@@ -1,15 +1,16 @@
 # ============================================================================
-# Bootstrap Infrastructure Deployment
+# Deploy Bicep Module Registry
 # ============================================================================
-# This workflow deploys the foundational shared infrastructure needed before
-# Bicep modules can be published. Run this ONCE when setting up a new environment.
+# This workflow deploys the Azure Container Registry (ACR) that hosts reusable
+# Bicep modules for the xshopai platform. Run this ONCE when setting up a new
+# environment before publishing any Bicep modules.
 #
 # Creates:
-# - Shared resource group
-# - Azure Container Registry for Bicep modules
+# - Resource group: rg-xshopai-shared-{env}
+# - Azure Container Registry: xshopaimodules (for hosting Bicep modules)
 # ============================================================================
 
-name: Bootstrap Infrastructure
+name: Deploy Bicep Module Registry
 
 on:
   workflow_dispatch:
@@ -21,7 +22,6 @@ on:
         type: choice
         options:
           - dev
-          - staging
           - prod
       location:
         description: 'Azure region'
@@ -41,8 +41,8 @@ env:
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
-  bootstrap:
-    name: Bootstrap Shared Infrastructure
+  deploy-registry:
+    name: Deploy Bicep Module Registry
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     
@@ -61,35 +61,35 @@ jobs:
         id: deployment-name
         run: |
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          echo "name=bootstrap-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "name=bicep-registry-${TIMESTAMP}" >> $GITHUB_OUTPUT
 
       - name: Validate Bicep template
-        working-directory: azure/container-apps/bicep/bootstrap
+        working-directory: azure/container-apps/bicep/bicep-registry
         run: |
           echo "🔍 Validating Bicep template..."
           az bicep build --file main.bicep
           echo "✅ Template is valid"
 
       - name: What-If Analysis
-        working-directory: azure/container-apps/bicep/bootstrap
+        working-directory: azure/container-apps/bicep/bicep-registry
         run: |
           echo "🔮 Running what-if analysis..."
           az deployment sub what-if \
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
-            --parameters parameters.${{ inputs.environment }}.json
+            --parameters ${{ inputs.environment }}.bicepparam
 
-      - name: Deploy Bootstrap Infrastructure
+      - name: Deploy Bicep Module Registry
         if: ${{ inputs.dry_run == false }}
-        working-directory: azure/container-apps/bicep/bootstrap
+        working-directory: azure/container-apps/bicep/bicep-registry
         run: |
-          echo "🚀 Deploying bootstrap infrastructure..."
+          echo "🚀 Deploying Bicep module registry..."
           az deployment sub create \
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
-            --parameters parameters.${{ inputs.environment }}.json \
+            --parameters ${{ inputs.environment }}.bicepparam \
             --verbose
 
       - name: Get Deployment Outputs
@@ -117,7 +117,7 @@ jobs:
       - name: Summary
         if: ${{ inputs.dry_run == false }}
         run: |
-          echo "## ✅ Bootstrap Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Bicep Module Registry Deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY

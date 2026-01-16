@@ -1,12 +1,16 @@
 // ============================================================================
 // Key Vault Secrets Module
-// Stores application secrets in Key Vault
+// Store secrets in Azure Key Vault
+// ============================================================================
+
+// ============================================================================
+// Parameters
 // ============================================================================
 
 @description('Name of the Key Vault')
 param keyVaultName string
 
-@description('Array of secrets to store - each object should have name and value properties')
+@description('Array of secrets to store. Each object should have: name (required), value (required), contentType (optional)')
 param secrets array
 
 // ============================================================================
@@ -22,13 +26,16 @@ resource keyVaultSecrets 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = [for s
   name: secret.name
   properties: {
     value: secret.value
-    contentType: 'text/plain'
+    contentType: secret.?contentType ?? 'text/plain'
   }
 }]
 
 // ============================================================================
 // Outputs
 // ============================================================================
+
+@description('Names of created secrets')
+output secretNames array = [for (secret, i) in secrets: keyVaultSecrets[i].name]
 
 @description('Number of secrets created')
 #disable-next-line outputs-should-not-contain-secrets

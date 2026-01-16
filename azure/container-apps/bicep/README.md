@@ -7,6 +7,11 @@ Reusable Bicep modules for deploying xshopai microservices to Azure Container Ap
 ```
 azure/container-apps/bicep/
 ├── bicepconfig.json              # Registry alias configuration
+├── README.md                     # This documentation
+├── bicep-registry/               # Bicep registry infrastructure
+│   ├── main.bicep               # ACR + shared resources deployment
+│   ├── parameters.prod.json     # Production parameters
+│   └── README.md                # Registry setup documentation
 ├── modules/                      # Reusable Bicep modules
 │   ├── acr.bicep                # Azure Container Registry
 │   ├── container-app.bicep      # Container App (main service module)
@@ -23,30 +28,21 @@ azure/container-apps/bicep/
 │   ├── redis.bicep              # Azure Cache for Redis
 │   ├── resource-group.bicep     # Resource group with location
 │   ├── service-bus.bicep        # Azure Service Bus
-│   └── sql-database.bicep       # Azure SQL Database
-├── layers/                       # Deployment layers (future)
-├── parameters/                   # Environment-specific parameters
-├── deploy.bicep                  # Main deployment orchestration
-└── main.bicep                    # Alternative entry point
+│   ├── sql-database.bicep       # Azure SQL Database
+│   └── sql-server.bicep         # Azure SQL Server
+└── parameters/                   # Environment-specific parameters
+    ├── dev.bicepparam           # Development environment
+    └── prod.bicepparam          # Production environment
 ```
 
-## 🌍 Location Configuration
+## 🌍 Environments
 
-All modules default to **Sweden Central** (`swedencentral`) but accept a `location` parameter for flexibility:
+The platform supports two environments:
 
-```bicep
-module kv 'modules/key-vault.bicep' = {
-  name: 'deploy-keyvault'
-  params: {
-    name: 'xshopai-kv'
-    location: 'westeurope'  // Override default
-  }
-}
-```
-
-### Supported Regions
-
-All Azure regions supporting Container Apps are allowed. See individual modules for the complete list.
+| Environment | Purpose | Resource Group |
+|-------------|---------|----------------|
+| **dev** | Development/testing | `rg-xshopai-dev` |
+| **prod** | Production workloads | `rg-xshopai-prod` |
 
 ## 🚀 Using Modules
 

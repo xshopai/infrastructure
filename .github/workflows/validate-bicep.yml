@@ -1,7 +1,7 @@
 # ==============================================================================
 # Validate Bicep Templates
 # ==============================================================================
-# Runs on PRs to validate Bicep syntax and best practices
+# Runs on PRs to validate all Bicep modules and templates
 # ==============================================================================
 
 name: Validate Bicep
@@ -39,21 +39,41 @@ jobs:
           az bicep install
           az bicep version
 
-      - name: Validate Azure Container Apps Bicep
+      - name: Validate Bicep Modules
         run: |
-          echo "Validating Azure Container Apps templates..."
-          az bicep build --file azure/container-apps/bicep/main.bicep --stdout > /dev/null
-          echo "✅ Azure Container Apps templates are valid"
-
-      - name: Lint Bicep (if bicep-linter available)
-        continue-on-error: true
-        run: |
-          # Run linter if available
-          if command -v bicep &> /dev/null; then
-            bicep lint azure/container-apps/bicep/main.bicep
-          else
-            echo "Bicep linter not available, skipping..."
+          echo "Validating Bicep modules..."
+          FAILED=0
+          
+          # Validate all modules
+          for module in azure/container-apps/bicep/modules/*.bicep; do
+            if [ -f "$module" ]; then
+              echo "Validating $(basename $module)..."
+              if ! az bicep build --file "$module" --stdout > /dev/null 2>&1; then
+                echo "❌ Failed: $module"
+                FAILED=1
+              else
+                echo "✅ $(basename $module)"
+              fi
+            fi
+          done
+          
+          # Validate bicep-registry
+          if [ -f "azure/container-apps/bicep/bicep-registry/main.bicep" ]; then
+            echo "Validating bicep-registry/main.bicep..."
+            if ! az bicep build --file azure/container-apps/bicep/bicep-registry/main.bicep --stdout > /dev/null 2>&1; then
+              echo "❌ Failed: bicep-registry/main.bicep"
+              FAILED=1
+            else
+              echo "✅ bicep-registry/main.bicep"
+            fi
           fi
+          
+          if [ $FAILED -eq 1 ]; then
+            echo "❌ Validation failed"
+            exit 1
+          fi
+          
+          echo "✅ All Bicep templates are valid"
 
       - name: Post validation summary
         run: |

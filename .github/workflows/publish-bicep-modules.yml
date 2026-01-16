@@ -1,3 +1,14 @@
+# ============================================================================
+# Publish Bicep Modules to Registry
+# ============================================================================
+# Publishes all Bicep modules to the Azure Container Registry for reuse.
+# Run this AFTER the Bicep Module Registry is deployed.
+#
+# Prerequisites:
+# - ACR deployed via deploy-bicep-registry.yml
+# - Azure credentials configured
+# ============================================================================
+
 name: Publish Bicep Modules to Registry
 
 on:
@@ -78,91 +89,69 @@ jobs:
             fi
           done
 
-      - name: Publish container-app module
+      - name: Publish all Bicep modules
+        id: publish
         run: |
-          MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/container-app.bicep"
-          MODULE_NAME="bicep/container-apps/container-app"
           VERSION="${{ steps.version.outputs.version }}"
+          ACR_SERVER="${{ steps.acr-login.outputs.acr-login-server }}"
           
-          echo "Publishing ${MODULE_NAME}:${VERSION}..."
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:${VERSION}"
+          # Define all modules to publish
+          MODULES=(
+            "acr"
+            "container-app"
+            "container-apps-environment"
+            "cosmos-database"
+            "dapr-components"
+            "key-vault"
+            "key-vault-secrets"
+            "log-analytics"
+            "managed-identity"
+            "mysql-database"
+            "postgresql-database"
+            "redis"
+            "resource-group"
+            "service-bus"
+            "sql-server"
+          )
           
-          # Also tag as 'latest'
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:latest"
+          PUBLISHED_COUNT=0
+          FAILED_COUNT=0
           
-          echo "✓ Published ${MODULE_NAME}:${VERSION}"
-
-      - name: Publish mysql-database module
-        run: |
-          MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/mysql-database.bicep"
-          MODULE_NAME="bicep/container-apps/mysql-database"
-          VERSION="${{ steps.version.outputs.version }}"
+          for MODULE in "${MODULES[@]}"; do
+            MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/${MODULE}.bicep"
+            MODULE_NAME="bicep/container-apps/${MODULE}"
+            
+            if [ -f "$MODULE_PATH" ]; then
+              echo "📦 Publishing ${MODULE_NAME}:${VERSION}..."
+              
+              if az bicep publish \
+                --file "$MODULE_PATH" \
+                --target "br:${ACR_SERVER}/${MODULE_NAME}:${VERSION}"; then
+                
+                # Also tag as 'latest'
+                az bicep publish \
+                  --file "$MODULE_PATH" \
+                  --target "br:${ACR_SERVER}/${MODULE_NAME}:latest"
+                
+                echo "✅ Published ${MODULE_NAME}:${VERSION}"
+                PUBLISHED_COUNT=$((PUBLISHED_COUNT + 1))
+              else
+                echo "❌ Failed to publish ${MODULE_NAME}"
+                FAILED_COUNT=$((FAILED_COUNT + 1))
+              fi
+            else
+              echo "⚠️ Skipping ${MODULE} - file not found"
+              FAILED_COUNT=$((FAILED_COUNT + 1))
+            fi
+          done
           
-          echo "Publishing ${MODULE_NAME}:${VERSION}..."
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:${VERSION}"
+          echo "published-count=${PUBLISHED_COUNT}" >> $GITHUB_OUTPUT
+          echo "failed-count=${FAILED_COUNT}" >> $GITHUB_OUTPUT
           
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:latest"
-          
-          echo "✓ Published ${MODULE_NAME}:${VERSION}"
-
-      - name: Publish cosmos-database module
-        run: |
-          MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/cosmos-database.bicep"
-          MODULE_NAME="bicep/container-apps/cosmos-database"
-          VERSION="${{ steps.version.outputs.version }}"
-          
-          echo "Publishing ${MODULE_NAME}:${VERSION}..."
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:${VERSION}"
-          
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:latest"
-          
-          echo "✓ Published ${MODULE_NAME}:${VERSION}"
-
-      - name: Publish postgresql-database module
-        run: |
-          MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/postgresql-database.bicep"
-          MODULE_NAME="bicep/container-apps/postgresql-database"
-          VERSION="${{ steps.version.outputs.version }}"
-          
-          echo "Publishing ${MODULE_NAME}:${VERSION}..."
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:${VERSION}"
-          
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:latest"
-          
-          echo "✓ Published ${MODULE_NAME}:${VERSION}"
-
-      - name: Publish sql-database module
-        run: |
-          MODULE_PATH="${{ env.BICEP_MODULES_PATH }}/sql-database.bicep"
-          MODULE_NAME="bicep/container-apps/sql-database"
-          VERSION="${{ steps.version.outputs.version }}"
-          
-          echo "Publishing ${MODULE_NAME}:${VERSION}..."
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:${VERSION}"
-          
-          az bicep publish \
-            --file "$MODULE_PATH" \
-            --target "br:${{ steps.acr-login.outputs.acr-login-server }}/${MODULE_NAME}:latest"
-          
-          echo "✓ Published ${MODULE_NAME}:${VERSION}"
+          echo ""
+          echo "========================================"
+          echo "📊 Summary: ${PUBLISHED_COUNT} published, ${FAILED_COUNT} failed"
+          echo "========================================"
 
       - name: Summary
         run: |
@@ -171,16 +160,28 @@ jobs:
           echo "**Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: \`${{ steps.acr-login.outputs.acr-login-server }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Modules Published:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ container-app:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ mysql-database:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ cosmos-database:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ postgresql-database:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ✓ sql-database:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Modules Published (15):" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| acr | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| container-app | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| container-apps-environment | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| cosmos-database | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| dapr-components | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| key-vault | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| key-vault-secrets | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| log-analytics | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| managed-identity | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| mysql-database | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| postgresql-database | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| redis | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| resource-group | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| service-bus | ✓ |" >> $GITHUB_STEP_SUMMARY
+          echo "| sql-server | ✓ |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage Example:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bicep" >> $GITHUB_STEP_SUMMARY
-          echo "module containerApp 'br/xshopai:container-app:${{ steps.version.outputs.version }}' = {" >> $GITHUB_STEP_SUMMARY
+          echo "module containerApp 'br/xshopai:bicep/container-apps/container-app:${{ steps.version.outputs.version }}' = {" >> $GITHUB_STEP_SUMMARY
           echo "  name: 'my-service-container-app'" >> $GITHUB_STEP_SUMMARY
           echo "  params: {" >> $GITHUB_STEP_SUMMARY
           echo "    containerAppName: 'my-service'" >> $GITHUB_STEP_SUMMARY
