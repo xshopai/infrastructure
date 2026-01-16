@@ -169,18 +169,20 @@ module keyVault 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault:
 // Allows Container Apps (using Managed Identity) to read secrets from Key Vault
 // Built-in Role: "Key Vault Secrets User" (read-only access to secret contents)
 // ========================================
+// NOTE: Role assignments must be deployed using a module at subscription scope
 
-resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+module keyVaultRoleAssignment 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault-role-assignment:v1.0.0' = {
+  name: 'kv-role-assignment-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
-  name: guid(keyVault.outputs.resourceId, managedIdentity.outputs.id, 'Key Vault Secrets User')
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions', 
-      '4633458b-17de-408a-b874-0445c86b69e6'  // Microsoft built-in role: "Key Vault Secrets User" (permanent global ID)
-    )
+  params: {
+    keyVaultName: keyVault.outputs.name
     principalId: managedIdentity.outputs.principalId
-    principalType: 'ServicePrincipal'
+    roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
   }
+  dependsOn: [
+    keyVault
+    managedIdentity
+  ]
 }
 
 // ========================================
@@ -214,72 +216,6 @@ module postgresUser 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgr
     administratorLogin: postgresAdminUsername
     administratorPassword: postgresAdminPassword
     version: postgresVersion
-@description('PostgreSQL Product Server FQDN')
-output postgresProductFqdn string = postgresProduct.outputs.fqdn
-
-@description('PostgreSQL User Server FQDN')
-output postgresUserFqdn string = postgresUser.outputs.fqdn
-
-@description('PostgreSQL Order Server FQDN')
-output postgresOrderFqdn string = postgresOrder.outputs.fqdn
-
-@description('Cosmos DB Connection String')
-@secure()
-output cosmosConnectionString string = cosmosShared.outputs.connectionString
-
-@description('Cosmos DB Resource ID')
-output cosmosResourceId string = cosmosShared.outputs.resourceId
-
-// ========================================
-// Redis Outputs
-// ========================================
-
-@description('Redis Cache Hostname')
-output redisHostname string = redis.outputs.hostname
-
-@description('Redis Cache Port')
-output redisPort int = redis.outputs.sslPort
-
-@description('Redis Primary Key')
-@secure()
-output redisPrimaryKey string = redis.outputs.primaryKey
-
-// ========================================
-// Service Bus Outputs
-// ========================================
-
-@description('Service Bus Namespace Name')
-output serviceBusNamespace string = serviceBus.outputs.namespaceName
-
-@description('Service Bus Primary Connection String')
-@secure()
-output serviceBusConnectionString string = serviceBus.outputs.primaryConnectionString
-
-// ========================================
-// SQL Server Outputs
-// ========================================
-
-@description('SQL Server FQDN')
-output sqlServerFqdn string = sqlServer.outputs.fqdn
-
-@description('SQL Server Name')
-output sqlServerName string = sqlServer.outputs.serverName
-
-@description('SQL Database (Order) Connection String')
-@secure()
-output sqlDbOrderConnectionString string = sqlDbOrder.outputs.connectionString
-
-@description('SQL Database (Payment) Connection String')
-@secure()
-output sqlDbPaymentConnectionString string = sqlDbPayment.outputs.connectionString
-
-// ========================================
-// MySQL Outputs
-// ========================================
-
-@description('MySQL Cart Server FQDN')
-output mysqlCartFqdn string = mysqlCart.outputs.fqdn
-
     skuName: 'Standard_B1ms'
     storageSizeGB: 32
     backupRetentionDays: 7
@@ -317,10 +253,11 @@ module cosmosShared 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/cosmos
   }
 }
 
-// ========================================// Azure Cache for Redis (Caching, Session Management)
+// ========================================
+// Azure Cache for Redis (Caching, Session Management)
 // ========================================
 
-module redis 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/redis-cache:v1.0.0' = {
+module redis 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/redis:v1.0.0' = {
   name: 'redis-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
   params: {
@@ -358,41 +295,18 @@ module serviceBus 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/service-
 module sqlServer 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-server:v1.0.0' = {
   name: 'sql-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
-  params: {
-    name: 'sql-xshopai-${environment}'
+  pabaseName: 'sql-xshopai'
+    uniqueSuffix: environment
     location: location
-    administratorLogin: sqlAdminUsername
-    administratorPassword: sqlAdminPassword
-    version: sqlVersion
+    administratorLoginPassword: sqlAdminPassword
+    keyVaultName: keyVault.outputs.name
+    managedIdentityPrincipalId: managedIdentity.outputs.principalId
     tags: tags
   }
-}
-
-// SQL Database for order-service
-module sqlDbOrder 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-database:v1.0.0' = {
-  name: 'sqldb-order-${environment}'
-  scope: resourceGroup('rg-xshopai-${environment}')
-  params: {
-    name: 'sqldb-order-${environment}'
-    serverName: sqlServer.outputs.serverName
-    location: location
-    skuName: 'Basic'
-    maxSizeBytes: 2147483648 // 2 GB
-    tags: tags
-  }
-}
-
-// SQL Database for payment-service
-module sqlDbPayment 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-database:v1.0.0' = {
-  name: 'sqldb-payment-${environment}'
-  scope: resourceGroup('rg-xshopai-${environment}')
-  params: {
-    name: 'sqldb-payment-${environment}'
-    serverName: sqlServer.outputs.serverName
-    location: location
-    skuName: 'Basic'
-    maxSizeBytes: 2147483648 // 2 GB
-    tags: tags
+  dependsOn: [
+    keyVault
+    managedIdentity
+  ] tags: tags
   }
 }
 
@@ -441,6 +355,30 @@ output managedIdentityPrincipalId string = managedIdentity.outputs.principalId
 @description('Managed Identity ID')
 output managedIdentityId string = managedIdentity.outputs.id
 
+// Outputs (for Service Deployments)
+// ========================================
+
+@description('Resource Group name')
+output resourceGroupName string = rg.outputs.name
+
+@description('Container Apps Environment ID')
+output containerAppsEnvironmentId string = containerEnv.outputs.resourceId
+
+@description('Container Apps Environment name')
+output containerAppsEnvironmentName string = containerEnv.outputs.name
+
+@description('Log Analytics Workspace ID')
+output logAnalyticsWorkspaceId string = logAnalytics.outputs.workspaceId
+
+@description('Log Analytics Workspace name')
+output logAnalyticsWorkspaceName string = logAnalytics.outputs.workspaceName
+
+@description('Managed Identity principal ID')
+output managedIdentityPrincipalId string = managedIdentity.outputs.principalId
+
+@description('Managed Identity ID')
+output managedIdentityId string = managedIdentity.outputs.id
+
 @description('Key Vault name')
 output keyVaultName string = keyVault.outputs.name
 
@@ -448,23 +386,47 @@ output keyVaultName string = keyVault.outputs.name
 output keyVaultUri string = keyVault.outputs.uri
 
 // ========================================
-// Usage Example (for Service Deployments)
+// Database Outputs
 // ========================================
-/*
-// Reference this platform infrastructure from service deployments:
 
-module platformInfra './dev/platform/main.bicep' = {
-  name: 'platform-infrastructure'
-  scope: subscription()
-}
+@description('PostgreSQL Product Server FQDN')
+output postgresProductFqdn string = postgresProduct.outputs.fqdn
 
-// Then use outputs in your service deployment:
-module myService 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/container-app:v1.0.0' = {
-  name: 'my-service'
-  params: {
-    environmentId: platformInfra.outputs.containerAppsEnvironmentId
-    managedIdentityId: platformInfra.outputs.managedIdentityId
-    ...
-  }
-}
-*/
+@description('PostgreSQL User Server FQDN')
+output postgresUserFqdn string = postgresUser.outputs.fqdn
+
+@description('PostgreSQL Order Server FQDN')
+output postgresOrderFqdn string = postgresOrder.outputs.fqdn
+
+@description('Cosmos DB Connection String')
+@secure()
+output cosmosConnectionString string = cosmosShared.outputs.connectionString
+
+@description('Cosmos DB Resource ID')
+output cosmosResourceId string = cosmosShared.outputs.resourceId
+
+@description('Redis Cache Hostname')
+output redisHostname string = redis.outputs.hostname
+
+@description('Redis Cache Port')
+output redisPort int = redis.outputs.sslPort
+
+@description('Redis Primary Key')
+@secure()
+output redisPrimaryKey string = redis.outputs.primaryKey
+
+@description('Service Bus Namespace Name')
+output serviceBusNamespace string = serviceBus.outputs.namespaceName
+
+@description('Service Bus Primary Connection String')
+@secure()
+output serviceBusConnectionString string = serviceBus.outputs.primaryConnectionString
+
+@description('SQL Server FQDN')
+output sqlServerFqdn string = sqlServer.outputs.fqdn
+
+@description('SQL Server Name')
+output sqlServerName string = sqlServer.outputs.name
+
+@description('MySQL Cart Server FQDN')
+output mysqlCartFqdn string = mysqlCart.outputs.fqdn
