@@ -38,6 +38,7 @@ jobs:
   publish-modules:
     name: Publish Bicep Modules
     runs-on: ubuntu-latest
+    environment: prod
     
     steps:
       - name: Checkout code

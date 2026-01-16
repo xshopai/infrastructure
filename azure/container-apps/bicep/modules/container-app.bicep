@@ -78,7 +78,6 @@ param maxReplicas int = 10
 param envVars array = []
 
 @description('Secret references for the container')
-@secure()
 param secrets array = []
 
 @description('Enable Dapr sidecar')

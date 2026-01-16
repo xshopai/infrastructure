@@ -1,0 +1,296 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.37.4.10188",
+      "templateHash": "17121529529425542084"
+    }
+  },
+  "parameters": {
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Container App"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "swedencentral",
+      "metadata": {
+        "description": "Azure region for deployment. Default: Sweden Central"
+      }
+    },
+    "environmentId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Container Apps Environment"
+      }
+    },
+    "containerImage": {
+      "type": "string",
+      "metadata": {
+        "description": "Container image to deploy (e.g., myregistry.azurecr.io/myapp:latest)"
+      }
+    },
+    "containerRegistryServer": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Container registry server (e.g., myregistry.azurecr.io)"
+      }
+    },
+    "containerRegistryUsername": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Container registry username"
+      }
+    },
+    "containerRegistryPassword": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Container registry password"
+      }
+    },
+    "cpu": {
+      "type": "string",
+      "defaultValue": "0.5",
+      "allowedValues": [
+        "0.25",
+        "0.5",
+        "0.75",
+        "1",
+        "1.25",
+        "1.5",
+        "1.75",
+        "2"
+      ],
+      "metadata": {
+        "description": "CPU cores allocated to the container (e.g., 0.25, 0.5, 1, 2)"
+      }
+    },
+    "memory": {
+      "type": "string",
+      "defaultValue": "1Gi",
+      "allowedValues": [
+        "0.5Gi",
+        "1Gi",
+        "1.5Gi",
+        "2Gi",
+        "2.5Gi",
+        "3Gi",
+        "3.5Gi",
+        "4Gi"
+      ],
+      "metadata": {
+        "description": "Memory allocated to the container (e.g., 0.5Gi, 1Gi, 2Gi)"
+      }
+    },
+    "targetPort": {
+      "type": "int",
+      "defaultValue": 8080,
+      "metadata": {
+        "description": "Port the container listens on"
+      }
+    },
+    "externalIngress": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable external ingress (accessible from internet)"
+      }
+    },
+    "minReplicas": {
+      "type": "int",
+      "defaultValue": 0,
+      "minValue": 0,
+      "maxValue": 30,
+      "metadata": {
+        "description": "Minimum number of replicas"
+      }
+    },
+    "maxReplicas": {
+      "type": "int",
+      "defaultValue": 10,
+      "minValue": 1,
+      "maxValue": 30,
+      "metadata": {
+        "description": "Maximum number of replicas"
+      }
+    },
+    "envVars": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Environment variables for the container"
+      }
+    },
+    "secrets": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Secret references for the container"
+      }
+    },
+    "daprEnabled": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable Dapr sidecar"
+      }
+    },
+    "daprAppId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Dapr application ID"
+      }
+    },
+    "daprAppPort": {
+      "type": "int",
+      "defaultValue": 0,
+      "metadata": {
+        "description": "Dapr application port"
+      }
+    },
+    "daprAppProtocol": {
+      "type": "string",
+      "defaultValue": "http",
+      "allowedValues": [
+        "http",
+        "grpc"
+      ],
+      "metadata": {
+        "description": "Dapr application protocol (http or grpc)"
+      }
+    },
+    "healthProbePath": {
+      "type": "string",
+      "defaultValue": "/health",
+      "metadata": {
+        "description": "Custom health probe path"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply to the resource"
+      }
+    }
+  },
+  "variables": {
+    "hasRegistryCredentials": "[and(not(empty(parameters('containerRegistryUsername'))), not(empty(parameters('containerRegistryPassword'))))]",
+    "registrySecrets": "[if(variables('hasRegistryCredentials'), createArray(createObject('name', 'registry-password', 'value', parameters('containerRegistryPassword'))), createArray())]",
+    "allSecrets": "[concat(variables('registrySecrets'), parameters('secrets'))]",
+    "registries": "[if(variables('hasRegistryCredentials'), createArray(createObject('server', parameters('containerRegistryServer'), 'username', parameters('containerRegistryUsername'), 'passwordSecretRef', 'registry-password')), createArray())]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[parameters('name')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "environmentId": "[parameters('environmentId')]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": "[if(or(parameters('externalIngress'), greater(parameters('targetPort'), 0)), createObject('external', parameters('externalIngress'), 'targetPort', parameters('targetPort'), 'transport', 'auto', 'allowInsecure', false(), 'traffic', createArray(createObject('weight', 100, 'latestRevision', true()))), null())]",
+          "secrets": "[variables('allSecrets')]",
+          "registries": "[variables('registries')]",
+          "dapr": "[if(parameters('daprEnabled'), createObject('enabled', true(), 'appId', parameters('daprAppId'), 'appPort', if(greater(parameters('daprAppPort'), 0), parameters('daprAppPort'), parameters('targetPort')), 'appProtocol', parameters('daprAppProtocol')), null())]"
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "[parameters('name')]",
+              "image": "[parameters('containerImage')]",
+              "resources": {
+                "cpu": "[json(parameters('cpu'))]",
+                "memory": "[parameters('memory')]"
+              },
+              "env": "[parameters('envVars')]",
+              "probes": [
+                {
+                  "type": "Liveness",
+                  "httpGet": {
+                    "path": "[parameters('healthProbePath')]",
+                    "port": "[parameters('targetPort')]"
+                  },
+                  "initialDelaySeconds": 30,
+                  "periodSeconds": 30,
+                  "failureThreshold": 3
+                },
+                {
+                  "type": "Readiness",
+                  "httpGet": {
+                    "path": "[parameters('healthProbePath')]",
+                    "port": "[parameters('targetPort')]"
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 10,
+                  "failureThreshold": 3
+                }
+              ]
+            }
+          ],
+          "scale": {
+            "minReplicas": "[parameters('minReplicas')]",
+            "maxReplicas": "[parameters('maxReplicas')]",
+            "rules": [
+              {
+                "name": "http-scaling",
+                "http": {
+                  "metadata": {
+                    "concurrentRequests": "100"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "tags": "[union(parameters('tags'), createObject('managed-by', 'bicep', 'deployment-target', 'container-apps'))]"
+    }
+  ],
+  "outputs": {
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Container App"
+      },
+      "value": "[parameters('name')]"
+    },
+    "fqdn": {
+      "type": "string",
+      "metadata": {
+        "description": "The FQDN of the Container App"
+      },
+      "value": "[if(not(equals(reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2023-05-01').configuration.ingress, null())), reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2023-05-01').configuration.ingress.fqdn, '')]"
+    },
+    "url": {
+      "type": "string",
+      "metadata": {
+        "description": "The URL of the Container App"
+      },
+      "value": "[if(not(equals(reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2023-05-01').configuration.ingress, null())), format('https://{0}', reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2023-05-01').configuration.ingress.fqdn), '')]"
+    },
+    "resourceId": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the Container App"
+      },
+      "value": "[resourceId('Microsoft.App/containerApps', parameters('name'))]"
+    },
+    "latestRevisionName": {
+      "type": "string",
+      "metadata": {
+        "description": "The latest revision name"
+      },
+      "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2023-05-01').latestRevisionName]"
+    }
+  }
+}
