@@ -32,6 +32,7 @@ jobs:
   validate:
     name: Validate Bicep Templates
     runs-on: ubuntu-latest
+    environment: dev  # Required for OIDC - matches Azure federated credential configuration
     
     steps:
       - name: Checkout code
