@@ -327,7 +327,8 @@ module mysqlCart 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/mysql-dat
   }
 }
 
-// ========================================// Outputs (for Service Deployments)
+// ========================================
+// Outputs (for Service Deployments)
 // ========================================
 
 @description('Resource Group name')
