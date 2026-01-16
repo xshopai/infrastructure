@@ -20,6 +20,14 @@ on:
       - '.github/workflows/publish-bicep-modules.yml'
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - dev
+          - prod
       version:
         description: 'Version tag (e.g., v1.0.0)'
         required: true
@@ -30,21 +38,27 @@ permissions:
   contents: read
 
 env:
-  AZURE_RESOURCE_GROUP: rg-xshopai-shared-prod
-  AZURE_CONTAINER_REGISTRY: xshopaimodules
   BICEP_MODULES_PATH: azure/container-apps/bicep/modules
 
 jobs:
   publish-modules:
     name: Publish Bicep Modules
     runs-on: ubuntu-latest
-    environment: prod
+    environment: ${{ github.event.inputs.environment || 'prod' }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Set environment variables
+        id: env-vars
+        run: |
+          ENV="${{ github.event.inputs.environment || 'prod' }}"
+          echo "environment=${ENV}" >> $GITHUB_OUTPUT
+          echo "resource-group=rg-xshopai-shared-${ENV}" >> $GITHUB_OUTPUT
+          echo "acr-name=xshopaimodules" >> $GITHUB_OUTPUT
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2
@@ -57,15 +71,15 @@ jobs:
         id: acr-login
         run: |
           ACR_LOGIN_SERVER=$(az acr show \
-            --name ${{ env.AZURE_CONTAINER_REGISTRY }} \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ steps.env-vars.outputs.acr-name }} \
+            --resource-group ${{ steps.env-vars.outputs.resource-group }} \
             --query loginServer \
             --output tsv)
           echo "acr-login-server=${ACR_LOGIN_SERVER}" >> $GITHUB_OUTPUT
 
       - name: Login to Azure Container Registry
         run: |
-          az acr login --name ${{ env.AZURE_CONTAINER_REGISTRY }}
+          az acr login --name ${{ steps.env-vars.outputs.acr-name }}
 
       - name: Determine version tag
         id: version
@@ -158,8 +172,10 @@ jobs:
         run: |
           echo "## 📦 Bicep Modules Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment**: \`${{ steps.env-vars.outputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Registry**: \`${{ steps.acr-login.outputs.acr-login-server }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Group**: \`${{ steps.env-vars.outputs.resource-group }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Modules Published (15):" >> $GITHUB_STEP_SUMMARY
           echo "| Module | Status |" >> $GITHUB_STEP_SUMMARY
