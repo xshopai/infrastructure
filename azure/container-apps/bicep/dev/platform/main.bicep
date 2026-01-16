@@ -85,7 +85,8 @@ param mysqlAdminUsername string = 'mysqladmin'
 param mysqlAdminPassword string
 
 @description('MySQL version')
-param mysqlVersion string = '8.0'
+@allowed(['5.7', '8.0.21'])
+param mysqlVersion string = '8.0.21'
 
 // ========================================
 // Module: Resource Group

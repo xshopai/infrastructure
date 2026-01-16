@@ -99,7 +99,7 @@ param sqlAdminPassword = '' // Empty placeholder - MUST be provided at deploymen
 param mysqlAdminUsername = 'mysqladmin'
 
 // MySQL version
-param mysqlVersion = '8.0'
+param mysqlVersion = '8.0.21'
 
 // NOTE: mysqlAdminPassword is a secure parameter
 // DO NOT commit actual passwords to source control!
