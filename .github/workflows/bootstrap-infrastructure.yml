@@ -1,0 +1,139 @@
+# ============================================================================
+# Bootstrap Infrastructure Deployment
+# ============================================================================
+# This workflow deploys the foundational shared infrastructure needed before
+# Bicep modules can be published. Run this ONCE when setting up a new environment.
+#
+# Creates:
+# - Shared resource group
+# - Azure Container Registry for Bicep modules
+# ============================================================================
+
+name: Bootstrap Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      location:
+        description: 'Azure region'
+        required: true
+        default: 'swedencentral'
+      dry_run:
+        description: 'Dry run (what-if only, no deployment)'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  bootstrap:
+    name: Bootstrap Shared Infrastructure
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set deployment name
+        id: deployment-name
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          echo "name=bootstrap-${TIMESTAMP}" >> $GITHUB_OUTPUT
+
+      - name: Validate Bicep template
+        working-directory: azure/container-apps/bicep/bootstrap
+        run: |
+          echo "🔍 Validating Bicep template..."
+          az bicep build --file main.bicep
+          echo "✅ Template is valid"
+
+      - name: What-If Analysis
+        working-directory: azure/container-apps/bicep/bootstrap
+        run: |
+          echo "🔮 Running what-if analysis..."
+          az deployment sub what-if \
+            --name "${{ steps.deployment-name.outputs.name }}" \
+            --location "${{ inputs.location }}" \
+            --template-file main.bicep \
+            --parameters parameters.${{ inputs.environment }}.json
+
+      - name: Deploy Bootstrap Infrastructure
+        if: ${{ inputs.dry_run == false }}
+        working-directory: azure/container-apps/bicep/bootstrap
+        run: |
+          echo "🚀 Deploying bootstrap infrastructure..."
+          az deployment sub create \
+            --name "${{ steps.deployment-name.outputs.name }}" \
+            --location "${{ inputs.location }}" \
+            --template-file main.bicep \
+            --parameters parameters.${{ inputs.environment }}.json \
+            --verbose
+
+      - name: Get Deployment Outputs
+        if: ${{ inputs.dry_run == false }}
+        id: outputs
+        run: |
+          echo "📋 Fetching deployment outputs..."
+          OUTPUTS=$(az deployment sub show \
+            --name "${{ steps.deployment-name.outputs.name }}" \
+            --query "properties.outputs" \
+            --output json)
+          
+          echo "Deployment outputs:"
+          echo "$OUTPUTS" | jq .
+          
+          # Extract individual outputs
+          ACR_NAME=$(echo "$OUTPUTS" | jq -r '.acrName.value')
+          ACR_LOGIN_SERVER=$(echo "$OUTPUTS" | jq -r '.acrLoginServer.value')
+          RG_NAME=$(echo "$OUTPUTS" | jq -r '.resourceGroupName.value')
+          
+          echo "acr-name=$ACR_NAME" >> $GITHUB_OUTPUT
+          echo "acr-login-server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
+          echo "resource-group=$RG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Summary
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          echo "## ✅ Bootstrap Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource Group | \`${{ steps.outputs.outputs.resource-group }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| ACR Name | \`${{ steps.outputs.outputs.acr-name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| ACR Login Server | \`${{ steps.outputs.outputs.acr-login-server }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Run the **Publish Bicep Modules** workflow to publish modules to ACR" >> $GITHUB_STEP_SUMMARY
+          echo "2. Deploy individual services using the published modules" >> $GITHUB_STEP_SUMMARY
+
+      - name: Dry Run Summary
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "## 🔍 Dry Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This was a dry run. No resources were created." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To deploy, run this workflow again with **dry_run = false**" >> $GITHUB_STEP_SUMMARY
