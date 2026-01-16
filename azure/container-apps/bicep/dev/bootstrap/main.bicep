@@ -60,7 +60,7 @@ module resourceGroup '../../modules/resource-group.bicep' = {
 // ============================================================================
 
 module acr '../../modules/acr.bicep' = {
-  scope: resourceGroup(resourceGroupName)
+  scope: az.resourceGroup(resourceGroupName)
   name: 'deploy-acr-${acrName}'
   dependsOn: [resourceGroup]
   params: {
