@@ -72,7 +72,37 @@ az login
 az account set --subscription "<your-subscription-id>"
 ```
 
-### Step 2: Create Service Principal for GitHub Actions
+### Step 2: Setup Azure OIDC & GitHub Environments
+
+**🎯 Automated Setup** (Recommended):
+
+```bash
+cd scripts/azure
+
+# 1. Setup Azure OIDC (creates AD app, federated credentials, configures repos)
+./setup-azure-oidc.sh
+
+# 2. Create GitHub environments (REQUIRED for OIDC authentication!)
+./setup-github-environments.sh
+
+# 3. Configure GitHub organization secrets
+./setup-github-secrets.sh
+```
+
+These scripts will:
+- ✅ Create Azure AD app: `xshopai-github-actions`
+- ✅ Configure federated credentials for `environment:dev` and `environment:prod`
+- ✅ Create `dev` and `prod` environments in all 17 repositories
+- ✅ Configure GitHub organization secrets (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID)
+
+**📚 Detailed Documentation**: See [azure/container-apps/bicep/README.md](azure/container-apps/bicep/README.md) for complete Phase 0 setup guide.
+
+---
+
+<details>
+<summary>📖 Manual Setup Instructions (Advanced)</summary>
+
+If you prefer to set up manually:
 
 ```bash
 # Create the Azure AD application
