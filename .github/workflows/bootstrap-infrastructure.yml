@@ -81,7 +81,7 @@ jobs:
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
-            --parameters ${{ inputs.environment }}.bicepparam
+            --parameters parameters.${{ inputs.environment }}.bicepparam
 
       - name: Deploy Bootstrap Infrastructure
         if: ${{ inputs.dry_run == false }}
@@ -92,7 +92,7 @@ jobs:
             --name "${{ steps.deployment-name.outputs.name }}" \
             --location "${{ inputs.location }}" \
             --template-file main.bicep \
-            --parameters ${{ inputs.environment }}.bicepparam \
+            --parameters parameters.${{ inputs.environment }}.bicepparam \
             --verbose
 
       - name: Get Deployment Outputs
