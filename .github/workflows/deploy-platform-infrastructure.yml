@@ -103,7 +103,7 @@ jobs:
             --parameters main.bicepparam \
             --parameters location='${{ inputs.location }}' \
             --parameters postgresAdminPassword='${{ secrets.POSTGRES_ADMIN_PASSWORD }}' \
-            --parameters sqlAdminPassword='${{ secrets.SQL_ADMIN_PASSWORD }}' \
+            --parameters sqlAdminPassword='${{ secrets.SQL_SERVER_ADMIN_PASSWORD }}' \
             --parameters mysqlAdminPassword='${{ secrets.MYSQL_ADMIN_PASSWORD }}' \
             --result-format FullResourcePayloads
 
@@ -123,7 +123,7 @@ jobs:
             --parameters main.bicepparam \
             --parameters location='${{ inputs.location }}' \
             --parameters postgresAdminPassword='${{ secrets.POSTGRES_ADMIN_PASSWORD }}' \
-            --parameters sqlAdminPassword='${{ secrets.SQL_ADMIN_PASSWORD }}' \
+            --parameters sqlAdminPassword='${{ secrets.SQL_SERVER_ADMIN_PASSWORD }}' \
             --parameters mysqlAdminPassword='${{ secrets.MYSQL_ADMIN_PASSWORD }}' \
             --verbose
 
