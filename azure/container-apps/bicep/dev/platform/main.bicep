@@ -46,9 +46,6 @@ param postgresVersion string = '16'
 @description('Redis SKU (Basic, Standard, Premium)')
 param redisSku string = 'Basic'
 
-@description('Redis SKU family (C for Basic/Standard, P for Premium)')
-param redisFamily string = 'C'
-
 @description('Redis capacity (0-6 for Basic/Standard, 1-5 for Premium)')
 param redisCapacity int = 0
 
@@ -69,9 +66,6 @@ param sqlAdminUsername string = 'sqladmin'
 @description('SQL Server administrator password')
 @secure()
 param sqlAdminPassword string
-
-@description('SQL Server version')
-param sqlVersion string = '12.0'
 
 // ========================================
 // MySQL Configuration
@@ -187,10 +181,6 @@ module keyVaultRoleAssignment 'br:xshopaimodulesdev.azurecr.io/bicep/container-a
     principalId: managedIdentity.outputs.principalId
     roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
   }
-  dependsOn: [
-    keyVault
-    managedIdentity
-  ]
 }
 
 // ========================================

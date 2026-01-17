@@ -62,9 +62,6 @@ param postgresAdminPassword = '' // Empty placeholder - MUST be provided at depl
 // Redis SKU: Basic, Standard, or Premium
 param redisSku = 'Basic'
 
-// Redis family: C (Basic/Standard) or P (Premium)
-param redisFamily = 'C'
-
 // Redis capacity: 0-6 (size tier within family)
 // C0 = 250MB, C1 = 1GB, C2 = 2.5GB, etc.
 param redisCapacity = 0
@@ -82,9 +79,6 @@ param serviceBusSku = 'Standard'
 
 // SQL Server admin username
 param sqlAdminUsername = 'sqladmin'
-
-// SQL Server version
-param sqlVersion = '12.0'
 
 // NOTE: sqlAdminPassword is a secure parameter
 // DO NOT commit actual passwords to source control!
