@@ -113,6 +113,18 @@ param mysqlVersion = '8.0.21'
 param mysqlAdminPassword = '' // Empty placeholder - MUST be provided at deployment
 
 // ========================================
+// JWT Secret Configuration
+// ========================================
+
+// NOTE: jwtSecret is a secure parameter
+// DO NOT commit actual secrets to source control!
+// This is the shared JWT signing secret used by auth-service and validated by other services
+// This placeholder will be overridden at deployment time via:
+//   - GitHub Actions secret: secrets.JWT_SECRET (org-level)
+//   - Command line parameter (for testing only)
+param jwtSecret = '' // Empty placeholder - MUST be provided at deployment
+
+// ========================================
 // Deployment Notes
 // ========================================
 /*
