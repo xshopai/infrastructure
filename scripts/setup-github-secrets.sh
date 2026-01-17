@@ -160,6 +160,57 @@ else
 fi
 
 # ============================================================================
+# JWT SECRET (Shared across all services)
+# ============================================================================
+
+echo ""
+log_info "JWT Secret is required for token signing and verification."
+log_info "This will be shared across auth-service (signs) and all other services (verify)."
+echo ""
+log_warning "JWT Secret Requirements:"
+echo "  - Minimum 32 characters (256 bits) for HS256"
+echo "  - Use a cryptographically secure random string"
+echo "  - Example: openssl rand -base64 32"
+echo ""
+
+# Prompt for JWT secret
+while true; do
+    read -sp "Enter JWT Secret (or press Enter to auto-generate): " JWT_SECRET
+    echo ""
+    
+    if [ -z "$JWT_SECRET" ]; then
+        log_info "Auto-generating JWT Secret..."
+        JWT_SECRET=$(openssl rand -base64 32)
+        log_success "JWT Secret generated (32 bytes, base64 encoded)"
+        break
+    elif [ ${#JWT_SECRET} -ge 32 ]; then
+        read -sp "Confirm JWT Secret: " JWT_SECRET_CONFIRM
+        echo ""
+        if [ "$JWT_SECRET" = "$JWT_SECRET_CONFIRM" ]; then
+            break
+        else
+            log_error "Secrets do not match. Please try again."
+        fi
+    else
+        log_error "JWT Secret must be at least 32 characters long"
+    fi
+done
+
+# Set JWT_SECRET
+log_info "Setting JWT_SECRET..."
+if gh secret set JWT_SECRET --org "$GITHUB_ORG" --body "$JWT_SECRET" 2>/dev/null; then
+    log_success "JWT_SECRET set successfully"
+else
+    log_warning "Failed to set JWT_SECRET at org level. Trying with visibility flag..."
+    gh secret set JWT_SECRET --org "$GITHUB_ORG" --visibility all --body "$JWT_SECRET"
+    log_success "JWT_SECRET set successfully"
+fi
+
+# Clear JWT secret from memory
+unset JWT_SECRET
+unset JWT_SECRET_CONFIRM
+
+# ============================================================================
 # DATABASE ADMIN PASSWORDS
 # ============================================================================
 
@@ -282,12 +333,15 @@ echo "========================================================"
 echo "  Setup Complete!"
 echo "========================================================"
 echo ""
-log_success "All 6 GitHub Organization Secrets Configured Successfully!"
+log_success "All 7 GitHub Organization Secrets Configured Successfully!"
 echo ""
 echo "OIDC Authentication Secrets:"
 echo "  ✓ AZURE_CLIENT_ID ......... $CLIENT_ID"
 echo "  ✓ AZURE_TENANT_ID ......... $TENANT_ID"
 echo "  ✓ AZURE_SUBSCRIPTION_ID ... $SUBSCRIPTION_ID"
+echo ""
+echo "Application Secrets:"
+echo "  ✓ JWT_SECRET ........................ (configured securely)"
 echo ""
 echo "Database Admin Passwords:"
 echo "  ✓ POSTGRES_ADMIN_PASSWORD ....... (configured securely)"

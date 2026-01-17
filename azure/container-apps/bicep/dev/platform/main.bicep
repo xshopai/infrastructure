@@ -91,6 +91,10 @@ param mysqlVersion string = '8.0.21'
 @description('Key Vault name suffix for uniqueness (used when original name conflicts with soft-deleted vault)')
 param keyVaultSuffix string = '2'
 
+@description('JWT secret for token signing and verification (shared across all services)')
+@secure()
+param jwtSecret string
+
 // ========================================
 // Module: Resource Group
 // ========================================
@@ -187,6 +191,28 @@ module keyVaultRoleAssignment 'br:xshopaimodulesdev.azurecr.io/bicep/container-a
     keyVault
     managedIdentity
   ]
+}
+
+// ========================================
+// Key Vault Secrets
+// ========================================
+// Secrets stored from GitHub org secrets via workflow parameters
+// Services access these via Dapr secret store (using Managed Identity)
+// ========================================
+
+module jwtSecretResource 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault-secrets:v1.0.0' = {
+  name: 'kv-secrets-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    keyVaultName: keyVault.outputs.name
+    secrets: [
+      {
+        name: 'jwt-secret'
+        value: jwtSecret
+        contentType: 'application/x-jwt-secret'
+      }
+    ]
+  }
 }
 
 // ========================================
