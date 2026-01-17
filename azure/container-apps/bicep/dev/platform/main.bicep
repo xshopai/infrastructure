@@ -374,6 +374,38 @@ module mysqlInventory 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/mysq
 }
 
 // ========================================
+// Dapr Components (Platform-Level)
+// ========================================
+// Dapr building blocks shared across all Container Apps:
+// - pubsub: Azure Service Bus Topics for event-driven messaging
+// - statestore: Azure Redis Cache for state management
+// - secret-store: Azure Key Vault for secrets
+// - configstore: Azure Redis for configuration
+// 
+// Components are scoped to specific services that need them.
+// ========================================
+
+module daprComponents '../../modules/dapr-components.bicep' = {
+  name: 'dapr-components-${environment}'
+  scope: resourceGroup('rg-xshopai-${environment}')
+  params: {
+    containerAppsEnvName: containerEnv.outputs.name
+    serviceBusConnectionString: serviceBus.outputs.connectionString
+    redisHost: redis.outputs.hostName
+    redisPassword: redis.outputs.primaryKey
+    keyVaultName: keyVault.outputs.name
+    managedIdentityClientId: managedIdentity.outputs.clientId
+  }
+  dependsOn: [
+    containerEnv
+    serviceBus
+    redis
+    keyVault
+    managedIdentity
+  ]
+}
+
+// ========================================
 // Outputs (for Service Deployments)
 // ========================================
 
@@ -453,3 +485,19 @@ output sqlServerName string = sqlServer.outputs.serverName
 // MySQL Outputs (for inventory-service)
 @description('MySQL Inventory Server FQDN')
 output mysqlInventoryFqdn string = mysqlInventory.outputs.fqdn
+
+// ========================================
+// Dapr Components Outputs
+// ========================================
+
+@description('Managed Identity Client ID')
+output managedIdentityClientId string = managedIdentity.outputs.clientId
+
+@description('Dapr Pub/Sub Component Name')
+output daprPubsubComponentName string = daprComponents.outputs.pubsubComponentName
+
+@description('Dapr State Store Component Name')
+output daprStateStoreComponentName string = daprComponents.outputs.stateStoreComponentName
+
+@description('Dapr Secret Store Component Name')
+output daprSecretStoreComponentName string = daprComponents.outputs.secretStoreComponentName
