@@ -208,13 +208,33 @@ module jwtSecretResource 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/k
 // ========================================
 // Database Infrastructure
 // ========================================
+// 
+// Database Requirements by Service:
+// ┌─────────────────────────┬──────────────┬────────────────────────────────────┐
+// │ Service                 │ Database     │ Notes                              │
+// ├─────────────────────────┼──────────────┼────────────────────────────────────┤
+// │ product-service         │ MongoDB      │ Cosmos DB (MongoDB API)            │
+// │ user-service            │ MongoDB      │ Cosmos DB (MongoDB API)            │
+// │ auth-service            │ MongoDB      │ Cosmos DB (MongoDB API)            │
+// │ review-service          │ MongoDB      │ Cosmos DB (MongoDB API)            │
+// │ order-service           │ SQL Server   │ .NET 8 / Entity Framework          │
+// │ payment-service         │ SQL Server   │ .NET 8 / Entity Framework          │
+// │ cart-service            │ PostgreSQL   │ Java / Spring Boot                 │
+// │ audit-service           │ PostgreSQL   │ Node.js                            │
+// │ order-processor-service │ PostgreSQL   │ Java / Spring Boot                 │
+// │ inventory-service       │ MySQL        │ Python / Flask                     │
+// └─────────────────────────┴──────────────┴────────────────────────────────────┘
 
-// PostgreSQL for product-service
-module postgresProduct 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
-  name: 'psql-product-${environment}'
+// ========================================
+// PostgreSQL Databases (for cart, audit, order-processor services)
+// ========================================
+
+// PostgreSQL for cart-service (Java/Spring Boot)
+module postgresCart 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
+  name: 'psql-cart-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
   params: {
-    name: 'psql-xshopai-product-${environment}'
+    name: 'psql-xshopai-cart-${environment}'
     location: location
     administratorLogin: postgresAdminUsername
     administratorPassword: postgresAdminPassword
@@ -226,12 +246,12 @@ module postgresProduct 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/pos
   }
 }
 
-// PostgreSQL for user-service
-module postgresUser 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
-  name: 'psql-user-${environment}'
+// PostgreSQL for audit-service (Node.js)
+module postgresAudit 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
+  name: 'psql-audit-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
   params: {
-    name: 'psql-xshopai-user-${environment}'
+    name: 'psql-xshopai-audit-${environment}'
     location: location
     administratorLogin: postgresAdminUsername
     administratorPassword: postgresAdminPassword
@@ -243,12 +263,12 @@ module postgresUser 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgr
   }
 }
 
-// PostgreSQL for order-service
-module postgresOrder 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
-  name: 'psql-order-${environment}'
+// PostgreSQL for order-processor-service (Java/Spring Boot)
+module postgresOrderProcessor 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postgresql-database:v1.0.0' = {
+  name: 'psql-order-processor-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
   params: {
-    name: 'psql-xshopai-order-${environment}'
+    name: 'psql-xshopai-orderproc-${environment}'
     location: location
     administratorLogin: postgresAdminUsername
     administratorPassword: postgresAdminPassword
@@ -260,7 +280,12 @@ module postgresOrder 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/postg
   }
 }
 
-// MongoDB (Cosmos DB) for shared services
+// ========================================
+// MongoDB (Cosmos DB) for product, user, auth, review services
+// ========================================
+
+// Single Cosmos DB account with MongoDB API (serverless for cost efficiency)
+// Multiple databases will be created within this account by each service
 module cosmosShared 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/cosmos-database:v1.0.0' = {
   name: 'cosmos-shared-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
@@ -308,7 +333,7 @@ module serviceBus 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/service-
 }
 
 // ========================================
-// Azure SQL Database (for .NET services)
+// Azure SQL Database (for .NET services: order-service, payment-service)
 // ========================================
 
 // SQL Server for order-service and payment-service
@@ -328,15 +353,15 @@ module sqlServer 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/sql-serve
 }
 
 // ========================================
-// Azure Database for MySQL (if needed)
+// Azure Database for MySQL (for inventory-service)
 // ========================================
 
-// MySQL Flexible Server for cart-service
-module mysqlCart 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/mysql-database:v1.0.0' = {
-  name: 'mysql-cart-${environment}'
+// MySQL Flexible Server for inventory-service (Python/Flask)
+module mysqlInventory 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/mysql-database:v1.0.0' = {
+  name: 'mysql-inventory-${environment}'
   scope: resourceGroup('rg-xshopai-${environment}')
   params: {
-    name: 'mysql-xshopai-cart-${environment}'
+    name: 'mysql-xshopai-inventory-${environment}'
     location: location
     administratorLogin: mysqlAdminUsername
     administratorPassword: mysqlAdminPassword
@@ -383,16 +408,18 @@ output keyVaultUri string = keyVault.outputs.uri
 // Database Outputs
 // ========================================
 
-@description('PostgreSQL Product Server FQDN')
-output postgresProductFqdn string = postgresProduct.outputs.fqdn
+// PostgreSQL Outputs
+@description('PostgreSQL Cart Server FQDN')
+output postgresCartFqdn string = postgresCart.outputs.fqdn
 
-@description('PostgreSQL User Server FQDN')
-output postgresUserFqdn string = postgresUser.outputs.fqdn
+@description('PostgreSQL Audit Server FQDN')
+output postgresAuditFqdn string = postgresAudit.outputs.fqdn
 
-@description('PostgreSQL Order Server FQDN')
-output postgresOrderFqdn string = postgresOrder.outputs.fqdn
+@description('PostgreSQL Order Processor Server FQDN')
+output postgresOrderProcessorFqdn string = postgresOrderProcessor.outputs.fqdn
 
-@description('Cosmos DB Connection String')
+// Cosmos DB (MongoDB) Outputs
+@description('Cosmos DB Connection String (for product, user, auth, review services)')
 @secure()
 output cosmosConnectionString string = cosmosShared.outputs.connectionString
 
@@ -416,11 +443,13 @@ output serviceBusNamespace string = serviceBus.outputs.namespaceName
 @secure()
 output serviceBusConnectionString string = serviceBus.outputs.connectionString
 
+// SQL Server Outputs (for order-service, payment-service)
 @description('SQL Server FQDN')
 output sqlServerFqdn string = sqlServer.outputs.serverFqdn
 
 @description('SQL Server Name')
 output sqlServerName string = sqlServer.outputs.serverName
 
-@description('MySQL Cart Server FQDN')
-output mysqlCartFqdn string = mysqlCart.outputs.fqdn
+// MySQL Outputs (for inventory-service)
+@description('MySQL Inventory Server FQDN')
+output mysqlInventoryFqdn string = mysqlInventory.outputs.fqdn
