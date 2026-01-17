@@ -72,11 +72,67 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Get Service Principal Object ID
+        id: sp-object-id
+        run: |
+          # Get the Object ID of the service principal performing the deployment
+          # This allows the deploying identity to have admin access to Key Vault
+          SP_OBJECT_ID=$(az ad sp show --id ${{ secrets.AZURE_CLIENT_ID }} --query id -o tsv)
+          echo "object-id=$SP_OBJECT_ID" >> $GITHUB_OUTPUT
+          echo "✅ Service Principal Object ID: $SP_OBJECT_ID"
+
       - name: Set deployment name
         id: deployment-name
         run: |
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           echo "name=platform-infra-${TIMESTAMP}" >> $GITHUB_OUTPUT
+
+      - name: Handle Soft-Deleted Key Vault Resources
+        run: |
+          echo "🔐 Checking for soft-deleted Key Vault resources..."
+          
+          # Define Key Vault name pattern (matches main.bicep naming)
+          KV_NAME="kv-xshopai-${{ inputs.environment }}2"
+          
+          # Check if the Key Vault itself is soft-deleted
+          DELETED_VAULT=$(az keyvault list-deleted --query "[?name=='$KV_NAME'].name" -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$DELETED_VAULT" ]; then
+            echo "⚠️ Found soft-deleted Key Vault: $KV_NAME"
+            echo "🗑️ Purging soft-deleted Key Vault to allow recreation..."
+            az keyvault purge --name "$KV_NAME" --no-wait || {
+              echo "⏳ Purge initiated. Waiting for completion..."
+              sleep 30
+            }
+            echo "✅ Key Vault purge initiated"
+          else
+            echo "✅ No soft-deleted Key Vault found with name: $KV_NAME"
+            
+            # Even if the vault isn't deleted, secrets might be soft-deleted
+            # This happens if you deleted and recreated the vault manually
+            # Check if vault exists and has soft-deleted secrets
+            VAULT_EXISTS=$(az keyvault show --name "$KV_NAME" --query "name" -o tsv 2>/dev/null || echo "")
+            
+            if [ -n "$VAULT_EXISTS" ]; then
+              echo "🔍 Checking for soft-deleted secrets in existing vault..."
+              
+              # List soft-deleted secrets and recover them
+              DELETED_SECRETS=$(az keyvault secret list-deleted --vault-name "$KV_NAME" --query "[].name" -o tsv 2>/dev/null || echo "")
+              
+              if [ -n "$DELETED_SECRETS" ]; then
+                echo "⚠️ Found soft-deleted secrets, recovering them..."
+                for SECRET_NAME in $DELETED_SECRETS; do
+                  echo "  Recovering: $SECRET_NAME"
+                  az keyvault secret recover --vault-name "$KV_NAME" --name "$SECRET_NAME" --no-wait 2>/dev/null || true
+                done
+                echo "⏳ Waiting for secret recovery to complete..."
+                sleep 15
+                echo "✅ Soft-deleted secrets recovered"
+              else
+                echo "✅ No soft-deleted secrets found"
+              fi
+            fi
+          fi
 
       - name: Validate Bicep template
         working-directory: azure/container-apps/bicep/${{ inputs.environment }}/platform
@@ -106,6 +162,7 @@ jobs:
             --parameters postgresAdminPassword='${{ secrets.POSTGRES_ADMIN_PASSWORD }}' \
             --parameters sqlAdminPassword='${{ secrets.SQL_SERVER_ADMIN_PASSWORD }}' \
             --parameters mysqlAdminPassword='${{ secrets.MYSQL_ADMIN_PASSWORD }}' \
+            --parameters keyVaultAdminObjectId='${{ steps.sp-object-id.outputs.object-id }}' \
             --result-format FullResourcePayloads
 
       - name: Deploy Platform Infrastructure
@@ -127,6 +184,7 @@ jobs:
             --parameters postgresAdminPassword='${{ secrets.POSTGRES_ADMIN_PASSWORD }}' \
             --parameters sqlAdminPassword='${{ secrets.SQL_SERVER_ADMIN_PASSWORD }}' \
             --parameters mysqlAdminPassword='${{ secrets.MYSQL_ADMIN_PASSWORD }}' \
+            --parameters keyVaultAdminObjectId='${{ steps.sp-object-id.outputs.object-id }}' \
             --verbose
 
       - name: Get Deployment Outputs

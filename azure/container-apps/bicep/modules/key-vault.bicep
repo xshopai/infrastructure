@@ -40,6 +40,9 @@ param enableRbacAuthorization bool = true
 @description('Tenant ID for the Key Vault')
 param tenantId string = subscription().tenantId
 
+@description('Access policies for the Key Vault (used when RBAC is disabled)')
+param accessPolicies array = []
+
 @description('Tags to apply to the resource')
 param tags object = {}
 
@@ -60,6 +63,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     softDeleteRetentionInDays: softDeleteRetentionInDays
     enablePurgeProtection: enablePurgeProtection
     enableRbacAuthorization: enableRbacAuthorization
+    accessPolicies: enableRbacAuthorization ? [] : accessPolicies
     publicNetworkAccess: 'Enabled'
     networkAcls: {
       defaultAction: 'Allow'

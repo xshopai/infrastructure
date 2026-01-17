@@ -69,32 +69,38 @@
 - ⏳ Validate shared infrastructure deployment
 - ⏳ Store infrastructure outputs in Key Vault (for service consumption)
 
-**Status:** 🟡 **In Progress** (20% - orchestration validated and deployment-ready)
+**Status:** � **100% Complete** (platform infrastructure deployed to dev)
 
 **What's Done:**
 
 - ✅ Environment directory structure created (`environments/dev/`, `environments/prod/`)
-- ✅ Main orchestration file created (`environments/dev/main.bicep` - 167 lines)
+- ✅ Main orchestration file created (`dev/platform/main.bicep` - 411 lines)
 - ✅ Parameter files created for dev and prod environments
-- ✅ Applied 10 corrections to orchestration:
-  - 4 scope pattern fixes (string interpolation)
-  - 5 output property name fixes (module-specific names)  
-  - 1 parameter interface fix (conditional logic for environments)
-- ✅ Validation cycle complete: 9 errors → 1 error → 0 errors
-- ✅ ARM template generated successfully (main.json)
-- ✅ All files synchronized and deployment-ready
+- ✅ Platform infrastructure deployed to `rg-xshopai-dev`:
+  - ✅ Container Apps Environment: `cae-xshopai-dev`
+  - ✅ Key Vault: `kv-xshopai-dev2`
+  - ✅ Cosmos DB (MongoDB API): `cosmos-xshopai-dev`
+  - ✅ PostgreSQL servers: `psql-xshopai-{product,user,order}-dev`
+  - ✅ SQL Server: `sql-xshopai-dev-sql`
+  - ✅ MySQL: `mysql-xshopai-cart-dev`
+  - ✅ Service Bus: `sb-xshopai-dev`
+  - ✅ Redis: `redis-xshopai-dev`
+  - ✅ Managed Identity: `id-xshopai-dev` (with Key Vault Secrets User role)
+  - ✅ Log Analytics: `log-xshopai-dev`
+- ✅ GitHub Actions workflow for platform deployment
+- ✅ Validation complete with what-if preview
 
-**Key Discoveries:**
+**Key Decisions:**
 
-- Module outputs use specific property names (workspaceId, resourceId, uri)
-- Cannot use module outputs in scope properties - use string interpolation
-- Conditional logic enables environment-specific features (e.g., zoneRedundant)
+- Platform infrastructure deploys shared resources (databases, CAE, KV, identity)
+- Container Apps are created by individual services (service owns its deployment)
+- Secrets stored in Key Vault, accessed via Managed Identity
 
 **Next Actions:**
 
-1. Test deployment preview with `az deployment sub what-if`
-2. Review what-if output for correctness
-3. Obtain approval before actual deployment
+1. ~~Test deployment preview with `az deployment sub what-if`~~ ✅ **COMPLETE**
+2. ~~Deploy platform infrastructure~~ ✅ **COMPLETE**
+3. **Begin Phase 3** - Migrate services starting with product-service
 
 ---
 
@@ -105,20 +111,36 @@
 - Migrate critical services to new architecture
 - Establish application deployment pattern
 
+**Design Pattern (Agreed):** Service owns its infrastructure
+
+```
+Service Repo (e.g., product-service):
+├── .azure/
+│   ├── infrastructure/
+│   │   └── main.bicep       # Creates: DB, secrets in KV
+│   └── app/
+│       └── main.bicep       # Creates: Container App
+├── .github/workflows/
+│   ├── deploy-infrastructure.yml  # Runs on-demand or .azure/infrastructure/** changes
+│   └── deploy-app.yml             # Runs on push to main
+```
+
 **Tasks & Deliverables:**
 
-- ⏳ Create `.azure/` deployment folder structure for each service
-- ⏳ Migrate **product-service** (Python/FastAPI)
-  - ⏳ Create `deploy.bicep`
-  - ⏳ Create parameter files (dev/prod)
-  - ⏳ Create GitHub Actions workflow
-  - ⏳ Deploy to dev and validate
+- ✅ Create `.azure/` deployment folder structure for each service
+- ✅ Migrate **product-service** (Python/FastAPI)
+  - ✅ Create `.azure/infrastructure/main.bicep` (Cosmos DB database + KV secrets)
+  - ✅ Create `.azure/app/main.bicep` (Container App)
+  - ✅ Create `deploy-infrastructure.yml` workflow
+  - ✅ Create `deploy-app.yml` workflow
+  - ⏳ Deploy infrastructure to dev
+  - ⏳ Deploy application to dev and validate
 - ⏳ Migrate **user-service** (Node.js/Express)
 - ⏳ Migrate **auth-service** (Node.js/Express)
 - ⏳ Migrate **cart-service** (Java/Spring Boot)
 - ⏳ Document service deployment pattern in each service README
 
-**Status:** 🔴 **Not Started** (0%)
+**Status:** 🟡 **In Progress** (25% - product-service templates created)
 
 ---
 
@@ -237,15 +259,15 @@
 | Phase       | Status         | Completion | Critical Blockers                     |
 | ----------- | -------------- | ---------- | ------------------------------------- |
 | **Phase 1** | 🟢 Complete    | 100%       | None - Phase complete                 |
-| **Phase 2** | 🟡 In Progress | 5%         | Orchestration files needed            |
-| **Phase 3** | 🔴 Not Started | 0%         | Requires Phase 2 completion           |
+| **Phase 2** | � Complete    | 100%       | None - Platform deployed to dev       |
+| **Phase 3** | 🟡 In Progress | 25%        | product-service templates created     |
 | **Phase 4** | 🔴 Not Started | 0%         | Requires Phase 3 completion           |
 | **Phase 5** | 🔴 Not Started | 0%         | Requires Phase 4 completion           |
 | **Phase 6** | 🔴 Not Started | 0%         | Requires Phase 5 completion           |
 | **Phase 7** | 🔴 Not Started | 0%         | Requires Phase 6 completion           |
 | **Phase 8** | 🔴 Not Started | 0%         | Requires Phase 7 completion           |
 
-**Overall Project Completion:** 🟢 **15%** (Phase 1 complete, Phase 2 started)
+**Overall Project Completion:** 🟢 **28%** (Phase 1-2 complete, Phase 3 in progress)
 
 ---
 

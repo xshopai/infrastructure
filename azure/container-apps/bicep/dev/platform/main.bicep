@@ -74,6 +74,13 @@ param sqlAdminPassword string
 @description('MySQL administrator username')
 param mysqlAdminUsername string = 'mysqladmin'
 
+// ========================================
+// Key Vault Configuration
+// ========================================
+
+@description('Azure AD Object ID of the user/principal to grant Key Vault access (required when RBAC is disabled)')
+param keyVaultAdminObjectId string = ''
+
 @description('MySQL administrator password')
 @secure()
 param mysqlAdminPassword string
@@ -156,11 +163,36 @@ module managedIdentity 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/man
 module keyVault 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault:v1.0.0' = {
   name: 'kv-xshopai-${environment}${keyVaultSuffix}'
   scope: resourceGroup('rg-xshopai-${environment}')
+  dependsOn: [
+    managedIdentity // Ensure managed identity exists first for access policies
+  ]
   params: {
     name: 'kv-xshopai-${environment}${keyVaultSuffix}'
     location: location
     sku: 'standard'
-    enableRbacAuthorization: true
+    enableRbacAuthorization: false
+    accessPolicies: union(
+      // Admin user access (if provided)
+      !empty(keyVaultAdminObjectId) ? [
+        {
+          tenantId: subscription().tenantId
+          objectId: keyVaultAdminObjectId
+          permissions: {
+            secrets: ['get', 'list', 'set', 'delete']
+          }
+        }
+      ] : [],
+      // Managed identity access for Container Apps
+      [
+        {
+          tenantId: subscription().tenantId
+          objectId: managedIdentity.outputs.principalId
+          permissions: {
+            secrets: ['get', 'list']
+          }
+        }
+      ]
+    )
     tags: tags
   }
 }
@@ -173,15 +205,16 @@ module keyVault 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault:
 // ========================================
 // NOTE: Role assignments must be deployed using a module at subscription scope
 
-module keyVaultRoleAssignment 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault-role-assignment:v1.0.0' = {
-  name: 'kv-role-assignment-${environment}'
-  scope: resourceGroup('rg-xshopai-${environment}')
-  params: {
-    keyVaultName: keyVault.outputs.name
-    principalId: managedIdentity.outputs.principalId
-    roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-  }
-}
+// Note: Role assignment is skipped when RBAC is disabled (using access policies instead)
+// module keyVaultRoleAssignment 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault-role-assignment:v1.0.0' = {
+//   name: 'kv-role-assignment-${environment}'
+//   scope: resourceGroup('rg-xshopai-${environment}')
+//   params: {
+//     keyVaultName: keyVault.outputs.name
+//     principalId: managedIdentity.outputs.principalId
+//     roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+//   }
+// }
 
 // ========================================
 // Key Vault Secrets
