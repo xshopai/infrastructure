@@ -173,12 +173,14 @@ module keyVault 'br:xshopaimodulesdev.azurecr.io/bicep/container-apps/key-vault:
     enableRbacAuthorization: false
     accessPolicies: union(
       // Admin user access (if provided)
+      // NOTE: 'recover' and 'purge' permissions are required for the workflow
+      // to handle soft-deleted secrets during IaC deployments
       !empty(keyVaultAdminObjectId) ? [
         {
           tenantId: subscription().tenantId
           objectId: keyVaultAdminObjectId
           permissions: {
-            secrets: ['get', 'list', 'set', 'delete']
+            secrets: ['get', 'list', 'set', 'delete', 'recover', 'purge']
           }
         }
       ] : [],
