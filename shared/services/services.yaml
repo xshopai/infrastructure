@@ -9,7 +9,7 @@ services:
   # ============================================================================
   # Backend Services - Node.js
   # ============================================================================
-  
+
   - name: user-service
     repository: xshopai/user-service
     language: nodejs
@@ -90,13 +90,13 @@ services:
   - name: audit-service
     repository: xshopai/audit-service
     language: nodejs
-    port: 1004
+    port: 8003
     healthPath: /health
     readinessPath: /health/ready
     dapr:
       enabled: true
       appId: audit-service
-      appPort: 1004
+      appPort: 8003
     resources:
       cpu: 0.25
       memory: 512Mi

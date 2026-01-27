@@ -609,6 +609,8 @@ az cosmosdb create \
     --server-version "4.2" \
     --default-consistency-level Session \
     --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=false \
+    --enable-automatic-failover true \
+    --disable-key-based-metadata-write-access false \
     --output none 2>/tmp/cosmos_error.log &
 COSMOS_PID=$!
 
@@ -749,6 +751,17 @@ if [ "$COSMOS_STATE" != "Succeeded" ]; then
     exit 1
 fi
 
+# Enable local authentication (connection string based auth) for dev/staging
+# This allows services and seeders to connect using connection strings
+# Production should use managed identity where possible
+if [[ "$ENVIRONMENT" == "dev" || "$ENVIRONMENT" == "staging" ]]; then
+    print_info "Enabling local authentication on Cosmos DB for $ENVIRONMENT environment..."
+    MSYS_NO_PATHCONV=1 az resource update \
+        --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.DocumentDB/databaseAccounts/$COSMOS_ACCOUNT" \
+        --set properties.disableLocalAuth=false \
+        --output none 2>/dev/null || print_warning "Could not enable local auth (may already be enabled)"
+fi
+
 COSMOS_CONNECTION=$(az cosmosdb keys list \
     --name "$COSMOS_ACCOUNT" \
     --resource-group "$RESOURCE_GROUP" \
@@ -792,6 +805,25 @@ if az mysql flexible-server firewall-rule create \
     print_success "MySQL firewall rule created: AllowAllAzureServices"
 else
     print_warning "MySQL firewall rule may already exist (continuing)"
+fi
+
+# For dev/staging environments, allow deployer's IP for seeding and debugging
+if [[ "$ENVIRONMENT" == "dev" || "$ENVIRONMENT" == "staging" ]]; then
+    MY_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ifconfig.me 2>/dev/null || echo "")
+    if [ -n "$MY_IP" ]; then
+        print_info "Adding firewall rule for deployer IP: $MY_IP"
+        if az mysql flexible-server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$MYSQL_SERVER" \
+            --rule-name "AllowDeployerIP" \
+            --start-ip-address "$MY_IP" \
+            --end-ip-address "$MY_IP" \
+            --output none 2>/dev/null; then
+            print_success "MySQL firewall rule created: AllowDeployerIP ($MY_IP)"
+        else
+            print_warning "Could not add deployer IP rule (continuing)"
+        fi
+    fi
 fi
 
 print_success "MySQL Server ready: $MYSQL_HOST"
