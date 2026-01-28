@@ -153,6 +153,11 @@ if ! az account show &> /dev/null; then
 fi
 print_success "Logged into Azure"
 
+# Register required resource providers
+print_info "Registering required resource providers..."
+az provider register --namespace Microsoft.Sql --wait 2>/dev/null || true
+print_success "Resource providers registered"
+
 # =============================================================================
 # Environment Selection
 # =============================================================================
@@ -290,6 +295,7 @@ APP_INSIGHTS="appi-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 CONTAINER_ENV="cae-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 REDIS_NAME="redis-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 MYSQL_SERVER="mysql-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
+SQL_SERVER="sql-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 MANAGED_IDENTITY="id-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 SERVICE_BUS="sb-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 COSMOS_ACCOUNT="cosmos-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
@@ -316,6 +322,7 @@ echo "   Service Bus:         $SERVICE_BUS"
 echo "   Redis Cache:         $REDIS_NAME"
 echo "   Cosmos DB:           $COSMOS_ACCOUNT"
 echo "   MySQL Server:        $MYSQL_SERVER"
+echo "   SQL Server:          $SQL_SERVER"
 echo "   Key Vault:           $KEY_VAULT"
 echo ""
 
@@ -566,21 +573,25 @@ else
 fi
 
 # =============================================================================
-# 6. Create Data Resources IN PARALLEL (Redis, Cosmos DB, MySQL)
+# 6. Create Data Resources IN PARALLEL (Redis, Cosmos DB, MySQL, SQL Server)
 # =============================================================================
 # These resources take the longest to provision (10-15 minutes each)
 # Running them in parallel reduces total deployment time significantly
-# Sequential: ~30 min | Parallel: ~15 min (time of longest resource)
+# Sequential: ~40 min | Parallel: ~15 min (time of longest resource)
 # =============================================================================
 
-print_step "Creating Data Resources (Redis, Cosmos DB, MySQL)"
-print_warning "Starting all three resources in parallel to save time..."
-print_info "This will take approximately 10-15 minutes total (instead of 30+ minutes sequential)"
+print_step "Creating Data Resources (Redis, Cosmos DB, MySQL, SQL Server)"
+print_warning "Starting all four resources in parallel to save time..."
+print_info "This will take approximately 10-15 minutes total (instead of 40+ minutes sequential)"
 echo ""
 
 # Generate MySQL password upfront (needed for parallel creation)
 MYSQL_ADMIN_USER="xshopaiadmin"
 MYSQL_ADMIN_PASSWORD="XShop$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')!"
+
+# Get current user info for SQL Server Azure AD admin (MCAPS requires AD-only auth)
+SQL_AD_ADMIN_SID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || echo "")
+SQL_AD_ADMIN_NAME=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null || echo "")
 
 # Track start time
 PARALLEL_START=$SECONDS
@@ -632,22 +643,49 @@ az mysql flexible-server create \
     --output none 2>/tmp/mysql_error.log &
 MYSQL_PID=$!
 
+# -----------------------------------------------------------------------------
+# Start SQL Server creation in background (Azure AD-only auth for MCAPS compliance)
+# -----------------------------------------------------------------------------
+print_info "Starting Azure SQL Server creation..."
+if [ -n "$SQL_AD_ADMIN_SID" ] && [ -n "$SQL_AD_ADMIN_NAME" ]; then
+    az sql server create \
+        --name "$SQL_SERVER" \
+        --resource-group "$RESOURCE_GROUP" \
+        --location "$LOCATION" \
+        --enable-ad-only-auth \
+        --external-admin-principal-type User \
+        --external-admin-name "$SQL_AD_ADMIN_NAME" \
+        --external-admin-sid "$SQL_AD_ADMIN_SID" \
+        --output none 2>/tmp/sql_error.log &
+    SQL_PID=$!
+else
+    print_warning "Could not get Azure AD user info - SQL Server creation may fail"
+    az sql server create \
+        --name "$SQL_SERVER" \
+        --resource-group "$RESOURCE_GROUP" \
+        --location "$LOCATION" \
+        --output none 2>/tmp/sql_error.log &
+    SQL_PID=$!
+fi
+
 echo ""
-print_info "All three resources are now provisioning in parallel..."
-print_info "PIDs: Redis=$REDIS_PID, Cosmos=$COSMOS_PID, MySQL=$MYSQL_PID"
+print_info "All four resources are now provisioning in parallel..."
+print_info "PIDs: Redis=$REDIS_PID, Cosmos=$COSMOS_PID, MySQL=$MYSQL_PID, SQL=$SQL_PID"
 echo ""
 
 # -----------------------------------------------------------------------------
-# Monitor progress of all three resources
+# Monitor progress of all four resources
 # -----------------------------------------------------------------------------
 REDIS_DONE=false
 COSMOS_DONE=false
 MYSQL_DONE=false
+SQL_DONE=false
 REDIS_STATUS="⏳ Creating"
 COSMOS_STATUS="⏳ Creating"
 MYSQL_STATUS="⏳ Creating"
+SQL_STATUS="⏳ Creating"
 
-while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ]; do
+while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ] || [ "$SQL_DONE" = false ]; do
     ELAPSED=$((SECONDS - PARALLEL_START))
     
     # Check Redis
@@ -701,11 +739,24 @@ while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE"
         fi
     fi
     
-    # Print status
-    printf "\r   ⏱️  %3ds | Redis: %-15s | Cosmos: %-15s | MySQL: %-15s" \
-        "$ELAPSED" "$REDIS_STATUS" "$COSMOS_STATUS" "$MYSQL_STATUS"
+    # Check SQL Server
+    if [ "$SQL_DONE" = false ]; then
+        if ! kill -0 $SQL_PID 2>/dev/null; then
+            wait $SQL_PID
+            if [ $? -eq 0 ]; then
+                SQL_STATUS="✅ Done"
+            else
+                SQL_STATUS="❌ Failed"
+            fi
+            SQL_DONE=true
+        fi
+    fi
     
-    if [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ]; then
+    # Print status
+    printf "\r   ⏱️  %3ds | Redis: %-12s | Cosmos: %-12s | MySQL: %-12s | SQL: %-12s" \
+        "$ELAPSED" "$REDIS_STATUS" "$COSMOS_STATUS" "$MYSQL_STATUS" "$SQL_STATUS"
+    
+    if [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ] || [ "$SQL_DONE" = false ]; then
         sleep 10
     fi
 done
@@ -827,6 +878,60 @@ if [[ "$ENVIRONMENT" == "dev" || "$ENVIRONMENT" == "staging" ]]; then
 fi
 
 print_success "MySQL Server ready: $MYSQL_HOST"
+
+# -----------------------------------------------------------------------------
+# Verify and retrieve SQL Server details (still part of step 6)
+# -----------------------------------------------------------------------------
+print_info "Retrieving SQL Server details..."
+
+SQL_HOST=$(az sql server show \
+    --name "$SQL_SERVER" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query fullyQualifiedDomainName -o tsv 2>/dev/null)
+
+if [ -z "$SQL_HOST" ]; then
+    print_error "SQL Server creation failed. Check /tmp/sql_error.log"
+    cat /tmp/sql_error.log
+    exit 1
+fi
+
+# Configure SQL Server firewall rules
+print_info "Configuring SQL Server firewall rules..."
+if az sql server firewall-rule create \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$SQL_SERVER" \
+    --name "AllowAllAzureServices" \
+    --start-ip-address 0.0.0.0 \
+    --end-ip-address 0.0.0.0 \
+    --output none 2>/dev/null; then
+    print_success "SQL Server firewall rule created: AllowAllAzureServices"
+else
+    print_warning "SQL Server firewall rule may already exist (continuing)"
+fi
+
+# For dev/staging environments, allow deployer's IP for seeding and debugging
+if [[ "$ENVIRONMENT" == "dev" || "$ENVIRONMENT" == "staging" ]]; then
+    # Reuse MY_IP from MySQL section if already fetched
+    if [ -z "$MY_IP" ]; then
+        MY_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ifconfig.me 2>/dev/null || echo "")
+    fi
+    if [ -n "$MY_IP" ]; then
+        print_info "Adding SQL Server firewall rule for deployer IP: $MY_IP"
+        if az sql server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --server "$SQL_SERVER" \
+            --name "AllowDeployerIP" \
+            --start-ip-address "$MY_IP" \
+            --end-ip-address "$MY_IP" \
+            --output none 2>/dev/null; then
+            print_success "SQL Server firewall rule created: AllowDeployerIP ($MY_IP)"
+        else
+            print_warning "Could not add deployer IP rule for SQL Server (continuing)"
+        fi
+    fi
+fi
+
+print_success "SQL Server ready: $SQL_HOST"
 
 # =============================================================================
 # 7. Create Azure Key Vault
@@ -950,7 +1055,23 @@ if [ -n "$CURRENT_USER_ID" ]; then
         print_warning "Failed to store: appinsights-instrumentation-key"
     fi
     
-    print_success "Stored $SECRET_COUNT/7 secrets in Key Vault"
+    # SQL Server connection info (Azure AD authentication - no password)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "sql-host" --value "$SQL_HOST" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: sql-host"
+    else
+        print_warning "Failed to store: sql-host"
+    fi
+    
+    # SQL Server connection string for order-service (Azure AD Default auth for managed identity)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "sql-connection" --value "Server=$SQL_HOST;Database=order_service_db;Authentication=Active Directory Default;TrustServerCertificate=True;Encrypt=True" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: sql-connection"
+    else
+        print_warning "Failed to store: sql-connection"
+    fi
+    
+    print_success "Stored $SECRET_COUNT/9 secrets in Key Vault"
 else
     print_warning "Could not store secrets (run 'az login' with user account)"
 fi
@@ -1074,12 +1195,14 @@ echo -e "   Service Bus:            ${YELLOW}$SERVICE_BUS.servicebus.windows.net
 echo -e "   Redis Cache:            ${YELLOW}$REDIS_HOST${NC}"
 echo -e "   Cosmos DB:              ${YELLOW}$COSMOS_ACCOUNT.mongo.cosmos.azure.com${NC}"
 echo -e "   MySQL Server:           ${YELLOW}$MYSQL_HOST${NC}"
+echo -e "   SQL Server:             ${YELLOW}$SQL_HOST${NC}"
 echo -e "   Key Vault:              ${YELLOW}$KEY_VAULT_URL${NC}"
 echo -e "   Managed Identity:       ${YELLOW}$MANAGED_IDENTITY${NC}"
 echo ""
 echo -e "${RED}🔐 Credentials (save securely!):${NC}"
 echo -e "   MySQL Admin User:       ${YELLOW}$MYSQL_ADMIN_USER${NC}"
 echo -e "   MySQL Admin Password:   ${YELLOW}$MYSQL_ADMIN_PASSWORD${NC}"
+echo -e "   SQL Server Auth:        ${YELLOW}Azure AD-only (use managed identity)${NC}"
 echo ""
 echo -e "${CYAN}📝 Environment Variables for Services:${NC}"
 echo -e "   ${BLUE}export RESOURCE_GROUP=\"$RESOURCE_GROUP\"${NC}"
