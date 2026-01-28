@@ -163,7 +163,7 @@ resource cosmosDbBinding 'Microsoft.App/managedEnvironments/daprComponents@2023-
         value: 'events'
       }
     ]
-    secretStoreComponent: 'secret-store'
+    secretStoreComponent: 'secretstore'
     scopes: [
       'audit-service'
     ]
@@ -179,7 +179,7 @@ resource cosmosDbBinding 'Microsoft.App/managedEnvironments/daprComponents@2023-
 
 resource secretStoreComponent 'Microsoft.App/managedEnvironments/daprComponents@2023-11-02-preview' = {
   parent: containerAppsEnv
-  name: 'secret-store'
+  name: 'secretstore'
   properties: {
     componentType: 'secretstores.azure.keyvault'
     version: 'v1'
