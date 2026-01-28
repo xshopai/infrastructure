@@ -837,6 +837,7 @@ if az keyvault create \
     --resource-group "$RESOURCE_GROUP" \
     --location "$LOCATION" \
     --enable-rbac-authorization true \
+    --public-network-access Enabled \
     --output none 2>&1; then
     print_success "Key Vault created: $KEY_VAULT"
 else
@@ -844,15 +845,18 @@ else
     exit 1
 fi
 
-# Configure Key Vault network rules - allow Azure services
+# Configure Key Vault network rules - allow public access and Azure services
+# Note: Public access is needed for CLI access during deployment and local development
+# In production, consider restricting to specific IPs or VNet
 print_info "Configuring Key Vault network access..."
 if az keyvault update \
     --name "$KEY_VAULT" \
     --resource-group "$RESOURCE_GROUP" \
+    --public-network-access Enabled \
     --default-action Allow \
     --bypass AzureServices \
     --output none 2>/dev/null; then
-    print_success "Key Vault network rules configured"
+    print_success "Key Vault network rules configured (public access enabled)"
 else
     print_warning "Key Vault network rules may already be configured (continuing)"
 fi
