@@ -24,6 +24,7 @@ The infrastructure deployment creates all shared Azure resources that are used b
 | Redis Cache                | `redis-xshopai-{env}-{suffix}`  | Caching and Dapr state store      |
 | Cosmos DB (account)        | `cosmos-xshopai-{env}-{suffix}` | MongoDB API server (no databases) |
 | MySQL Server               | `mysql-xshopai-{env}-{suffix}`  | MySQL server (no databases)       |
+| SQL Server                 | `sql-xshopai-{env}-{suffix}`    | Azure SQL Server (Azure AD auth)  |
 | Key Vault                  | `kv-xshopai-{env}-{suffix}`     | Secrets management                |
 
 > **Note**: The `{suffix}` is a 3-6 character alphanumeric string (e.g., `b96d`) that ensures globally unique resource names and avoids conflicts after deletions.
@@ -44,8 +45,32 @@ Individual **databases** are NOT created by this script. Each service creates it
 | inventory-service | Cosmos DB     | Service's `aca.sh`          |
 | audit-service     | Cosmos DB     | Service's `aca.sh`          |
 | cart-service      | Cosmos DB     | Service's `aca.sh`          |
-| order-service     | MySQL         | Service's `aca.sh`          |
-| payment-service   | MySQL         | Service's `aca.sh`          |
+| order-service     | SQL Server    | Infra script + migrations   |
+| payment-service   | SQL Server    | Service's `aca.sh`          |
+
+### SQL Server with Managed Identity (Azure AD Authentication)
+
+Order service uses **Azure SQL Server with Azure AD authentication** via managed identity. This is required for Azure subscriptions with MCAPS (Microsoft Secure Future Initiative) policies that prohibit SQL username/password authentication.
+
+**How it works:**
+1. Infrastructure script creates `order_service_db` in SQL Server
+2. Managed identity `id-xshopai-{env}-{suffix}` is granted SQL roles:
+   - `db_datareader` - Read data
+   - `db_datawriter` - Write data
+   - `db_ddladmin` - Create/modify tables (for EF Core migrations)
+3. Service deployment sets `AZURE_CLIENT_ID` env var for `DefaultAzureCredential`
+4. EF Core migrations run automatically at startup
+
+**Connection string format:**
+```
+Server=sql-xshopai-dev-{suffix}.database.windows.net;
+Database=order_service_db;
+Authentication=Active Directory Default;
+TrustServerCertificate=True;
+Encrypt=True
+```
+
+> **Note**: No password in connection string - authentication uses managed identity token.
 
 ## Prerequisites
 
@@ -192,6 +217,7 @@ The deployment scripts automatically configure firewall rules and network access
 | **Redis Cache**        | Access key + TLS 1.2                 | Basic/Standard tiers don't support VNet rules; Premium tier recommended for production |
 | **Cosmos DB**          | Azure services allowed (IP: 0.0.0.0) | Allows Container Apps and Azure Portal access                                          |
 | **MySQL**              | Azure services firewall rule         | `AllowAllAzureServices` rule (0.0.0.0-0.0.0.0)                                         |
+| **SQL Server**         | Azure AD only + Managed Identity     | No SQL username/password - uses managed identity for authentication                    |
 | **Key Vault**          | RBAC + Azure services bypass         | Managed Identity authentication with AzureServices bypass                              |
 | **Container Registry** | Managed Identity (AcrPull)           | Services authenticate via assigned identity                                            |
 

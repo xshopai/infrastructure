@@ -933,6 +933,96 @@ fi
 
 print_success "SQL Server ready: $SQL_HOST"
 
+# Create order_service_db database
+print_info "Creating SQL database: order_service_db..."
+if az sql db create \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$SQL_SERVER" \
+    --name "order_service_db" \
+    --edition Basic \
+    --capacity 5 \
+    --max-size 2GB \
+    --output none 2>/dev/null; then
+    print_success "SQL database created: order_service_db"
+else
+    print_warning "SQL database may already exist (continuing)"
+fi
+
+# Grant managed identity access to SQL Server
+# This allows the container apps to use Azure AD authentication
+print_info "Configuring managed identity SQL Server access..."
+MANAGED_IDENTITY_OBJECT_ID=$(az identity show \
+    --name "$MANAGED_IDENTITY" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query principalId -o tsv 2>/dev/null || echo "")
+
+if [ -n "$MANAGED_IDENTITY_OBJECT_ID" ]; then
+    # Add managed identity as SQL Server admin (in addition to current user)
+    # This allows automated deployments to work without manual SQL configuration
+    MANAGED_IDENTITY_NAME="$MANAGED_IDENTITY"
+    
+    # Get the managed identity's client ID for SQL
+    MANAGED_IDENTITY_CLIENT_ID=$(az identity show \
+        --name "$MANAGED_IDENTITY" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query clientId -o tsv 2>/dev/null || echo "")
+    
+    if [ -n "$MANAGED_IDENTITY_CLIENT_ID" ]; then
+        # Add managed identity as Azure AD admin for SQL Server
+        # Note: This replaces the current admin. For multi-admin, use Azure AD groups
+        print_info "Setting managed identity as additional SQL admin..."
+        
+        # Create an Azure AD group for SQL admins if needed (for multi-admin support)
+        # For now, we'll use sqlcmd to grant database-level permissions
+        
+        # Use Access Token to run SQL commands
+        print_info "Granting managed identity database permissions..."
+        ACCESS_TOKEN=$(az account get-access-token --resource https://database.windows.net --query accessToken -o tsv 2>/dev/null || echo "")
+        
+        if [ -n "$ACCESS_TOKEN" ] && command -v sqlcmd &> /dev/null; then
+            # Create SQL script
+            SQL_SCRIPT=$(cat <<EOF
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '$MANAGED_IDENTITY_NAME')
+BEGIN
+    CREATE USER [$MANAGED_IDENTITY_NAME] FROM EXTERNAL PROVIDER;
+    PRINT 'Created user: $MANAGED_IDENTITY_NAME';
+END
+ELSE
+BEGIN
+    PRINT 'User already exists: $MANAGED_IDENTITY_NAME';
+END
+
+ALTER ROLE db_datareader ADD MEMBER [$MANAGED_IDENTITY_NAME];
+ALTER ROLE db_datawriter ADD MEMBER [$MANAGED_IDENTITY_NAME];
+ALTER ROLE db_ddladmin ADD MEMBER [$MANAGED_IDENTITY_NAME];
+PRINT 'Granted permissions to: $MANAGED_IDENTITY_NAME';
+EOF
+)
+            # Run SQL commands using Azure AD authentication
+            echo "$SQL_SCRIPT" | sqlcmd -S "$SQL_HOST" -d "order_service_db" -G -I 2>/dev/null
+            if [ $? -eq 0 ]; then
+                print_success "Granted SQL permissions to managed identity: $MANAGED_IDENTITY_NAME"
+            else
+                print_warning "Could not grant SQL permissions automatically"
+                print_info "Run manually in Azure Portal Query Editor:"
+                print_info "  CREATE USER [$MANAGED_IDENTITY_NAME] FROM EXTERNAL PROVIDER;"
+                print_info "  ALTER ROLE db_datareader ADD MEMBER [$MANAGED_IDENTITY_NAME];"
+                print_info "  ALTER ROLE db_datawriter ADD MEMBER [$MANAGED_IDENTITY_NAME];"
+                print_info "  ALTER ROLE db_ddladmin ADD MEMBER [$MANAGED_IDENTITY_NAME];"
+            fi
+        else
+            print_warning "sqlcmd not available or token failed - manual SQL configuration required"
+            print_info "Run in Azure Portal Query Editor (order_service_db):"
+            print_info "  CREATE USER [$MANAGED_IDENTITY_NAME] FROM EXTERNAL PROVIDER;"
+            print_info "  ALTER ROLE db_datareader ADD MEMBER [$MANAGED_IDENTITY_NAME];"
+            print_info "  ALTER ROLE db_datawriter ADD MEMBER [$MANAGED_IDENTITY_NAME];"
+            print_info "  ALTER ROLE db_ddladmin ADD MEMBER [$MANAGED_IDENTITY_NAME];"
+        fi
+    fi
+else
+    print_warning "Managed identity not found - SQL permissions must be configured manually"
+fi
+
 # =============================================================================
 # 7. Create Azure Key Vault
 # =============================================================================
