@@ -631,6 +631,21 @@ az cosmosdb create \
     --output none 2>/tmp/cosmos_error.log &
 COSMOS_PID=$!
 
+# Enable local (key-based) authentication for Cosmos DB after creation
+# Some Azure environments/policies disable this by default
+(
+    # Wait for Cosmos DB to be created
+    wait $COSMOS_PID
+    if [ $? -eq 0 ]; then
+        print_info "Ensuring Cosmos DB local authentication is enabled..."
+        MSYS_NO_PATHCONV=1 az resource update \
+            --ids "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_ACCOUNT}" \
+            --set properties.disableLocalAuth=false \
+            --output none 2>/dev/null || true
+    fi
+) &
+COSMOS_AUTH_PID=$!
+
 # -----------------------------------------------------------------------------
 # Start MySQL creation in background
 # -----------------------------------------------------------------------------

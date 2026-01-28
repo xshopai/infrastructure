@@ -398,6 +398,11 @@ az cosmosdb update `
     --ip-range-filter "0.0.0.0" `
     --output none 2>$null
 
+# Enable local (key-based) authentication - some Azure environments/policies disable this by default
+Write-Host "   Ensuring local authentication is enabled..." -ForegroundColor Gray
+$CosmosResourceId = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.DocumentDB/databaseAccounts/$CosmosAccount"
+az resource update --ids $CosmosResourceId --set properties.disableLocalAuth=false --output none 2>$null
+
 $CosmosConnection = az cosmosdb keys list `
     --name $CosmosAccount `
     --resource-group $ResourceGroup `
