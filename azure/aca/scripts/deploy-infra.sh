@@ -296,6 +296,7 @@ CONTAINER_ENV="cae-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 REDIS_NAME="redis-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 MYSQL_SERVER="mysql-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 SQL_SERVER="sql-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
+POSTGRES_SERVER="psql-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 MANAGED_IDENTITY="id-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 SERVICE_BUS="sb-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
 COSMOS_ACCOUNT="cosmos-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
@@ -323,6 +324,7 @@ echo "   Redis Cache:         $REDIS_NAME"
 echo "   Cosmos DB:           $COSMOS_ACCOUNT"
 echo "   MySQL Server:        $MYSQL_SERVER"
 echo "   SQL Server:          $SQL_SERVER"
+echo "   PostgreSQL Server:   $POSTGRES_SERVER"
 echo "   Key Vault:           $KEY_VAULT"
 echo ""
 
@@ -573,21 +575,25 @@ else
 fi
 
 # =============================================================================
-# 6. Create Data Resources IN PARALLEL (Redis, Cosmos DB, MySQL, SQL Server)
+# 6. Create Data Resources IN PARALLEL (Redis, Cosmos DB, MySQL, SQL Server, PostgreSQL)
 # =============================================================================
 # These resources take the longest to provision (10-15 minutes each)
 # Running them in parallel reduces total deployment time significantly
-# Sequential: ~40 min | Parallel: ~15 min (time of longest resource)
+# Sequential: ~50 min | Parallel: ~15 min (time of longest resource)
 # =============================================================================
 
-print_step "Creating Data Resources (Redis, Cosmos DB, MySQL, SQL Server)"
-print_warning "Starting all four resources in parallel to save time..."
-print_info "This will take approximately 10-15 minutes total (instead of 40+ minutes sequential)"
+print_step "Creating Data Resources (Redis, Cosmos DB, MySQL, SQL Server, PostgreSQL)"
+print_warning "Starting all five resources in parallel to save time..."
+print_info "This will take approximately 10-15 minutes total (instead of 50+ minutes sequential)"
 echo ""
 
 # Generate MySQL password upfront (needed for parallel creation)
 MYSQL_ADMIN_USER="xshopaiadmin"
 MYSQL_ADMIN_PASSWORD="XShop$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')!"
+
+# Generate PostgreSQL password upfront (needed for parallel creation)
+POSTGRES_ADMIN_USER="pgadmin"
+POSTGRES_ADMIN_PASSWORD="PgShop$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')!"
 
 # Get current user info for SQL Server Azure AD admin (MCAPS requires AD-only auth)
 SQL_AD_ADMIN_SID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || echo "")
@@ -644,6 +650,24 @@ az mysql flexible-server create \
 MYSQL_PID=$!
 
 # -----------------------------------------------------------------------------
+# Start PostgreSQL creation in background
+# -----------------------------------------------------------------------------
+print_info "Starting PostgreSQL Flexible Server creation..."
+az postgres flexible-server create \
+    --name "$POSTGRES_SERVER" \
+    --resource-group "$RESOURCE_GROUP" \
+    --location "$LOCATION" \
+    --admin-user "$POSTGRES_ADMIN_USER" \
+    --admin-password "$POSTGRES_ADMIN_PASSWORD" \
+    --sku-name Standard_B1ms \
+    --tier Burstable \
+    --storage-size 32 \
+    --version "15" \
+    --public-access 0.0.0.0 \
+    --output none 2>/tmp/postgres_error.log &
+POSTGRES_PID=$!
+
+# -----------------------------------------------------------------------------
 # Start SQL Server creation in background (Azure AD-only auth for MCAPS compliance)
 # -----------------------------------------------------------------------------
 print_info "Starting Azure SQL Server creation..."
@@ -669,23 +693,25 @@ else
 fi
 
 echo ""
-print_info "All four resources are now provisioning in parallel..."
-print_info "PIDs: Redis=$REDIS_PID, Cosmos=$COSMOS_PID, MySQL=$MYSQL_PID, SQL=$SQL_PID"
+print_info "All five resources are now provisioning in parallel..."
+print_info "PIDs: Redis=$REDIS_PID, Cosmos=$COSMOS_PID, MySQL=$MYSQL_PID, PostgreSQL=$POSTGRES_PID, SQL=$SQL_PID"
 echo ""
 
 # -----------------------------------------------------------------------------
-# Monitor progress of all four resources
+# Monitor progress of all five resources
 # -----------------------------------------------------------------------------
 REDIS_DONE=false
 COSMOS_DONE=false
 MYSQL_DONE=false
+POSTGRES_DONE=false
 SQL_DONE=false
 REDIS_STATUS="⏳ Creating"
 COSMOS_STATUS="⏳ Creating"
 MYSQL_STATUS="⏳ Creating"
+POSTGRES_STATUS="⏳ Creating"
 SQL_STATUS="⏳ Creating"
 
-while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ] || [ "$SQL_DONE" = false ]; do
+while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ] || [ "$POSTGRES_DONE" = false ] || [ "$SQL_DONE" = false ]; do
     ELAPSED=$((SECONDS - PARALLEL_START))
     
     # Check Redis
@@ -739,6 +765,19 @@ while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE"
         fi
     fi
     
+    # Check PostgreSQL
+    if [ "$POSTGRES_DONE" = false ]; then
+        if ! kill -0 $POSTGRES_PID 2>/dev/null; then
+            wait $POSTGRES_PID
+            if [ $? -eq 0 ]; then
+                POSTGRES_STATUS="✅ Done"
+            else
+                POSTGRES_STATUS="❌ Failed"
+            fi
+            POSTGRES_DONE=true
+        fi
+    fi
+    
     # Check SQL Server
     if [ "$SQL_DONE" = false ]; then
         if ! kill -0 $SQL_PID 2>/dev/null; then
@@ -753,10 +792,10 @@ while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE"
     fi
     
     # Print status
-    printf "\r   ⏱️  %3ds | Redis: %-12s | Cosmos: %-12s | MySQL: %-12s | SQL: %-12s" \
-        "$ELAPSED" "$REDIS_STATUS" "$COSMOS_STATUS" "$MYSQL_STATUS" "$SQL_STATUS"
+    printf "\r   ⏱️  %3ds | Redis: %-12s | Cosmos: %-12s | MySQL: %-12s | Postgres: %-12s | SQL: %-12s" \
+        "$ELAPSED" "$REDIS_STATUS" "$COSMOS_STATUS" "$MYSQL_STATUS" "$POSTGRES_STATUS" "$SQL_STATUS"
     
-    if [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ] || [ "$SQL_DONE" = false ]; then
+    if [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ] || [ "$POSTGRES_DONE" = false ] || [ "$SQL_DONE" = false ]; then
         sleep 10
     fi
 done
@@ -878,6 +917,60 @@ if [[ "$ENVIRONMENT" == "dev" || "$ENVIRONMENT" == "staging" ]]; then
 fi
 
 print_success "MySQL Server ready: $MYSQL_HOST"
+
+# -----------------------------------------------------------------------------
+# Verify and retrieve PostgreSQL details (still part of step 6)
+# -----------------------------------------------------------------------------
+print_info "Retrieving PostgreSQL details..."
+
+POSTGRES_HOST=$(az postgres flexible-server show \
+    --name "$POSTGRES_SERVER" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query fullyQualifiedDomainName -o tsv 2>/dev/null)
+
+if [ -z "$POSTGRES_HOST" ]; then
+    print_error "PostgreSQL creation failed. Check /tmp/postgres_error.log"
+    cat /tmp/postgres_error.log
+    exit 1
+fi
+
+# Configure PostgreSQL firewall rules
+print_info "Configuring PostgreSQL firewall rules..."
+if az postgres flexible-server firewall-rule create \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$POSTGRES_SERVER" \
+    --rule-name "AllowAllAzureServices" \
+    --start-ip-address 0.0.0.0 \
+    --end-ip-address 0.0.0.0 \
+    --output none 2>/dev/null; then
+    print_success "PostgreSQL firewall rule created: AllowAllAzureServices"
+else
+    print_warning "PostgreSQL firewall rule may already exist (continuing)"
+fi
+
+# For dev/staging environments, allow deployer's IP for seeding and debugging
+if [[ "$ENVIRONMENT" == "dev" || "$ENVIRONMENT" == "staging" ]]; then
+    # Reuse MY_IP from MySQL section if already fetched
+    if [ -z "$MY_IP" ]; then
+        MY_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ifconfig.me 2>/dev/null || echo "")
+    fi
+    if [ -n "$MY_IP" ]; then
+        print_info "Adding PostgreSQL firewall rule for deployer IP: $MY_IP"
+        if az postgres flexible-server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$POSTGRES_SERVER" \
+            --rule-name "AllowDeployerIP" \
+            --start-ip-address "$MY_IP" \
+            --end-ip-address "$MY_IP" \
+            --output none 2>/dev/null; then
+            print_success "PostgreSQL firewall rule created: AllowDeployerIP ($MY_IP)"
+        else
+            print_warning "Could not add deployer IP rule for PostgreSQL (continuing)"
+        fi
+    fi
+fi
+
+print_success "PostgreSQL Server ready: $POSTGRES_HOST"
 
 # -----------------------------------------------------------------------------
 # Verify and retrieve SQL Server details (still part of step 6)
@@ -1129,6 +1222,57 @@ if [ -n "$CURRENT_USER_ID" ]; then
         print_success "Stored: mysql-connection"
     else
         print_warning "Failed to store: mysql-connection"
+    fi
+    
+    # PostgreSQL secrets (for order-processor-service)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "postgres-password" --value "$POSTGRES_ADMIN_PASSWORD" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: postgres-password"
+    else
+        print_warning "Failed to store: postgres-password"
+    fi
+    
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "postgres-connection" --value "jdbc:postgresql://$POSTGRES_HOST:5432/order_processor_db?sslmode=require&user=$POSTGRES_ADMIN_USER&password=$POSTGRES_ADMIN_PASSWORD" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: postgres-connection"
+    else
+        print_warning "Failed to store: postgres-connection"
+    fi
+    
+    # Store PostgreSQL configuration for Dapr secret store (nested keys)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-host" --value "$POSTGRES_HOST" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: database-host (PostgreSQL)"
+    else
+        print_warning "Failed to store: database-host"
+    fi
+    
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-port" --value "5432" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: database-port"
+    else
+        print_warning "Failed to store: database-port"
+    fi
+    
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-name" --value "order_processor_db" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: database-name"
+    else
+        print_warning "Failed to store: database-name"
+    fi
+    
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-user" --value "$POSTGRES_ADMIN_USER" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: database-user"
+    else
+        print_warning "Failed to store: database-user"
+    fi
+    
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-password" --value "$POSTGRES_ADMIN_PASSWORD" --output none 2>/dev/null; then
+        SECRET_COUNT=$((SECRET_COUNT + 1))
+        print_success "Stored: database-password"
+    else
+        print_warning "Failed to store: database-password"
     fi
     
     if az keyvault secret set --vault-name "$KEY_VAULT" --name "appinsights-connection-string" --value "$APP_INSIGHTS_CONNECTION_STRING" --output none 2>/dev/null; then

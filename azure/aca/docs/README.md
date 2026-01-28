@@ -53,6 +53,7 @@ Individual **databases** are NOT created by this script. Each service creates it
 Order service uses **Azure SQL Server with Azure AD authentication** via managed identity. This is required for Azure subscriptions with MCAPS (Microsoft Secure Future Initiative) policies that prohibit SQL username/password authentication.
 
 **How it works:**
+
 1. Infrastructure script creates `order_service_db` in SQL Server
 2. Managed identity `id-xshopai-{env}-{suffix}` is granted SQL roles:
    - `db_datareader` - Read data
@@ -62,6 +63,7 @@ Order service uses **Azure SQL Server with Azure AD authentication** via managed
 4. EF Core migrations run automatically at startup
 
 **Connection string format:**
+
 ```
 Server=sql-xshopai-dev-{suffix}.database.windows.net;
 Database=order_service_db;
