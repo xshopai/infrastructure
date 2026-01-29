@@ -13,7 +13,7 @@
 # Usage:
 #   ./deploy-infra.sh [environment] [subscription] [location] [suffix]
 #   
-#   environment:  dev (default), staging, or prod
+#   environment:  dev (default) or prod
 #   subscription: Azure subscription ID or name (will prompt if not provided)
 #   location:     Azure region (will prompt if not provided)
 #   suffix:       Unique suffix for globally-scoped resources (will prompt if not provided)
@@ -22,7 +22,7 @@
 #   ./deploy-infra.sh dev
 #   ./deploy-infra.sh dev "My Subscription" swedencentral
 #   ./deploy-infra.sh dev "My Subscription" swedencentral abc1
-#   ./deploy-infra.sh prod 12345678-1234-1234-1234-123456789abc westus2 prod01
+#   ./deploy-infra.sh prod "My Subscription" westus2 prod01
 # =============================================================================
 
 set -e
@@ -164,20 +164,19 @@ print_success "Resource providers registered"
 print_header "Environment Configuration"
 
 echo -e "${CYAN}Available Environments:${NC}"
-echo "   dev     - Development environment"
-echo "   staging - Staging/QA environment"
-echo "   prod    - Production environment"
+echo "   dev  - Development environment"
+echo "   prod - Production environment"
 echo ""
 
 if [ -z "$ENVIRONMENT" ]; then
-    read -p "Enter environment (dev/staging/prod) [dev]: " ENVIRONMENT
+    read -p "Enter environment (dev/prod) [dev]: " ENVIRONMENT
     ENVIRONMENT="${ENVIRONMENT:-dev}"
 fi
 
 # Validate environment
-if [[ ! "$ENVIRONMENT" =~ ^(dev|staging|prod)$ ]]; then
+if [[ ! "$ENVIRONMENT" =~ ^(dev|prod)$ ]]; then
     print_error "Invalid environment: $ENVIRONMENT"
-    echo "   Valid values: dev, staging, prod"
+    echo "   Valid values: dev, prod"
     exit 1
 fi
 print_success "Environment: $ENVIRONMENT"
@@ -328,10 +327,10 @@ echo "   PostgreSQL Server:   $POSTGRES_SERVER"
 echo "   Key Vault:           $KEY_VAULT"
 echo ""
 
-# Confirm before proceeding
-read -p "Do you want to proceed? (y/N) " -n 1 -r
+# Confirm before proceeding (default: Yes)
+read -p "Do you want to proceed? (Y/n) " -n 1 -r
 echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+if [[ $REPLY =~ ^[Nn]$ ]]; then
     print_error "Deployment cancelled."
     exit 1
 fi
