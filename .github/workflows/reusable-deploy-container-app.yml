@@ -2,7 +2,7 @@
 # Reusable Workflow: Deploy Container App to Azure Container Apps
 # ==============================================================================
 # This reusable workflow deploys any microservice to Azure Container Apps.
-# 
+#
 # IMPORTANT: Container Apps must be created by infrastructure (Layer 4) first!
 # This workflow only updates existing Container Apps with new images.
 #
@@ -34,148 +34,148 @@ on:
     inputs:
       # Required inputs
       service_name:
-        description: 'Name of the service (e.g., customer-ui, user-service)'
+        description: "Name of the service (e.g., customer-ui, user-service)"
         required: true
         type: string
-      
+
       environment:
-        description: 'Target environment (dev, staging, prod)'
+        description: "Target environment (dev, prod)"
         required: true
         type: string
-        default: 'dev'
-      
+        default: "dev"
+
       # Optional inputs with defaults
       dockerfile_path:
-        description: 'Path to Dockerfile relative to service root'
+        description: "Path to Dockerfile relative to service root"
         required: false
         type: string
-        default: 'Dockerfile'
-      
+        default: "Dockerfile"
+
       docker_context:
-        description: 'Docker build context path'
+        description: "Docker build context path"
         required: false
         type: string
-        default: '.'
-      
+        default: "."
+
       docker_target:
-        description: 'Docker build target stage (e.g., production, development)'
+        description: "Docker build target stage (e.g., production, development)"
         required: false
         type: string
-        default: 'production'
-      
+        default: "production"
+
       container_port:
-        description: 'Port the container listens on'
+        description: "Port the container listens on"
         required: false
         type: number
         default: 8080
-      
+
       # Dapr configuration
       dapr_enabled:
-        description: 'Enable Dapr sidecar'
+        description: "Enable Dapr sidecar"
         required: false
         type: boolean
         default: false
-      
+
       dapr_app_protocol:
-        description: 'Dapr app protocol (http or grpc)'
+        description: "Dapr app protocol (http or grpc)"
         required: false
         type: string
-        default: 'http'
-      
+        default: "http"
+
       dapr_app_port:
-        description: 'Port Dapr sidecar communicates with app'
+        description: "Port Dapr sidecar communicates with app"
         required: false
         type: number
         default: 8080
-      
+
       # Resource configuration
       cpu:
-        description: 'CPU cores (e.g., 0.25, 0.5, 1)'
+        description: "CPU cores (e.g., 0.25, 0.5, 1)"
         required: false
         type: string
-        default: '0.25'
-      
+        default: "0.25"
+
       memory:
-        description: 'Memory (e.g., 0.5Gi, 1Gi)'
+        description: "Memory (e.g., 0.5Gi, 1Gi)"
         required: false
         type: string
-        default: '0.5Gi'
-      
+        default: "0.5Gi"
+
       min_replicas:
-        description: 'Minimum number of replicas'
+        description: "Minimum number of replicas"
         required: false
         type: number
         default: 0
-      
+
       max_replicas:
-        description: 'Maximum number of replicas'
+        description: "Maximum number of replicas"
         required: false
         type: number
         default: 3
-      
+
       # Ingress configuration
       ingress_enabled:
-        description: 'Enable external ingress'
+        description: "Enable external ingress"
         required: false
         type: boolean
         default: true
-      
+
       ingress_external:
-        description: 'External (internet) or internal only'
+        description: "External (internet) or internal only"
         required: false
         type: boolean
         default: true
-      
+
       # Health probes
       health_probe_path:
-        description: 'Health check endpoint path'
+        description: "Health check endpoint path"
         required: false
         type: string
-        default: '/health'
-      
+        default: "/health"
+
       # Environment variables (JSON string)
       env_vars:
-        description: 'Environment variables as JSON array'
+        description: "Environment variables as JSON array"
         required: false
         type: string
-        default: '[]'
-      
+        default: "[]"
+
       # Secrets from Key Vault (JSON string)
       secrets:
-        description: 'Secrets to mount from Key Vault as JSON array'
+        description: "Secrets to mount from Key Vault as JSON array"
         required: false
         type: string
-        default: '[]'
-      
+        default: "[]"
+
       # Image tag override
       image_tag:
-        description: 'Override image tag (default: git SHA)'
+        description: "Override image tag (default: git SHA)"
         required: false
         type: string
-        default: ''
-      
+        default: ""
+
       # Azure resource names (optional - will be looked up if not provided)
       acr_name:
-        description: 'Azure Container Registry name (without .azurecr.io)'
+        description: "Azure Container Registry name (without .azurecr.io)"
         required: false
         type: string
-        default: ''
-      
+        default: ""
+
       resource_group:
-        description: 'Resource group name (default: rg-xshopai-{environment})'
+        description: "Resource group name (default: rg-xshopai-{environment})"
         required: false
         type: string
-        default: ''
+        default: ""
 
     outputs:
       fqdn:
-        description: 'Fully qualified domain name of the deployed app'
+        description: "Fully qualified domain name of the deployed app"
         value: ${{ jobs.deploy.outputs.fqdn }}
       revision_name:
-        description: 'Name of the deployed revision'
+        description: "Name of the deployed revision"
         value: ${{ jobs.deploy.outputs.revision_name }}
       image:
-        description: 'Full image name with tag'
+        description: "Full image name with tag"
         value: ${{ jobs.deploy.outputs.image }}
 
 permissions:
@@ -193,7 +193,7 @@ jobs:
       image_full: ${{ steps.meta.outputs.tags }}
       acr_name: ${{ steps.resources.outputs.acr_name }}
       resource_group: ${{ steps.resources.outputs.resource_group }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -214,7 +214,7 @@ jobs:
             RESOURCE_GROUP="rg-xshopai-${{ inputs.environment }}"
           fi
           echo "resource_group=$RESOURCE_GROUP" >> $GITHUB_OUTPUT
-          
+
           ACR_NAME="${{ inputs.acr_name }}"
           if [ -z "$ACR_NAME" ]; then
             # Look up ACR in resource group
@@ -225,7 +225,7 @@ jobs:
             fi
           fi
           echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
-          
+
           echo "📦 Resource Group: $RESOURCE_GROUP"
           echo "🐳 ACR: $ACR_NAME"
 
@@ -277,17 +277,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     environment: ${{ inputs.environment }}
-    
+
     outputs:
       fqdn: ${{ steps.deploy.outputs.fqdn }}
       revision_name: ${{ steps.deploy.outputs.revision_name }}
       image: ${{ needs.build.outputs.image_full }}
-    
+
     env:
       RESOURCE_GROUP: ${{ needs.build.outputs.resource_group }}
       ACR_NAME: ${{ needs.build.outputs.acr_name }}
       CONTAINER_ENV: xshopai-${{ inputs.environment }}-cae
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -313,17 +313,17 @@ jobs:
         run: |
           # Start with user-provided env vars
           ENV_VARS='${{ inputs.env_vars }}'
-          
+
           # Add standard env vars (single line to avoid GITHUB_OUTPUT format issues)
           STANDARD_VARS='[{"name": "ENVIRONMENT", "value": "${{ inputs.environment }}"},{"name": "SERVICE_NAME", "value": "${{ inputs.service_name }}"},{"name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "secretRef": "appinsights-connection-string"}]'
-          
+
           # Merge env vars (user vars take precedence)
           if [ "$ENV_VARS" != "[]" ]; then
             MERGED=$(echo "$STANDARD_VARS $ENV_VARS" | jq -s -c 'add | unique_by(.name)')
           else
             MERGED="$STANDARD_VARS"
           fi
-          
+
           # Use EOF delimiter for multi-line output
           echo "vars<<EOF" >> $GITHUB_OUTPUT
           echo "$MERGED" >> $GITHUB_OUTPUT
@@ -334,13 +334,13 @@ jobs:
         run: |
           IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ inputs.service_name }}:${{ needs.build.outputs.image_tag }}"
           APP_NAME="${{ inputs.service_name }}"
-          
+
           # Check if app exists - Container App must be created by infrastructure
           APP_EXISTS=$(az containerapp show \
             --name "$APP_NAME" \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --query name -o tsv 2>/dev/null || echo "")
-          
+
           if [ -z "$APP_EXISTS" ]; then
             echo "❌ Container App '$APP_NAME' does not exist in resource group '${{ env.RESOURCE_GROUP }}'!"
             echo ""
@@ -352,30 +352,30 @@ jobs:
             echo ""
             exit 1
           fi
-          
+
           echo "✅ Found existing Container App: $APP_NAME"
           echo "📦 Updating with image: $IMAGE"
-          
+
           # Update existing app with new image
           az containerapp update \
             --name "$APP_NAME" \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image "$IMAGE"
-          
+
           # Get deployment info
           FQDN=$(az containerapp show \
             --name "$APP_NAME" \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --query "properties.configuration.ingress.fqdn" -o tsv)
-          
+
           REVISION=$(az containerapp show \
             --name "$APP_NAME" \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --query "properties.latestRevisionName" -o tsv)
-          
+
           echo "fqdn=$FQDN" >> $GITHUB_OUTPUT
           echo "revision_name=$REVISION" >> $GITHUB_OUTPUT
-          
+
           echo "✅ Deployed $APP_NAME"
           echo "   FQDN: $FQDN"
           echo "   Revision: $REVISION"
@@ -384,7 +384,7 @@ jobs:
         run: |
           APP_NAME="${{ inputs.service_name }}"
           echo "Waiting for deployment to complete..."
-          
+
           for i in {1..30}; do
             STATUS=$(az containerapp revision show \
               --name "${{ steps.deploy.outputs.revision_name }}" \
@@ -410,7 +410,7 @@ jobs:
         run: |
           FQDN="${{ steps.deploy.outputs.fqdn }}"
           HEALTH_PATH="${{ inputs.health_probe_path }}"
-          
+
           if [ -n "$FQDN" ] && [ "$HEALTH_PATH" != "" ]; then
             echo "Running health check on https://$FQDN$HEALTH_PATH"
             

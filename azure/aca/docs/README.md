@@ -197,15 +197,27 @@ The script automatically configures the following Dapr components:
 
 ## Secrets Stored in Key Vault
 
-| Secret Name                       | Description                              |
-| --------------------------------- | ---------------------------------------- |
-| `service-bus-connection`          | Service Bus connection string            |
-| `redis-password`                  | Redis access key                         |
-| `cosmos-connection`               | Cosmos DB connection string              |
-| `mysql-password`                  | MySQL admin password                     |
-| `mysql-connection`                | MySQL connection string                  |
-| `appinsights-connection-string`   | Application Insights connection string   |
-| `appinsights-instrumentation-key` | Application Insights instrumentation key |
+| Secret Name                          | Description                                |
+| ------------------------------------ | ------------------------------------------ |
+| `xshopai-servicebus-connection`      | Service Bus connection string              |
+| `xshopai-redis-password`             | Redis access key                           |
+| `xshopai-cosmos-account-connection`  | Cosmos DB account connection string        |
+| `xshopai-mysql-server-connection`    | MySQL server connection (URL format)       |
+| `xshopai-postgres-server-connection` | PostgreSQL server connection (JDBC format) |
+| `xshopai-sql-server-connection`      | SQL Server connection (Azure AD auth)      |
+| `xshopai-appinsights-connection`     | Application Insights connection string     |
+| `xshopai-jwt-secret`                 | JWT signing secret                         |
+| `xshopai-flask-secret`               | Flask session secret (Python services)     |
+| `svc-product-token`                  | Product service identity token             |
+| `svc-order-token`                    | Order service identity token               |
+| `svc-cart-token`                     | Cart service identity token                |
+| `svc-webbff-token`                   | Web BFF identity token                     |
+
+**Naming Convention:**
+
+- `xshopai-{resource}-{type}-connection` for database/service connections (server/account level)
+- `xshopai-{name}` for other platform-wide secrets
+- `svc-{service}-token` for service identity tokens
 
 ## Network Security & Firewall Configuration
 

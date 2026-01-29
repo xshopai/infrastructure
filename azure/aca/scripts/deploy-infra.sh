@@ -603,90 +603,100 @@ SQL_AD_ADMIN_NAME=$(az ad signed-in-user show --query userPrincipalName -o tsv 2
 PARALLEL_START=$SECONDS
 
 # -----------------------------------------------------------------------------
-# Start Redis creation in background
+# Start Redis creation in background (skip if exists)
 # -----------------------------------------------------------------------------
-print_info "Starting Redis Cache creation..."
-az redis create \
-    --name "$REDIS_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --location "$LOCATION" \
-    --sku Basic \
-    --vm-size c0 \
-    --output none 2>/tmp/redis_error.log &
-REDIS_PID=$!
+if az redis show --name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+    print_info "Redis Cache already exists, skipping creation..."
+    REDIS_PID=""
+else
+    print_info "Starting Redis Cache creation..."
+    az redis create \
+        --name "$REDIS_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --location "$LOCATION" \
+        --sku Basic \
+        --vm-size c0 \
+        --output none 2>/tmp/redis_error.log &
+    REDIS_PID=$!
+fi
 
 # -----------------------------------------------------------------------------
-# Start Cosmos DB creation in background
+# Start Cosmos DB creation in background (skip if exists)
 # -----------------------------------------------------------------------------
-print_info "Starting Cosmos DB creation..."
-az cosmosdb create \
-    --name "$COSMOS_ACCOUNT" \
-    --resource-group "$RESOURCE_GROUP" \
-    --kind MongoDB \
-    --server-version "4.2" \
-    --default-consistency-level Session \
-    --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=false \
-    --enable-automatic-failover true \
-    --disable-key-based-metadata-write-access false \
-    --output none 2>/tmp/cosmos_error.log &
-COSMOS_PID=$!
+if az cosmosdb show --name "$COSMOS_ACCOUNT" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+    print_info "Cosmos DB already exists, skipping creation..."
+    COSMOS_PID=""
+else
+    print_info "Starting Cosmos DB creation..."
+    az cosmosdb create \
+        --name "$COSMOS_ACCOUNT" \
+        --resource-group "$RESOURCE_GROUP" \
+        --kind MongoDB \
+        --server-version "4.2" \
+        --default-consistency-level Session \
+        --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=false \
+        --enable-automatic-failover true \
+        --disable-key-based-metadata-write-access false \
+        --output none 2>/tmp/cosmos_error.log &
+    COSMOS_PID=$!
+fi
 
-# Enable local (key-based) authentication for Cosmos DB after creation
-# Some Azure environments/policies disable this by default
-(
-    # Wait for Cosmos DB to be created
-    wait $COSMOS_PID
-    if [ $? -eq 0 ]; then
-        print_info "Ensuring Cosmos DB local authentication is enabled..."
-        MSYS_NO_PATHCONV=1 az resource update \
-            --ids "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_ACCOUNT}" \
-            --set properties.disableLocalAuth=false \
-            --output none 2>/dev/null || true
-    fi
-) &
-COSMOS_AUTH_PID=$!
+# Note: We'll enable local auth after Cosmos DB completes in the monitoring loop
 
 # -----------------------------------------------------------------------------
-# Start MySQL creation in background
+# Start MySQL creation in background (skip if exists)
 # -----------------------------------------------------------------------------
-print_info "Starting MySQL Flexible Server creation..."
-az mysql flexible-server create \
-    --name "$MYSQL_SERVER" \
-    --resource-group "$RESOURCE_GROUP" \
-    --location "$LOCATION" \
-    --admin-user "$MYSQL_ADMIN_USER" \
-    --admin-password "$MYSQL_ADMIN_PASSWORD" \
-    --sku-name Standard_B1ms \
-    --tier Burstable \
-    --storage-size 32 \
-    --version "8.0.21" \
-    --public-access 0.0.0.0 \
-    --output none 2>/tmp/mysql_error.log &
-MYSQL_PID=$!
+if az mysql flexible-server show --name "$MYSQL_SERVER" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+    print_info "MySQL Server already exists, skipping creation..."
+    MYSQL_PID=""
+else
+    print_info "Starting MySQL Flexible Server creation..."
+    az mysql flexible-server create \
+        --name "$MYSQL_SERVER" \
+        --resource-group "$RESOURCE_GROUP" \
+        --location "$LOCATION" \
+        --admin-user "$MYSQL_ADMIN_USER" \
+        --admin-password "$MYSQL_ADMIN_PASSWORD" \
+        --sku-name Standard_B1ms \
+        --tier Burstable \
+        --storage-size 32 \
+        --version "8.0.21" \
+        --public-access 0.0.0.0 \
+        --output none 2>/tmp/mysql_error.log &
+    MYSQL_PID=$!
+fi
 
 # -----------------------------------------------------------------------------
-# Start PostgreSQL creation in background
+# Start PostgreSQL creation in background (skip if exists)
 # -----------------------------------------------------------------------------
-print_info "Starting PostgreSQL Flexible Server creation..."
-az postgres flexible-server create \
-    --name "$POSTGRES_SERVER" \
-    --resource-group "$RESOURCE_GROUP" \
-    --location "$LOCATION" \
-    --admin-user "$POSTGRES_ADMIN_USER" \
-    --admin-password "$POSTGRES_ADMIN_PASSWORD" \
-    --sku-name Standard_B1ms \
-    --tier Burstable \
-    --storage-size 32 \
-    --version "15" \
-    --public-access 0.0.0.0 \
-    --output none 2>/tmp/postgres_error.log &
-POSTGRES_PID=$!
+if az postgres flexible-server show --name "$POSTGRES_SERVER" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+    print_info "PostgreSQL Server already exists, skipping creation..."
+    POSTGRES_PID=""
+else
+    print_info "Starting PostgreSQL Flexible Server creation..."
+    az postgres flexible-server create \
+        --name "$POSTGRES_SERVER" \
+        --resource-group "$RESOURCE_GROUP" \
+        --location "$LOCATION" \
+        --admin-user "$POSTGRES_ADMIN_USER" \
+        --admin-password "$POSTGRES_ADMIN_PASSWORD" \
+        --sku-name Standard_B1ms \
+        --tier Burstable \
+        --storage-size 32 \
+        --version "15" \
+        --public-access 0.0.0.0 \
+        --output none 2>/tmp/postgres_error.log &
+    POSTGRES_PID=$!
+fi
 
 # -----------------------------------------------------------------------------
 # Start SQL Server creation in background (Azure AD-only auth for MCAPS compliance)
 # -----------------------------------------------------------------------------
-print_info "Starting Azure SQL Server creation..."
-if [ -n "$SQL_AD_ADMIN_SID" ] && [ -n "$SQL_AD_ADMIN_NAME" ]; then
+if az sql server show --name "$SQL_SERVER" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+    print_info "SQL Server already exists, skipping creation..."
+    SQL_PID=""
+elif [ -n "$SQL_AD_ADMIN_SID" ] && [ -n "$SQL_AD_ADMIN_NAME" ]; then
+    print_info "Starting Azure SQL Server creation..."
     az sql server create \
         --name "$SQL_SERVER" \
         --resource-group "$RESOURCE_GROUP" \
@@ -708,29 +718,25 @@ else
 fi
 
 echo ""
-print_info "All five resources are now provisioning in parallel..."
-print_info "PIDs: Redis=$REDIS_PID, Cosmos=$COSMOS_PID, MySQL=$MYSQL_PID, PostgreSQL=$POSTGRES_PID, SQL=$SQL_PID"
+print_info "Resources are provisioning (skipped existing resources)..."
+print_info "PIDs: Redis=${REDIS_PID:-skipped}, Cosmos=${COSMOS_PID:-skipped}, MySQL=${MYSQL_PID:-skipped}, PostgreSQL=${POSTGRES_PID:-skipped}, SQL=${SQL_PID:-skipped}"
 echo ""
 
 # -----------------------------------------------------------------------------
 # Monitor progress of all five resources
 # -----------------------------------------------------------------------------
-REDIS_DONE=false
-COSMOS_DONE=false
-MYSQL_DONE=false
-POSTGRES_DONE=false
-SQL_DONE=false
-REDIS_STATUS="⏳ Creating"
-COSMOS_STATUS="⏳ Creating"
-MYSQL_STATUS="⏳ Creating"
-POSTGRES_STATUS="⏳ Creating"
-SQL_STATUS="⏳ Creating"
+# Initialize status based on whether we're creating or skipping
+[ -z "$REDIS_PID" ] && REDIS_DONE=true && REDIS_STATUS="✅ Exists" || { REDIS_DONE=false; REDIS_STATUS="⏳ Creating"; }
+[ -z "$COSMOS_PID" ] && COSMOS_DONE=true && COSMOS_STATUS="✅ Exists" || { COSMOS_DONE=false; COSMOS_STATUS="⏳ Creating"; }
+[ -z "$MYSQL_PID" ] && MYSQL_DONE=true && MYSQL_STATUS="✅ Exists" || { MYSQL_DONE=false; MYSQL_STATUS="⏳ Creating"; }
+[ -z "$POSTGRES_PID" ] && POSTGRES_DONE=true && POSTGRES_STATUS="✅ Exists" || { POSTGRES_DONE=false; POSTGRES_STATUS="⏳ Creating"; }
+[ -z "$SQL_PID" ] && SQL_DONE=true && SQL_STATUS="✅ Exists" || { SQL_DONE=false; SQL_STATUS="⏳ Creating"; }
 
 while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE" = false ] || [ "$POSTGRES_DONE" = false ] || [ "$SQL_DONE" = false ]; do
     ELAPSED=$((SECONDS - PARALLEL_START))
     
     # Check Redis
-    if [ "$REDIS_DONE" = false ]; then
+    if [ "$REDIS_DONE" = false ] && [ -n "$REDIS_PID" ]; then
         if ! kill -0 $REDIS_PID 2>/dev/null; then
             wait $REDIS_PID
             if [ $? -eq 0 ]; then
@@ -755,7 +761,7 @@ while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE"
     fi
     
     # Check Cosmos DB
-    if [ "$COSMOS_DONE" = false ]; then
+    if [ "$COSMOS_DONE" = false ] && [ -n "$COSMOS_PID" ]; then
         if ! kill -0 $COSMOS_PID 2>/dev/null; then
             wait $COSMOS_PID
             if [ $? -eq 0 ]; then
@@ -768,7 +774,7 @@ while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE"
     fi
     
     # Check MySQL
-    if [ "$MYSQL_DONE" = false ]; then
+    if [ "$MYSQL_DONE" = false ] && [ -n "$MYSQL_PID" ]; then
         if ! kill -0 $MYSQL_PID 2>/dev/null; then
             wait $MYSQL_PID
             if [ $? -eq 0 ]; then
@@ -781,7 +787,7 @@ while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE"
     fi
     
     # Check PostgreSQL
-    if [ "$POSTGRES_DONE" = false ]; then
+    if [ "$POSTGRES_DONE" = false ] && [ -n "$POSTGRES_PID" ]; then
         if ! kill -0 $POSTGRES_PID 2>/dev/null; then
             wait $POSTGRES_PID
             if [ $? -eq 0 ]; then
@@ -794,7 +800,7 @@ while [ "$REDIS_DONE" = false ] || [ "$COSMOS_DONE" = false ] || [ "$MYSQL_DONE"
     fi
     
     # Check SQL Server
-    if [ "$SQL_DONE" = false ]; then
+    if [ "$SQL_DONE" = false ] && [ -n "$SQL_PID" ]; then
         if ! kill -0 $SQL_PID 2>/dev/null; then
             wait $SQL_PID
             if [ $? -eq 0 ]; then
@@ -1041,20 +1047,9 @@ fi
 
 print_success "SQL Server ready: $SQL_HOST"
 
-# Create order_service_db database
-print_info "Creating SQL database: order_service_db..."
-if az sql db create \
-    --resource-group "$RESOURCE_GROUP" \
-    --server "$SQL_SERVER" \
-    --name "order_service_db" \
-    --edition Basic \
-    --capacity 5 \
-    --max-size 2GB \
-    --output none 2>/dev/null; then
-    print_success "SQL database created: order_service_db"
-else
-    print_warning "SQL database may already exist (continuing)"
-fi
+# Note: SQL databases for individual services (order_service_db, etc.) should be
+# created during service deployment, not infrastructure deployment.
+# Each service's deployment script (scripts/aca.sh) should create its own database.
 
 # Grant managed identity access to SQL Server
 # This allows the container apps to use Azure AD authentication
@@ -1065,8 +1060,7 @@ MANAGED_IDENTITY_OBJECT_ID=$(az identity show \
     --query principalId -o tsv 2>/dev/null || echo "")
 
 if [ -n "$MANAGED_IDENTITY_OBJECT_ID" ]; then
-    # Add managed identity as SQL Server admin (in addition to current user)
-    # This allows automated deployments to work without manual SQL configuration
+    # Get managed identity name for SQL user creation
     MANAGED_IDENTITY_NAME="$MANAGED_IDENTITY"
     
     # Get the managed identity's client ID for SQL
@@ -1076,56 +1070,10 @@ if [ -n "$MANAGED_IDENTITY_OBJECT_ID" ]; then
         --query clientId -o tsv 2>/dev/null || echo "")
     
     if [ -n "$MANAGED_IDENTITY_CLIENT_ID" ]; then
-        # Add managed identity as Azure AD admin for SQL Server
-        # Note: This replaces the current admin. For multi-admin, use Azure AD groups
-        print_info "Setting managed identity as additional SQL admin..."
-        
-        # Create an Azure AD group for SQL admins if needed (for multi-admin support)
-        # For now, we'll use sqlcmd to grant database-level permissions
-        
-        # Use Access Token to run SQL commands
-        print_info "Granting managed identity database permissions..."
-        ACCESS_TOKEN=$(az account get-access-token --resource https://database.windows.net --query accessToken -o tsv 2>/dev/null || echo "")
-        
-        if [ -n "$ACCESS_TOKEN" ] && command -v sqlcmd &> /dev/null; then
-            # Create SQL script
-            SQL_SCRIPT=$(cat <<EOF
-IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '$MANAGED_IDENTITY_NAME')
-BEGIN
-    CREATE USER [$MANAGED_IDENTITY_NAME] FROM EXTERNAL PROVIDER;
-    PRINT 'Created user: $MANAGED_IDENTITY_NAME';
-END
-ELSE
-BEGIN
-    PRINT 'User already exists: $MANAGED_IDENTITY_NAME';
-END
-
-ALTER ROLE db_datareader ADD MEMBER [$MANAGED_IDENTITY_NAME];
-ALTER ROLE db_datawriter ADD MEMBER [$MANAGED_IDENTITY_NAME];
-ALTER ROLE db_ddladmin ADD MEMBER [$MANAGED_IDENTITY_NAME];
-PRINT 'Granted permissions to: $MANAGED_IDENTITY_NAME';
-EOF
-)
-            # Run SQL commands using Azure AD authentication
-            echo "$SQL_SCRIPT" | sqlcmd -S "$SQL_HOST" -d "order_service_db" -G -I 2>/dev/null
-            if [ $? -eq 0 ]; then
-                print_success "Granted SQL permissions to managed identity: $MANAGED_IDENTITY_NAME"
-            else
-                print_warning "Could not grant SQL permissions automatically"
-                print_info "Run manually in Azure Portal Query Editor:"
-                print_info "  CREATE USER [$MANAGED_IDENTITY_NAME] FROM EXTERNAL PROVIDER;"
-                print_info "  ALTER ROLE db_datareader ADD MEMBER [$MANAGED_IDENTITY_NAME];"
-                print_info "  ALTER ROLE db_datawriter ADD MEMBER [$MANAGED_IDENTITY_NAME];"
-                print_info "  ALTER ROLE db_ddladmin ADD MEMBER [$MANAGED_IDENTITY_NAME];"
-            fi
-        else
-            print_warning "sqlcmd not available or token failed - manual SQL configuration required"
-            print_info "Run in Azure Portal Query Editor (order_service_db):"
-            print_info "  CREATE USER [$MANAGED_IDENTITY_NAME] FROM EXTERNAL PROVIDER;"
-            print_info "  ALTER ROLE db_datareader ADD MEMBER [$MANAGED_IDENTITY_NAME];"
-            print_info "  ALTER ROLE db_datawriter ADD MEMBER [$MANAGED_IDENTITY_NAME];"
-            print_info "  ALTER ROLE db_ddladmin ADD MEMBER [$MANAGED_IDENTITY_NAME];"
-        fi
+        print_success "Managed identity configured for SQL Server access: $MANAGED_IDENTITY_NAME"
+        print_info "Note: Database creation and permissions should be done in each service's aca.sh script"
+    else
+        print_warning "Could not get managed identity client ID"
     fi
 else
     print_warning "Managed identity not found - SQL permissions must be configured manually"
@@ -1135,17 +1083,23 @@ fi
 # 7. Create Azure Key Vault
 # =============================================================================
 print_step "Creating Key Vault"
-if az keyvault create \
-    --name "$KEY_VAULT" \
-    --resource-group "$RESOURCE_GROUP" \
-    --location "$LOCATION" \
-    --enable-rbac-authorization true \
-    --public-network-access Enabled \
-    --output none 2>&1; then
-    print_success "Key Vault created: $KEY_VAULT"
+
+# Check if Key Vault already exists
+if az keyvault show --name "$KEY_VAULT" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+    print_warning "Key Vault already exists: $KEY_VAULT (will update secrets)"
 else
-    print_error "Failed to create Key Vault: $KEY_VAULT"
-    exit 1
+    if az keyvault create \
+        --name "$KEY_VAULT" \
+        --resource-group "$RESOURCE_GROUP" \
+        --location "$LOCATION" \
+        --enable-rbac-authorization true \
+        --public-network-access Enabled \
+        --output none 2>&1; then
+        print_success "Key Vault created: $KEY_VAULT"
+    else
+        print_error "Failed to create Key Vault: $KEY_VAULT"
+        exit 1
+    fi
 fi
 
 # Configure Key Vault network rules - allow public access and Azure services
@@ -1200,127 +1154,134 @@ if [ -n "$CURRENT_USER_ID" ]; then
     print_info "Waiting for role assignment to propagate (15s)..."
     sleep 15
 
-    # Store secrets
-    print_info "Storing secrets in Key Vault..."
+    # Store secrets with xshopai- prefix for platform-wide secrets
+    # Naming convention: xshopai-{resource}-{type} for platform, svc-{service}-token for service tokens
+    print_info "Storing secrets in Key Vault (using xshopai- prefix for platform secrets)..."
     SECRET_COUNT=0
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "service-bus-connection" --value "$SERVICE_BUS_CONNECTION" --output none 2>/dev/null; then
+    # =========================================================================
+    # Platform Infrastructure Secrets (xshopai- prefix)
+    # =========================================================================
+    
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-servicebus-connection" --value "$SERVICE_BUS_CONNECTION" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: service-bus-connection"
+        print_success "Stored: xshopai-servicebus-connection"
     else
-        print_warning "Failed to store: service-bus-connection"
+        print_warning "Failed to store: xshopai-servicebus-connection"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "redis-password" --value "$REDIS_KEY" --output none 2>/dev/null; then
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-redis-password" --value "$REDIS_KEY" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: redis-password"
+        print_success "Stored: xshopai-redis-password"
     else
-        print_warning "Failed to store: redis-password"
+        print_warning "Failed to store: xshopai-redis-password"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "cosmos-connection" --value "$COSMOS_CONNECTION" --output none 2>/dev/null; then
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-cosmos-account-connection" --value "$COSMOS_CONNECTION" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: cosmos-connection"
+        print_success "Stored: xshopai-cosmos-account-connection"
     else
-        print_warning "Failed to store: cosmos-connection"
+        print_warning "Failed to store: xshopai-cosmos-account-connection"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "mysql-password" --value "$MYSQL_ADMIN_PASSWORD" --output none 2>/dev/null; then
+    # MySQL connection string (URL format, server-level - services append their database name)
+    # Format: mysql+pymysql://user:pass@host:port (universal URL format, parseable by any language)
+    # Services append their database: ${MYSQL_SERVER_CONNECTION}/inventory_service_db
+    MYSQL_SERVER_CONNECTION="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306?ssl_ca=/etc/ssl/certs/ca-certificates.crt"
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-mysql-server-connection" --value "$MYSQL_SERVER_CONNECTION" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: mysql-password"
+        print_success "Stored: xshopai-mysql-server-connection (URL format)"
     else
-        print_warning "Failed to store: mysql-password"
+        print_warning "Failed to store: xshopai-mysql-server-connection"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "mysql-connection" --value "Server=$MYSQL_HOST;Database=order_db;User=$MYSQL_ADMIN_USER;Password=$MYSQL_ADMIN_PASSWORD;SslMode=Required" --output none 2>/dev/null; then
+    # PostgreSQL connection string (server-level, no specific database)
+    # Format: JDBC style for Java services - services append their own database name
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-postgres-server-connection" --value "jdbc:postgresql://$POSTGRES_HOST:5432/?sslmode=require&user=$POSTGRES_ADMIN_USER&password=$POSTGRES_ADMIN_PASSWORD" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: mysql-connection"
+        print_success "Stored: xshopai-postgres-server-connection"
     else
-        print_warning "Failed to store: mysql-connection"
+        print_warning "Failed to store: xshopai-postgres-server-connection"
     fi
     
-    # PostgreSQL secrets (for order-processor-service)
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "postgres-password" --value "$POSTGRES_ADMIN_PASSWORD" --output none 2>/dev/null; then
+    # Application Insights (connection string contains instrumentation key + endpoints)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-appinsights-connection" --value "$APP_INSIGHTS_CONNECTION_STRING" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: postgres-password"
+        print_success "Stored: xshopai-appinsights-connection"
     else
-        print_warning "Failed to store: postgres-password"
+        print_warning "Failed to store: xshopai-appinsights-connection"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "postgres-connection" --value "jdbc:postgresql://$POSTGRES_HOST:5432/order_processor_db?sslmode=require&user=$POSTGRES_ADMIN_USER&password=$POSTGRES_ADMIN_PASSWORD" --output none 2>/dev/null; then
+    # SQL Server connection string (server-level, Azure AD Default auth for managed identity)
+    # Note: Services should specify their database in their own configuration
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-sql-server-connection" --value "Server=$SQL_HOST;Authentication=Active Directory Default;TrustServerCertificate=True;Encrypt=True" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: postgres-connection"
+        print_success "Stored: xshopai-sql-server-connection (server-level, Azure AD auth)"
     else
-        print_warning "Failed to store: postgres-connection"
+        print_warning "Failed to store: xshopai-sql-server-connection"
     fi
     
-    # Store PostgreSQL configuration for Dapr secret store (nested keys)
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-host" --value "$POSTGRES_HOST" --output none 2>/dev/null; then
+    # =========================================================================
+    # Application Secrets (xshopai- prefix for shared, svc- prefix for tokens)
+    # =========================================================================
+    print_info "Storing application secrets..."
+    
+    # Generate secure random values for secrets
+    JWT_SECRET_VALUE="$(openssl rand -hex 32)"
+    FLASK_SECRET_VALUE="$(openssl rand -hex 32)"
+    
+    # Service tokens for service-to-service authentication
+    PRODUCT_SVC_TOKEN="$(openssl rand -hex 16)"
+    ORDER_SVC_TOKEN="$(openssl rand -hex 16)"
+    CART_SVC_TOKEN="$(openssl rand -hex 16)"
+    WEB_BFF_TOKEN="$(openssl rand -hex 16)"
+    
+    # JWT Secret (used by auth-service and all services for token validation)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-jwt-secret" --value "$JWT_SECRET_VALUE" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: database-host (PostgreSQL)"
+        print_success "Stored: xshopai-jwt-secret"
     else
-        print_warning "Failed to store: database-host"
+        print_warning "Failed to store: xshopai-jwt-secret"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-port" --value "5432" --output none 2>/dev/null; then
+    # Flask Secret Key (used by Python services like inventory-service)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-flask-secret" --value "$FLASK_SECRET_VALUE" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: database-port"
+        print_success "Stored: xshopai-flask-secret"
     else
-        print_warning "Failed to store: database-port"
+        print_warning "Failed to store: xshopai-flask-secret"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-name" --value "order_processor_db" --output none 2>/dev/null; then
+    # Service-to-service authentication tokens (svc- prefix)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "svc-product-token" --value "$PRODUCT_SVC_TOKEN" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: database-name"
+        print_success "Stored: svc-product-token"
     else
-        print_warning "Failed to store: database-name"
+        print_warning "Failed to store: svc-product-token"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-user" --value "$POSTGRES_ADMIN_USER" --output none 2>/dev/null; then
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "svc-order-token" --value "$ORDER_SVC_TOKEN" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: database-user"
+        print_success "Stored: svc-order-token"
     else
-        print_warning "Failed to store: database-user"
+        print_warning "Failed to store: svc-order-token"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "database-password" --value "$POSTGRES_ADMIN_PASSWORD" --output none 2>/dev/null; then
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "svc-cart-token" --value "$CART_SVC_TOKEN" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: database-password"
+        print_success "Stored: svc-cart-token"
     else
-        print_warning "Failed to store: database-password"
+        print_warning "Failed to store: svc-cart-token"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "appinsights-connection-string" --value "$APP_INSIGHTS_CONNECTION_STRING" --output none 2>/dev/null; then
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "svc-webbff-token" --value "$WEB_BFF_TOKEN" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: appinsights-connection-string"
+        print_success "Stored: svc-webbff-token"
     else
-        print_warning "Failed to store: appinsights-connection-string"
+        print_warning "Failed to store: svc-webbff-token"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "appinsights-instrumentation-key" --value "$APP_INSIGHTS_INSTRUMENTATION_KEY" --output none 2>/dev/null; then
-        SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: appinsights-instrumentation-key"
-    else
-        print_warning "Failed to store: appinsights-instrumentation-key"
-    fi
-    
-    # SQL Server connection info (Azure AD authentication - no password)
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "sql-host" --value "$SQL_HOST" --output none 2>/dev/null; then
-        SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: sql-host"
-    else
-        print_warning "Failed to store: sql-host"
-    fi
-    
-    # SQL Server connection string for order-service (Azure AD Default auth for managed identity)
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "sql-connection" --value "Server=$SQL_HOST;Database=order_service_db;Authentication=Active Directory Default;TrustServerCertificate=True;Encrypt=True" --output none 2>/dev/null; then
-        SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: sql-connection"
-    else
-        print_warning "Failed to store: sql-connection"
-    fi
-    
-    print_success "Stored $SECRET_COUNT/9 secrets in Key Vault"
+    print_success "Stored $SECRET_COUNT secrets in Key Vault"
 else
     print_warning "Could not store secrets (run 'az login' with user account)"
 fi

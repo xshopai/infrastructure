@@ -538,14 +538,46 @@ try {
         # Wait for role assignment to propagate
         Start-Sleep -Seconds 30
 
-        # Store secrets
-        az keyvault secret set --vault-name $KeyVault --name "service-bus-connection" --value $ServiceBusConnection --output none 2>$null
-        az keyvault secret set --vault-name $KeyVault --name "redis-password" --value $RedisKey --output none 2>$null
-        az keyvault secret set --vault-name $KeyVault --name "cosmos-connection" --value $CosmosConnection --output none 2>$null
-        az keyvault secret set --vault-name $KeyVault --name "mysql-password" --value $MySqlAdminPassword --output none 2>$null
-        az keyvault secret set --vault-name $KeyVault --name "mysql-connection" --value "Server=$MySqlHost;Database=order_db;User=$MySqlAdminUser;Password=$MySqlAdminPassword;SslMode=Required" --output none 2>$null
+        # Store infrastructure secrets with xshopai- prefix for platform secrets
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-servicebus-connection" --value $ServiceBusConnection --output none 2>$null
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-redis-password" --value $RedisKey --output none 2>$null
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-cosmos-account-connection" --value $CosmosConnection --output none 2>$null
         
-        Write-Host "   Secrets stored in Key Vault" -ForegroundColor Green
+        # MySQL server connection (URL format, server-level - services append their database name)
+        $MySqlServerConnection = "mysql+pymysql://${MySqlAdminUser}:${MySqlAdminPassword}@${MySqlHost}:3306?ssl_ca=/etc/ssl/certs/ca-certificates.crt"
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-mysql-server-connection" --value $MySqlServerConnection --output none 2>$null
+        
+        # PostgreSQL server connection (JDBC format, server-level)
+        $PostgresServerConnection = "jdbc:postgresql://${PostgresHost}:5432/?sslmode=require&user=${PostgresAdminUser}&password=${PostgresAdminPassword}"
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-postgres-server-connection" --value $PostgresServerConnection --output none 2>$null
+        
+        # SQL Server connection (Azure AD auth, server-level)
+        $SqlServerConnection = "Server=$SqlHost;Authentication=Active Directory Default;TrustServerCertificate=True;Encrypt=True"
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-sql-server-connection" --value $SqlServerConnection --output none 2>$null
+        
+        # Application Insights
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-appinsights-connection" --value $AppInsightsConnectionString --output none 2>$null
+        
+        # Store application secrets (used by services via Dapr Secret Store)
+        # Generate secure random values
+        $JwtSecret = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+        $FlaskSecret = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+        $ProductSvcToken = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(16))
+        $OrderSvcToken = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(16))
+        $CartSvcToken = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(16))
+        $WebBffToken = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(16))
+        
+        # JWT and Flask secrets
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-jwt-secret" --value $JwtSecret --output none 2>$null
+        az keyvault secret set --vault-name $KeyVault --name "xshopai-flask-secret" --value $FlaskSecret --output none 2>$null
+        
+        # Service tokens for service-to-service authentication (svc- prefix)
+        az keyvault secret set --vault-name $KeyVault --name "svc-product-token" --value $ProductSvcToken --output none 2>$null
+        az keyvault secret set --vault-name $KeyVault --name "svc-order-token" --value $OrderSvcToken --output none 2>$null
+        az keyvault secret set --vault-name $KeyVault --name "svc-cart-token" --value $CartSvcToken --output none 2>$null
+        az keyvault secret set --vault-name $KeyVault --name "svc-webbff-token" --value $WebBffToken --output none 2>$null
+        
+        Write-Host "   Secrets stored in Key Vault (13 secrets with xshopai-/svc- prefix)" -ForegroundColor Green
     }
 }
 catch {
