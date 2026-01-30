@@ -636,6 +636,7 @@ else
         --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=false \
         --enable-automatic-failover true \
         --disable-key-based-metadata-write-access false \
+        --public-network-access Enabled \
         --output none 2>/tmp/cosmos_error.log &
     COSMOS_PID=$!
 fi
@@ -861,6 +862,20 @@ if [ "$COSMOS_STATE" != "Succeeded" ]; then
     exit 1
 fi
 
+# Ensure public network access is enabled for Cosmos DB
+# Azure may disable this via Security Center recommendations or policies
+# We explicitly enable it to ensure services can connect
+print_info "Ensuring public network access is enabled on Cosmos DB..."
+if az cosmosdb update \
+    --name "$COSMOS_ACCOUNT" \
+    --resource-group "$RESOURCE_GROUP" \
+    --public-network-access Enabled \
+    --output none 2>/dev/null; then
+    print_success "Cosmos DB public network access enabled"
+else
+    print_warning "Could not update Cosmos DB network access (may already be enabled)"
+fi
+
 # Enable local authentication (connection string based auth) for dev/staging
 # This allows services and seeders to connect using connection strings
 # Production should use managed identity where possible
@@ -991,6 +1006,29 @@ if [[ "$ENVIRONMENT" == "dev" || "$ENVIRONMENT" == "staging" ]]; then
 fi
 
 print_success "PostgreSQL Server ready: $POSTGRES_HOST"
+
+# Ensure PostgreSQL server is started (Azure may auto-stop after inactivity)
+print_info "Ensuring PostgreSQL server is started..."
+POSTGRES_STATE=$(az postgres flexible-server show \
+    --name "$POSTGRES_SERVER" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query state -o tsv 2>/dev/null)
+
+if [ "$POSTGRES_STATE" == "Stopped" ]; then
+    print_info "PostgreSQL server is stopped, starting it..."
+    if az postgres flexible-server start \
+        --name "$POSTGRES_SERVER" \
+        --resource-group "$RESOURCE_GROUP" \
+        --output none 2>/dev/null; then
+        print_success "PostgreSQL server started"
+    else
+        print_warning "Could not start PostgreSQL server (may require manual intervention)"
+    fi
+elif [ "$POSTGRES_STATE" == "Ready" ]; then
+    print_success "PostgreSQL server is running"
+else
+    print_info "PostgreSQL server state: $POSTGRES_STATE"
+fi
 
 # -----------------------------------------------------------------------------
 # Verify and retrieve SQL Server details (still part of step 6)
