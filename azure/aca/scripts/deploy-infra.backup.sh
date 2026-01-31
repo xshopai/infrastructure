@@ -1149,10 +1149,18 @@ if az keyvault update \
     --public-network-access Enabled \
     --default-action Allow \
     --bypass AzureServices \
-    --output none 2>/dev/null; then
+    --output none; then
     print_success "Key Vault network rules configured (public access enabled)"
 else
-    print_warning "Key Vault network rules may already be configured (continuing)"
+    print_error "Failed to configure Key Vault network rules"
+    print_info "Attempting alternative method..."
+    # Alternative: Use network-acls command explicitly
+    az keyvault network-rule add \
+        --name "$KEY_VAULT" \
+        --resource-group "$RESOURCE_GROUP" \
+        --bypass AzureServices \
+        --default-action Allow \
+        --output none || print_warning "Network rules may already be configured"
 fi
 
 # Grant managed identity access to Key Vault using REST API
@@ -1289,33 +1297,33 @@ if [ -n "$CURRENT_USER_ID" ]; then
         print_warning "Failed to store: xshopai-flask-secret"
     fi
     
-    # Service-to-service authentication tokens (svc- prefix)
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "svc-product-token" --value "$PRODUCT_SVC_TOKEN" --output none 2>/dev/null; then
+    # Service-to-service authentication tokens (xshopai-svc- prefix)
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-svc-product-token" --value "$PRODUCT_SVC_TOKEN" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: svc-product-token"
+        print_success "Stored: xshopai-svc-product-token"
     else
-        print_warning "Failed to store: svc-product-token"
+        print_warning "Failed to store: xshopai-svc-product-token"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "svc-order-token" --value "$ORDER_SVC_TOKEN" --output none 2>/dev/null; then
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-svc-order-token" --value "$ORDER_SVC_TOKEN" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: svc-order-token"
+        print_success "Stored: xshopai-svc-order-token"
     else
-        print_warning "Failed to store: svc-order-token"
+        print_warning "Failed to store: xshopai-svc-order-token"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "svc-cart-token" --value "$CART_SVC_TOKEN" --output none 2>/dev/null; then
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-svc-cart-token" --value "$CART_SVC_TOKEN" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: svc-cart-token"
+        print_success "Stored: xshopai-svc-cart-token"
     else
-        print_warning "Failed to store: svc-cart-token"
+        print_warning "Failed to store: xshopai-svc-cart-token"
     fi
     
-    if az keyvault secret set --vault-name "$KEY_VAULT" --name "svc-webbff-token" --value "$WEB_BFF_TOKEN" --output none 2>/dev/null; then
+    if az keyvault secret set --vault-name "$KEY_VAULT" --name "xshopai-svc-webbff-token" --value "$WEB_BFF_TOKEN" --output none 2>/dev/null; then
         SECRET_COUNT=$((SECRET_COUNT + 1))
-        print_success "Stored: svc-webbff-token"
+        print_success "Stored: xshopai-svc-webbff-token"
     else
-        print_warning "Failed to store: svc-webbff-token"
+        print_warning "Failed to store: xshopai-svc-webbff-token"
     fi
     
     print_success "Stored $SECRET_COUNT secrets in Key Vault"
