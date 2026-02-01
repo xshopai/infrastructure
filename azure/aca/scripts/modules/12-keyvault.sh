@@ -79,13 +79,18 @@ deploy_keyvault() {
     # Grant managed identity Key Vault Secrets User role
     if [ -n "$IDENTITY_PRINCIPAL_ID" ]; then
         print_info "Granting managed identity Key Vault access..."
+        print_info "  Managed Identity Principal ID: $IDENTITY_PRINCIPAL_ID"
         local KV_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.KeyVault/vaults/$KEY_VAULT"
+        print_info "  Key Vault Scope: $KV_SCOPE"
         
         if create_role_assignment "$IDENTITY_PRINCIPAL_ID" "Key Vault Secrets User" "$KV_SCOPE" "ServicePrincipal"; then
             print_success "Key Vault role assignment created for managed identity"
         else
-            print_warning "Role assignment may already exist"
+            print_error "Failed to create Key Vault role assignment for managed identity"
         fi
+    else
+        print_warning "IDENTITY_PRINCIPAL_ID is empty - skipping Key Vault role assignment!"
+        print_warning "This will cause Dapr secretstore to fail at runtime!"
     fi
     
     # Grant current user Key Vault Secrets Officer role

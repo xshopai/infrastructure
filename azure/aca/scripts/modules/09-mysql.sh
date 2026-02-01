@@ -33,11 +33,10 @@ deploy_mysql() {
     
     print_warning "This may take 5-15 minutes..."
     
-    # Generate credentials if not provided
+    # Use fixed credentials (set by deploy.sh or use defaults)
+    # Fixed passwords ensure consistency between DB creation and Key Vault storage
     export MYSQL_ADMIN_USER="${MYSQL_ADMIN_USER:-xshopaiadmin}"
-    if [ -z "$MYSQL_ADMIN_PASSWORD" ]; then
-        export MYSQL_ADMIN_PASSWORD="XShop$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')!"
-    fi
+    export MYSQL_ADMIN_PASSWORD="${MYSQL_ADMIN_PASSWORD:-xshopaipassword123}"
     
     # Check if already exists
     if resource_exists "mysql" "$MYSQL_SERVER" "$RESOURCE_GROUP"; then

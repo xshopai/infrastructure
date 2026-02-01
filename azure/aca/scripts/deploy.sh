@@ -81,7 +81,7 @@ if ! command -v az &> /dev/null; then
     print_error "Azure CLI is not installed. Please install it from: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli"
     exit 1
 fi
-log_debug "Azure CLI version: $(az version --query '\"azure-cli\"' -o tsv)"
+log_debug "Azure CLI version: $(az version --query '"azure-cli"' -o tsv)"
 print_success "Azure CLI is installed"
 
 # Check if logged into Azure
@@ -325,14 +325,15 @@ source "$MODULES_DIR/09-mysql.sh"
 source "$MODULES_DIR/10-sql-server.sh"
 source "$MODULES_DIR/11-postgresql.sh"
 
-# Generate passwords upfront (will be lost in subshells otherwise)
+# Fixed database credentials (same password used for creation AND Key Vault)
+# These are deterministic so re-running the script won't cause password mismatch
 export MYSQL_ADMIN_USER="${MYSQL_ADMIN_USER:-xshopaiadmin}"
-export MYSQL_ADMIN_PASSWORD="XShop$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')!"
+export MYSQL_ADMIN_PASSWORD="${MYSQL_ADMIN_PASSWORD:-xshopaipassword123}"
 export POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-pgadmin}"
-export POSTGRES_ADMIN_PASSWORD="PgShop$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')!"
+export POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-xshopaipassword123}"
 
-log_debug "Generated MySQL credentials: user=$MYSQL_ADMIN_USER"
-log_debug "Generated PostgreSQL credentials: user=$POSTGRES_ADMIN_USER"
+log_debug "MySQL credentials: user=$MYSQL_ADMIN_USER"
+log_debug "PostgreSQL credentials: user=$POSTGRES_ADMIN_USER"
 
 # Run data resources in parallel with logging
 log_debug "Starting Redis deployment..."
@@ -435,7 +436,8 @@ if [ -z "$MYSQL_HOST" ]; then
     print_error "Failed to retrieve MySQL host"
     exit 1
 fi
-export MYSQL_SERVER_CONNECTION="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306"
+# Azure MySQL requires SSL - include certificate path (installed in container images)
+export MYSQL_SERVER_CONNECTION="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306?ssl_ca=/etc/ssl/certs/DigiCertGlobalRootG2.crt.pem"
 log_debug "MySQL host: $MYSQL_HOST"
 print_success "MySQL: $MYSQL_HOST"
 

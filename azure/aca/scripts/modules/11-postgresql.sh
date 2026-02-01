@@ -33,11 +33,10 @@ deploy_postgresql() {
     
     print_warning "This may take 5-15 minutes..."
     
-    # Generate credentials if not provided
+    # Use fixed credentials (set by deploy.sh or use defaults)
+    # Fixed passwords ensure consistency between DB creation and Key Vault storage
     export POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-pgadmin}"
-    if [ -z "$POSTGRES_ADMIN_PASSWORD" ]; then
-        export POSTGRES_ADMIN_PASSWORD="PgShop$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9')!"
-    fi
+    export POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-xshopaipassword123}"
     
     # Check if already exists
     if az postgres flexible-server show --name "$POSTGRES_SERVER" --resource-group "$RESOURCE_GROUP" &>/dev/null; then

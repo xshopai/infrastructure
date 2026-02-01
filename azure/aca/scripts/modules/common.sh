@@ -53,6 +53,16 @@ create_role_assignment() {
     local SCOPE="$3"
     local PRINCIPAL_TYPE="${4:-ServicePrincipal}"
     
+    # Validate inputs
+    if [ -z "$PRINCIPAL_ID" ]; then
+        print_error "create_role_assignment: PRINCIPAL_ID is empty"
+        return 1
+    fi
+    if [ -z "$SCOPE" ]; then
+        print_error "create_role_assignment: SCOPE is empty"
+        return 1
+    fi
+    
     # Get the role definition ID
     local ROLE_DEF_ID=""
     case "$ROLE_NAME" in
@@ -77,12 +87,24 @@ create_role_assignment() {
     # Create role assignment via REST API
     local FULL_ROLE_DEF_ID="/subscriptions/${SUBSCRIPTION_ID}/providers/Microsoft.Authorization/roleDefinitions/${ROLE_DEF_ID}"
     
-    MSYS_NO_PATHCONV=1 az rest --method put \
+    local RESULT
+    RESULT=$(MSYS_NO_PATHCONV=1 az rest --method put \
         --uri "https://management.azure.com${SCOPE}/providers/Microsoft.Authorization/roleAssignments/${UUID}?api-version=2022-04-01" \
         --body "{\"properties\": {\"roleDefinitionId\": \"${FULL_ROLE_DEF_ID}\", \"principalId\": \"${PRINCIPAL_ID}\", \"principalType\": \"${PRINCIPAL_TYPE}\"}}" \
-        --output none 2>/dev/null
+        2>&1) || true
     
-    return $?
+    # Check for success or "already exists" (both are OK)
+    if echo "$RESULT" | grep -q "RoleAssignmentExists"; then
+        print_info "Role assignment already exists: $ROLE_NAME for $PRINCIPAL_ID"
+        return 0
+    elif [ -z "$RESULT" ]; then
+        return 0  # Success (empty output means OK)
+    elif echo "$RESULT" | grep -q "error"; then
+        print_error "Role assignment failed: $RESULT"
+        return 1
+    fi
+    
+    return 0
 }
 
 # -----------------------------------------------------------------------------
