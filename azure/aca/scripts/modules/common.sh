@@ -64,6 +64,7 @@ create_role_assignment() {
     fi
     
     # Get the role definition ID
+    # Azure built-in role GUIDs: https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
     local ROLE_DEF_ID=""
     case "$ROLE_NAME" in
         "AcrPull")
@@ -74,6 +75,15 @@ create_role_assignment() {
             ;;
         "Key Vault Secrets Officer")
             ROLE_DEF_ID="b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+            ;;
+        "Azure Service Bus Data Sender")
+            ROLE_DEF_ID="69a216fc-b8fb-44d8-bc22-1f3c2cd27a39"
+            ;;
+        "Azure Service Bus Data Receiver")
+            ROLE_DEF_ID="4f6d3b9b-027b-4f4c-9142-0e5a2a2247e0"
+            ;;
+        "Azure Service Bus Data Owner")
+            ROLE_DEF_ID="090c5cfd-751d-490a-894a-3ce6f1109419"
             ;;
         *)
             print_error "Unknown role: $ROLE_NAME"

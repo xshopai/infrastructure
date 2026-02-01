@@ -8,7 +8,7 @@
 # Required Environment Variables:
 #   - CONTAINER_ENV: Container Apps Environment name
 #   - RESOURCE_GROUP: Resource group name
-#   - SERVICE_BUS_CONNECTION: Service Bus connection string
+#   - SERVICE_BUS: Service Bus namespace name (for MI auth)
 #   - REDIS_HOST: Redis host
 #   - REDIS_KEY: Redis primary key
 #   - KEY_VAULT: Key Vault name
@@ -34,17 +34,19 @@ configure_dapr_components() {
     local COMPONENTS_CONFIGURED=0
     
     # -------------------------------------------------------------------------
-    # Pub/Sub Component (Service Bus Topics)
+    # Pub/Sub Component (Service Bus Topics) - Using Managed Identity
     # -------------------------------------------------------------------------
-    if [ -n "$SERVICE_BUS_CONNECTION" ]; then
-        print_info "Configuring pubsub component (Service Bus Topics)..."
+    if [ -n "$SERVICE_BUS" ] && [ -n "$IDENTITY_CLIENT_ID" ]; then
+        print_info "Configuring pubsub component (Service Bus Topics with Managed Identity)..."
         
         cat > /tmp/dapr-pubsub.yaml << PUBSUBEOF
 componentType: pubsub.azure.servicebus.topics
 version: v1
 metadata:
-  - name: connectionString
-    value: "${SERVICE_BUS_CONNECTION}"
+  - name: namespaceName
+    value: "${SERVICE_BUS}.servicebus.windows.net"
+  - name: azureClientId
+    value: "${IDENTITY_CLIENT_ID}"
   - name: maxActiveMessages
     value: "100"
   - name: maxConcurrentHandlers
@@ -80,7 +82,7 @@ PUBSUBEOF
             print_error "Failed to configure Dapr pubsub component"
         fi
     else
-        print_warning "Skipping pubsub component (no Service Bus connection)"
+        print_warning "Skipping pubsub component (missing Service Bus namespace or Identity Client ID)"
     fi
     
     # -------------------------------------------------------------------------

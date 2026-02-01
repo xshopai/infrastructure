@@ -9,6 +9,8 @@
 #   - SERVICE_BUS: Name of the Service Bus namespace
 #   - RESOURCE_GROUP: Resource group name
 #   - LOCATION: Azure region
+#   - SUBSCRIPTION_ID: Azure subscription ID
+#   - IDENTITY_PRINCIPAL_ID: Managed identity principal ID (for role assignments)
 #
 # Exports:
 #   - SERVICE_BUS_CONNECTION: Connection string for Service Bus
@@ -42,7 +44,7 @@ deploy_service_bus() {
         fi
     fi
     
-    # Retrieve connection string
+    # Retrieve connection string (for backward compatibility, though MI is preferred)
     export SERVICE_BUS_CONNECTION=$(az servicebus namespace authorization-rule keys list \
         --namespace-name "$SERVICE_BUS" \
         --resource-group "$RESOURCE_GROUP" \
@@ -55,6 +57,23 @@ deploy_service_bus() {
     fi
     
     print_info "Service Bus connection string retrieved"
+    
+    # Grant managed identity Service Bus Data Owner role (allows send AND receive)
+    if [ -n "$IDENTITY_PRINCIPAL_ID" ]; then
+        print_info "Granting managed identity Service Bus access..."
+        print_info "  Managed Identity Principal ID: $IDENTITY_PRINCIPAL_ID"
+        local SB_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ServiceBus/namespaces/$SERVICE_BUS"
+        print_info "  Service Bus Scope: $SB_SCOPE"
+        
+        if create_role_assignment "$IDENTITY_PRINCIPAL_ID" "Azure Service Bus Data Owner" "$SB_SCOPE" "ServicePrincipal"; then
+            print_success "Service Bus Data Owner role assignment created for managed identity"
+        else
+            print_warning "Service Bus role assignment may already exist or failed"
+        fi
+    else
+        print_warning "IDENTITY_PRINCIPAL_ID is empty - skipping Service Bus role assignment!"
+        print_warning "This will cause Dapr pubsub to fail if managed identity auth is used!"
+    fi
     
     # Configure network rules
     print_info "Configuring Service Bus network rules..."
