@@ -64,6 +64,16 @@ deploy_postgresql() {
         fi
     fi
     
+    # Configure firewall to allow Azure services (always run to ensure access)
+    print_info "Ensuring PostgreSQL firewall allows Azure services..."
+    az postgres flexible-server firewall-rule create \
+        --name "$POSTGRES_SERVER" \
+        --resource-group "$RESOURCE_GROUP" \
+        --rule-name "AllowAzureServices" \
+        --start-ip-address 0.0.0.0 \
+        --end-ip-address 0.0.0.0 \
+        --output none 2>/dev/null || print_success "Firewall rule already configured"
+    
     # Get PostgreSQL hostname
     export POSTGRES_HOST=$(az postgres flexible-server show \
         --name "$POSTGRES_SERVER" \
@@ -81,16 +91,6 @@ deploy_postgresql() {
     print_info "PostgreSQL Host: $POSTGRES_HOST"
     print_info "PostgreSQL Admin: $POSTGRES_ADMIN_USER"
     print_success "PostgreSQL Server configured"
-    
-    # Configure firewall to allow Azure services
-    print_info "Configuring PostgreSQL firewall rules..."
-    az postgres flexible-server firewall-rule create \
-        --name "$POSTGRES_SERVER" \
-        --resource-group "$RESOURCE_GROUP" \
-        --rule-name "AllowAzureServices" \
-        --start-ip-address 0.0.0.0 \
-        --end-ip-address 0.0.0.0 \
-        --output none 2>/dev/null || print_warning "Firewall rule may already exist"
     
     return 0
 }

@@ -29,6 +29,25 @@ deploy_cosmos_db() {
     # Check if already exists
     if resource_exists "cosmos" "$COSMOS_ACCOUNT" "$RESOURCE_GROUP"; then
         print_warning "Cosmos DB account already exists: $COSMOS_ACCOUNT"
+        
+        # Ensure public network access is enabled (required for Container Apps connectivity)
+        print_info "Verifying network access settings..."
+        local CURRENT_ACCESS=$(az cosmosdb show --name "$COSMOS_ACCOUNT" --resource-group "$RESOURCE_GROUP" --query publicNetworkAccess -o tsv 2>/dev/null || echo "Unknown")
+        if [ "$CURRENT_ACCESS" != "Enabled" ]; then
+            print_warning "Public network access is '$CURRENT_ACCESS', enabling it..."
+            if az cosmosdb update \
+                --name "$COSMOS_ACCOUNT" \
+                --resource-group "$RESOURCE_GROUP" \
+                --public-network-access Enabled \
+                --output none 2>&1; then
+                print_success "Public network access enabled for Cosmos DB"
+            else
+                print_error "Failed to enable public network access for Cosmos DB"
+                return 1
+            fi
+        else
+            print_success "Public network access is already enabled"
+        fi
     else
         # Create Cosmos DB account with MongoDB API (matching deploy-infra.sh)
         # Note: isZoneRedundant=false to match original

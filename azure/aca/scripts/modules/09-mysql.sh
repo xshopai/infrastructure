@@ -63,6 +63,16 @@ deploy_mysql() {
         fi
     fi
     
+    # Configure firewall to allow Azure services (always run to ensure access)
+    print_info "Ensuring MySQL firewall allows Azure services..."
+    az mysql flexible-server firewall-rule create \
+        --name "$MYSQL_SERVER" \
+        --resource-group "$RESOURCE_GROUP" \
+        --rule-name "AllowAzureServices" \
+        --start-ip-address 0.0.0.0 \
+        --end-ip-address 0.0.0.0 \
+        --output none 2>/dev/null || print_success "Firewall rule already configured"
+    
     # Get MySQL hostname
     export MYSQL_HOST=$(az mysql flexible-server show \
         --name "$MYSQL_SERVER" \
@@ -80,16 +90,6 @@ deploy_mysql() {
     print_info "MySQL Host: $MYSQL_HOST"
     print_info "MySQL Admin: $MYSQL_ADMIN_USER"
     print_success "MySQL Server configured"
-    
-    # Configure firewall to allow Azure services
-    print_info "Configuring MySQL firewall rules..."
-    az mysql flexible-server firewall-rule create \
-        --name "$MYSQL_SERVER" \
-        --resource-group "$RESOURCE_GROUP" \
-        --rule-name "AllowAzureServices" \
-        --start-ip-address 0.0.0.0 \
-        --end-ip-address 0.0.0.0 \
-        --output none 2>/dev/null || print_warning "Firewall rule may already exist"
     
     return 0
 }

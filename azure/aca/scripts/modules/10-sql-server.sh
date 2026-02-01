@@ -57,6 +57,16 @@ deploy_sql_server() {
         fi
     fi
     
+    # Configure firewall to allow Azure services (always run to ensure access)
+    print_info "Ensuring SQL Server firewall allows Azure services..."
+    az sql server firewall-rule create \
+        --name "AllowAzureServices" \
+        --server "$SQL_SERVER" \
+        --resource-group "$RESOURCE_GROUP" \
+        --start-ip-address 0.0.0.0 \
+        --end-ip-address 0.0.0.0 \
+        --output none 2>/dev/null || print_success "Firewall rule already configured"
+    
     # Get SQL hostname
     export SQL_HOST=$(az sql server show \
         --name "$SQL_SERVER" \
@@ -74,16 +84,6 @@ deploy_sql_server() {
     print_info "SQL Host: $SQL_HOST"
     print_info "SQL Auth: Azure AD-only"
     print_success "SQL Server configured"
-    
-    # Configure firewall to allow Azure services
-    print_info "Configuring SQL Server firewall rules..."
-    az sql server firewall-rule create \
-        --name "AllowAzureServices" \
-        --server "$SQL_SERVER" \
-        --resource-group "$RESOURCE_GROUP" \
-        --start-ip-address 0.0.0.0 \
-        --end-ip-address 0.0.0.0 \
-        --output none 2>/dev/null || print_warning "Firewall rule may already exist"
     
     print_success "SQL Server ready: $SQL_HOST"
     
