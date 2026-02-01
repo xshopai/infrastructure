@@ -48,9 +48,31 @@ deploy_cosmos_db() {
         else
             print_success "Public network access is already enabled"
         fi
+        
+        # Ensure local auth is enabled (allows both connection strings AND Azure AD tokens)
+        # This is required for seeding, local development, and tooling while still supporting managed identity
+        print_info "Verifying local auth settings..."
+        local LOCAL_AUTH_DISABLED=$(az cosmosdb show --name "$COSMOS_ACCOUNT" --resource-group "$RESOURCE_GROUP" --query disableLocalAuth -o tsv 2>/dev/null || echo "Unknown")
+        if [ "$LOCAL_AUTH_DISABLED" == "true" ]; then
+            print_warning "Local auth is disabled, enabling it to allow both connection strings and Azure AD tokens..."
+            local SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+            if az rest --method PATCH \
+                --uri "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.DocumentDB/databaseAccounts/${COSMOS_ACCOUNT}?api-version=2024-02-15-preview" \
+                --body '{"properties":{"disableLocalAuth":false}}' \
+                --output none 2>&1; then
+                print_success "Local auth enabled for Cosmos DB (supports both connection strings and Azure AD)"
+            else
+                print_warning "Failed to enable local auth - may need to retry or check permissions"
+            fi
+        else
+            print_success "Local auth is already enabled (supports both connection strings and Azure AD)"
+        fi
     else
         # Create Cosmos DB account with MongoDB API (matching deploy-infra.sh)
         # Note: isZoneRedundant=false to match original
+        # Note: Local auth (connection strings) is enabled by default, allowing BOTH:
+        #   - Connection string authentication (for seeding, local dev, tooling)
+        #   - Azure AD/Managed Identity authentication (for production workloads)
         if az cosmosdb create \
             --name "$COSMOS_ACCOUNT" \
             --resource-group "$RESOURCE_GROUP" \
