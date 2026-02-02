@@ -5,6 +5,11 @@
 # =============================================================================
 # Creates an Azure Key Vault for secrets management and stores platform secrets.
 #
+# Secret Naming Convention:
+#   Key Vault uses lower-kebab-case (e.g., jwt-secret, mysql-server-connection)
+#   which maps to UPPER_SNAKE_CASE env vars (e.g., JWT_SECRET, MYSQL_SERVER_CONNECTION)
+#   The translation happens at deployment time (Bicep/ARM or Dapr component config)
+#
 # Required Environment Variables:
 #   - KEY_VAULT: Name of the Key Vault
 #   - RESOURCE_GROUP: Resource group name
@@ -13,13 +18,13 @@
 #   - IDENTITY_PRINCIPAL_ID: Managed identity principal ID (for secrets access)
 #
 # Secret Dependencies (optional - will skip if not set):
-#   - SERVICE_BUS_CONNECTION
-#   - REDIS_KEY
-#   - COSMOS_CONNECTION
-#   - MYSQL_SERVER_CONNECTION
-#   - SQL_SERVER_CONNECTION
-#   - POSTGRES_SERVER_CONNECTION
-#   - APP_INSIGHTS_CONNECTION_STRING
+#   - SERVICE_BUS_CONNECTION -> servicebus-connection
+#   - REDIS_KEY -> redis-password
+#   - COSMOS_CONNECTION -> cosmos-account-connection
+#   - MYSQL_SERVER_CONNECTION -> mysql-server-connection
+#   - SQL_SERVER_CONNECTION -> sql-server-connection
+#   - POSTGRES_SERVER_CONNECTION -> postgres-server-connection
+#   - APP_INSIGHTS_CONNECTION_STRING -> appinsights-connection
 #
 # Exports:
 #   - KEY_VAULT_URL: Key Vault URL (https://<name>.vault.azure.net/)
@@ -149,6 +154,8 @@ store_keyvault_secrets() {
     local SECRET_COUNT=0
     
     # Helper function to store a secret
+    # Key Vault uses lower-kebab-case (e.g., jwt-secret)
+    # which maps to UPPER_SNAKE_CASE env vars (e.g., JWT_SECRET) at deployment time
     store_secret() {
         local name="$1"
         local value="$2"
@@ -167,32 +174,34 @@ store_keyvault_secrets() {
     
     print_info "Storing platform infrastructure secrets..."
     
-    # Platform infrastructure secrets (xshopai- prefix)
-    store_secret "xshopai-servicebus-connection" "$SERVICE_BUS_CONNECTION"
-    store_secret "xshopai-redis-password" "$REDIS_KEY"
-    store_secret "xshopai-cosmos-account-connection" "$COSMOS_CONNECTION"
-    store_secret "xshopai-mysql-server-connection" "$MYSQL_SERVER_CONNECTION"
-    store_secret "xshopai-sql-server-connection" "$SQL_SERVER_CONNECTION"
-    store_secret "xshopai-postgres-server-connection" "$POSTGRES_SERVER_CONNECTION"
-    store_secret "xshopai-appinsights-connection" "$APP_INSIGHTS_CONNECTION_STRING"
+    # Platform infrastructure secrets (lower-kebab-case, no prefix)
+    # These map to UPPER_SNAKE_CASE env vars in application code
+    store_secret "servicebus-connection" "$SERVICE_BUS_CONNECTION"
+    store_secret "redis-password" "$REDIS_KEY"
+    store_secret "cosmos-account-connection" "$COSMOS_CONNECTION"
+    store_secret "mysql-server-connection" "$MYSQL_SERVER_CONNECTION"
+    store_secret "sql-server-connection" "$SQL_SERVER_CONNECTION"
+    store_secret "postgres-server-connection" "$POSTGRES_SERVER_CONNECTION"
+    store_secret "appinsights-connection" "$APP_INSIGHTS_CONNECTION_STRING"
     
     # Application secrets (generate if not exists)
     print_info "Storing application secrets..."
     
-    # JWT Secret
+    # JWT Secret -> JWT_SECRET env var
     local JWT_SECRET_VALUE=$(openssl rand -base64 32)
-    store_secret "xshopai-jwt-secret" "$JWT_SECRET_VALUE"
+    store_secret "jwt-secret" "$JWT_SECRET_VALUE"
     
-    # Flask Secret
+    # Flask Secret -> FLASK_SECRET env var
     local FLASK_SECRET_VALUE=$(openssl rand -hex 24)
-    store_secret "xshopai-flask-secret" "$FLASK_SECRET_VALUE"
+    store_secret "flask-secret" "$FLASK_SECRET_VALUE"
     
     # Service-to-service tokens
+    # service-product-token -> SERVICE_PRODUCT_TOKEN env var
     print_info "Storing service-to-service tokens..."
-    store_secret "xshopai-svc-product-token" "$(openssl rand -hex 16)"
-    store_secret "xshopai-svc-order-token" "$(openssl rand -hex 16)"
-    store_secret "xshopai-svc-cart-token" "$(openssl rand -hex 16)"
-    store_secret "xshopai-svc-webbff-token" "$(openssl rand -hex 16)"
+    store_secret "service-product-token" "$(openssl rand -hex 16)"
+    store_secret "service-order-token" "$(openssl rand -hex 16)"
+    store_secret "service-cart-token" "$(openssl rand -hex 16)"
+    store_secret "service-webbff-token" "$(openssl rand -hex 16)"
     
     print_success "Stored $SECRET_COUNT secrets in Key Vault"
     
