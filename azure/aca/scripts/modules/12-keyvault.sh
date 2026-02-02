@@ -54,26 +54,51 @@ deploy_keyvault() {
         fi
     fi
     
-    # Configure network rules - IMPORTANT: Allow public access for CLI and portal
-    print_info "Configuring Key Vault network access (public access enabled)..."
-    if az keyvault update \
-        --name "$KEY_VAULT" \
-        --resource-group "$RESOURCE_GROUP" \
-        --public-network-access Enabled \
-        --default-action Allow \
-        --bypass AzureServices \
-        --output none; then
-        print_success "Key Vault network rules configured"
+    # Configure network rules - IMPORTANT: Allow public access for Dapr secretstore
+    # Without this, Dapr containers in ACA cannot access Key Vault secrets
+    print_info "Configuring Key Vault network access (public access enabled for Dapr)..."
+    
+    # Use REST API to ensure public network access is enabled (more reliable than CLI)
+    local KV_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.KeyVault/vaults/${KEY_VAULT}"
+    
+    # First check current state
+    local CURRENT_STATE=$(az rest --method get \
+        --url "https://management.azure.com${KV_ID}?api-version=2023-07-01" \
+        --query "properties.publicNetworkAccess" -o tsv 2>/dev/null || echo "Unknown")
+    print_info "Current Key Vault public network access: $CURRENT_STATE"
+    
+    # Enable public access using REST API (bypasses any CLI quirks)
+    if az rest --method patch \
+        --url "https://management.azure.com${KV_ID}?api-version=2023-07-01" \
+        --body '{"properties":{"publicNetworkAccess":"Enabled","networkAcls":{"bypass":"AzureServices","defaultAction":"Allow"}}}' \
+        --output none 2>/dev/null; then
+        print_success "Key Vault network rules configured via REST API"
     else
-        print_error "Failed to configure Key Vault network rules"
-        # Try alternative method
-        print_info "Attempting alternative method..."
-        az keyvault network-rule add \
+        # Fallback to CLI
+        print_warning "REST API failed, trying CLI..."
+        if az keyvault update \
             --name "$KEY_VAULT" \
             --resource-group "$RESOURCE_GROUP" \
-            --bypass AzureServices \
+            --public-network-access Enabled \
             --default-action Allow \
-            --output none || print_warning "Network rules may already be configured"
+            --bypass AzureServices \
+            --output none; then
+            print_success "Key Vault network rules configured via CLI"
+        else
+            print_error "Failed to configure Key Vault network rules"
+            return 1
+        fi
+    fi
+    
+    # Verify the setting was applied
+    local FINAL_STATE=$(az rest --method get \
+        --url "https://management.azure.com${KV_ID}?api-version=2023-07-01" \
+        --query "properties.publicNetworkAccess" -o tsv 2>/dev/null || echo "Unknown")
+    if [ "$FINAL_STATE" = "Enabled" ]; then
+        print_success "Verified: Key Vault public network access is Enabled"
+    else
+        print_error "Warning: Key Vault public network access is '$FINAL_STATE' (expected 'Enabled')"
+        print_error "Dapr secretstore may fail to access secrets!"
     fi
     
     # Grant managed identity Key Vault Secrets User role
