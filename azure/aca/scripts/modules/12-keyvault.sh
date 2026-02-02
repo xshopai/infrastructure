@@ -17,7 +17,7 @@
 #   - SUBSCRIPTION_ID: Azure subscription ID
 #   - IDENTITY_PRINCIPAL_ID: Managed identity principal ID (for secrets access)
 #
-# Secret Dependencies (optional - will skip if not set):
+# Infrastructure Secrets (optional - will skip if not set):
 #   - SERVICE_BUS_CONNECTION -> servicebus-connection
 #   - REDIS_KEY -> redis-password
 #   - COSMOS_CONNECTION -> cosmos-account-connection
@@ -25,6 +25,25 @@
 #   - SQL_SERVER_CONNECTION -> sql-server-connection
 #   - POSTGRES_SERVER_CONNECTION -> postgres-server-connection
 #   - APP_INSIGHTS_CONNECTION_STRING -> appinsights-connection
+#
+# Application Secrets (auto-generated):
+#   - jwt-secret (JWT_SECRET)
+#
+# Service-to-Service Tokens (auto-generated, one per backend service):
+#   - service-admin-token (SERVICE_ADMIN_TOKEN)
+#   - service-audit-token (SERVICE_AUDIT_TOKEN)
+#   - service-auth-token (SERVICE_AUTH_TOKEN)
+#   - service-cart-token (SERVICE_CART_TOKEN)
+#   - service-chat-token (SERVICE_CHAT_TOKEN)
+#   - service-inventory-token (SERVICE_INVENTORY_TOKEN)
+#   - service-notification-token (SERVICE_NOTIFICATION_TOKEN)
+#   - service-order-token (SERVICE_ORDER_TOKEN)
+#   - service-orderprocessor-token (SERVICE_ORDERPROCESSOR_TOKEN)
+#   - service-payment-token (SERVICE_PAYMENT_TOKEN)
+#   - service-product-token (SERVICE_PRODUCT_TOKEN)
+#   - service-review-token (SERVICE_REVIEW_TOKEN)
+#   - service-user-token (SERVICE_USER_TOKEN)
+#   - service-webbff-token (SERVICE_WEBBFF_TOKEN)
 #
 # Exports:
 #   - KEY_VAULT_URL: Key Vault URL (https://<name>.vault.azure.net/)
@@ -191,16 +210,22 @@ store_keyvault_secrets() {
     local JWT_SECRET_VALUE=$(openssl rand -base64 32)
     store_secret "jwt-secret" "$JWT_SECRET_VALUE"
     
-    # Flask Secret -> FLASK_SECRET env var
-    local FLASK_SECRET_VALUE=$(openssl rand -hex 24)
-    store_secret "flask-secret" "$FLASK_SECRET_VALUE"
-    
     # Service-to-service tokens
-    # service-product-token -> SERVICE_PRODUCT_TOKEN env var
+    # service-<name>-token -> SERVICE_<NAME>_TOKEN env var
     print_info "Storing service-to-service tokens..."
-    store_secret "service-product-token" "$(openssl rand -hex 16)"
-    store_secret "service-order-token" "$(openssl rand -hex 16)"
+    store_secret "service-admin-token" "$(openssl rand -hex 16)"
+    store_secret "service-audit-token" "$(openssl rand -hex 16)"
+    store_secret "service-auth-token" "$(openssl rand -hex 16)"
     store_secret "service-cart-token" "$(openssl rand -hex 16)"
+    store_secret "service-chat-token" "$(openssl rand -hex 16)"
+    store_secret "service-inventory-token" "$(openssl rand -hex 16)"
+    store_secret "service-notification-token" "$(openssl rand -hex 16)"
+    store_secret "service-order-token" "$(openssl rand -hex 16)"
+    store_secret "service-orderprocessor-token" "$(openssl rand -hex 16)"
+    store_secret "service-payment-token" "$(openssl rand -hex 16)"
+    store_secret "service-product-token" "$(openssl rand -hex 16)"
+    store_secret "service-review-token" "$(openssl rand -hex 16)"
+    store_secret "service-user-token" "$(openssl rand -hex 16)"
     store_secret "service-webbff-token" "$(openssl rand -hex 16)"
     
     print_success "Stored $SECRET_COUNT secrets in Key Vault"
