@@ -84,6 +84,24 @@ deploy_mysql() {
         return 1
     fi
     
+    # Create service databases (empty - migrations will create schema)
+    print_info "Creating service databases..."
+    for DB_NAME in "inventory_service_db"; do
+        if az mysql flexible-server db show \
+            --resource-group "$RESOURCE_GROUP" \
+            --server-name "$MYSQL_SERVER" \
+            --database-name "$DB_NAME" &>/dev/null; then
+            print_success "Database exists: $DB_NAME"
+        else
+            az mysql flexible-server db create \
+                --resource-group "$RESOURCE_GROUP" \
+                --server-name "$MYSQL_SERVER" \
+                --database-name "$DB_NAME" \
+                --output none
+            print_success "Database created: $DB_NAME"
+        fi
+    done
+    
     # Build server-level connection string (without database name)
     export MYSQL_SERVER_CONNECTION="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306"
     
