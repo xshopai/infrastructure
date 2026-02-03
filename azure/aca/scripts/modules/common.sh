@@ -139,6 +139,7 @@ generate_resource_names() {
     export SERVICE_BUS="sb-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
     export COSMOS_ACCOUNT="cosmos-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
     export KEY_VAULT="kv-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
+    export COMMUNICATION_SERVICE="acs-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
     
     # Resources without hyphens (naming restrictions)
     export ACR_NAME="${PROJECT_NAME}${ENVIRONMENT}${SUFFIX}"
@@ -197,6 +198,9 @@ resource_exists() {
             ;;
         "servicebus")
             az servicebus namespace show --name "$name" --resource-group "$resource_group" &>/dev/null
+            ;;
+        "communication")
+            az communication show --name "$name" --resource-group "$resource_group" &>/dev/null
             ;;
         "containerapp-env")
             az containerapp env show --name "$name" --resource-group "$resource_group" &>/dev/null

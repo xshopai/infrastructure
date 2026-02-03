@@ -44,7 +44,7 @@ SUFFIX="${4:-}"
 PROJECT_NAME="xshopai"
 
 # Track deployment progress
-TOTAL_STEPS=10
+TOTAL_STEPS=11
 CURRENT_STEP=0
 SCRIPT_START_TIME=0
 
@@ -99,6 +99,12 @@ else
     log_debug "openssl version: $(openssl version)"
 fi
 
+# Install required CLI extensions
+print_info "Installing required CLI extensions..."
+az extension add --name communication --yes 2>/dev/null || true
+log_debug "Installed communication extension"
+print_success "CLI extensions ready"
+
 # Register required resource providers
 print_info "Registering required resource providers..."
 log_debug "Registering Microsoft.Sql..."
@@ -117,6 +123,8 @@ log_debug "Registering Microsoft.DBforMySQL..."
 az provider register --namespace Microsoft.DBforMySQL --wait 2>/dev/null || true
 log_debug "Registering Microsoft.DBforPostgreSQL..."
 az provider register --namespace Microsoft.DBforPostgreSQL --wait 2>/dev/null || true
+log_debug "Registering Microsoft.Communication..."
+az provider register --namespace Microsoft.Communication --wait 2>/dev/null || true
 log_debug "Registering Microsoft.KeyVault..."
 az provider register --namespace Microsoft.KeyVault --wait 2>/dev/null || true
 print_success "Resource providers registered"
@@ -231,6 +239,7 @@ echo "   Cosmos DB:             $COSMOS_ACCOUNT"
 echo "   MySQL Server:          $MYSQL_SERVER"
 echo "   SQL Server:            $SQL_SERVER"
 echo "   PostgreSQL Server:     $POSTGRES_SERVER"
+echo "   Communication Service: $COMMUNICATION_SERVICE"
 echo "   Key Vault:             $KEY_VAULT"
 echo ""
 
@@ -505,7 +514,20 @@ if [[ "$ENVIRONMENT" == "dev" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Step 7: Key Vault (needs connection strings from data resources)
+# Step 7: Azure Communication Services (Email)
+# -----------------------------------------------------------------------------
+print_progress "Creating Azure Communication Services"
+log_debug "Loading Communication Services module..."
+source "$MODULES_DIR/14-communication-service.sh"
+
+# Set data location for Communication Services (must be UnitedStates or Europe)
+export DATA_LOCATION="UnitedStates"
+log_debug "Deploying Communication Services: $COMMUNICATION_SERVICE with data location: $DATA_LOCATION"
+deploy_communication_service || { print_error "Communication Services deployment failed"; exit 1; }
+log_debug "Communication Services deployed successfully"
+
+# -----------------------------------------------------------------------------
+# Step 8: Key Vault (needs connection strings from data resources + ACS)
 # -----------------------------------------------------------------------------
 print_progress "Creating Key Vault"
 log_debug "Loading Key Vault module..."
@@ -515,7 +537,7 @@ deploy_keyvault || { print_error "Key Vault deployment failed"; exit 1; }
 log_debug "Key Vault deployed successfully: $KEY_VAULT_URL"
 
 # -----------------------------------------------------------------------------
-# Step 8: Store Secrets in Key Vault
+# Step 9: Store Secrets in Key Vault
 # -----------------------------------------------------------------------------
 print_progress "Storing Secrets in Key Vault"
 log_debug "Preparing to store secrets..."
@@ -530,7 +552,7 @@ store_keyvault_secrets || { print_error "Secret storage failed"; exit 1; }
 log_debug "All secrets stored in Key Vault"
 
 # -----------------------------------------------------------------------------
-# Step 9: Dapr Components
+# Step 10: Dapr Components
 # -----------------------------------------------------------------------------
 print_progress "Configuring Dapr Components"
 log_debug "Loading Dapr components module..."
@@ -588,6 +610,7 @@ echo -e "   Cosmos DB:              ${YELLOW}$COSMOS_ACCOUNT.mongo.cosmos.azure.
 echo -e "   MySQL Server:           ${YELLOW}$MYSQL_HOST${NC}"
 echo -e "   SQL Server:             ${YELLOW}$SQL_HOST${NC}"
 echo -e "   PostgreSQL Server:      ${YELLOW}$POSTGRES_HOST${NC}"
+echo -e "   Communication Service:  ${YELLOW}$COMMUNICATION_SERVICE${NC}"
 echo -e "   Key Vault:              ${YELLOW}$KEY_VAULT_URL${NC}"
 echo -e "   Managed Identity:       ${YELLOW}$MANAGED_IDENTITY${NC}"
 echo ""

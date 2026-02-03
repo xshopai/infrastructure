@@ -26,6 +26,10 @@
 #   - POSTGRES_SERVER_CONNECTION -> postgres-server-connection
 #   - APP_INSIGHTS_CONNECTION_STRING -> appinsights-connection
 #
+# Communication Services Secrets (from 14-communication-service.sh):
+#   - ACS_CONNECTION_STRING -> acs-connection-string
+#   - ACS_SENDER_ADDRESS -> acs-sender-address
+#
 # Application Secrets (auto-generated):
 #   - jwt-secret (JWT_SECRET)
 #
@@ -202,6 +206,11 @@ store_keyvault_secrets() {
     store_secret "sql-server-connection" "$SQL_SERVER_CONNECTION"
     store_secret "postgres-server-connection" "$POSTGRES_SERVER_CONNECTION"
     store_secret "appinsights-connection" "$APP_INSIGHTS_CONNECTION_STRING"
+    
+    # Azure Communication Services secrets (from 14-communication-service.sh)
+    # These are used by notification-service for email sending
+    store_secret "acs-connection-string" "$ACS_CONNECTION_STRING"
+    store_secret "acs-sender-address" "$ACS_SENDER_ADDRESS"
     
     # Application secrets (generate if not exists)
     print_info "Storing application secrets..."
