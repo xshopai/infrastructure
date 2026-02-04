@@ -3,32 +3,55 @@
 # =============================================================================
 # xshopai Local Docker Deployment Orchestrator
 # =============================================================================
-# This is the main entry point for deploying xshopai platform locally using Docker.
-# It orchestrates the deployment of all infrastructure, databases, and services.
+# Main entry point for deploying xshopai platform locally using Docker.
+# Supports deploying everything or individual services.
 #
 # Architecture:
-#   - Modular design: Each resource has its own deployment module
-#   - Easy debugging: Run individual modules to troubleshoot specific resources
-#   - Sequential execution: Ensures dependencies are met before starting services
+#   - Modular design: Each service has its own deployment script
+#   - Individual deployment: Run any single service for debugging
+#   - Pre-built images: Assumes Docker images are already built
+#   - Optional Dapr: Supports running with or without Dapr sidecars
 #
 # Usage:
-#   ./deploy.sh [options]
+#   ./deploy.sh [options] [services...]
 #
 # Options:
-#   --all                Deploy everything (default)
-#   --infra-only         Deploy only infrastructure (message broker, cache, etc.)
-#   --db-only            Deploy only databases
-#   --services-only      Deploy only application services (requires DBs running)
-#   --frontends-only     Deploy only frontend applications
-#   --skip-build         Skip building Docker images (use existing)
+#   --all                Deploy everything (default if no services specified)
+#   --infra              Deploy infrastructure only (RabbitMQ, Redis, etc.)
+#   --databases          Deploy databases only
+#   --services           Deploy all application services
+#   --frontends          Deploy frontend applications only
+#   --build              Build Docker images before deploying
+#   --dapr               Enable Dapr sidecars for services
 #   --clean              Remove all containers and volumes before deploying
 #   --help               Show this help message
 #
+# Individual Services (can combine multiple):
+#   --auth-service       Deploy Auth Service
+#   --user-service       Deploy User Service
+#   --product-service    Deploy Product Service
+#   --inventory-service  Deploy Inventory Service
+#   --order-service      Deploy Order Service
+#   --payment-service    Deploy Payment Service
+#   --cart-service       Deploy Cart Service
+#   --review-service     Deploy Review Service
+#   --admin-service      Deploy Admin Service
+#   --notification-service  Deploy Notification Service
+#   --audit-service      Deploy Audit Service
+#   --chat-service       Deploy Chat Service
+#   --order-processor-service  Deploy Order Processor Service
+#   --web-bff            Deploy Web BFF
+#   --customer-ui        Deploy Customer UI
+#   --admin-ui           Deploy Admin UI
+#
 # Examples:
-#   ./deploy.sh                    # Deploy everything
-#   ./deploy.sh --infra-only       # Deploy only infrastructure
-#   ./deploy.sh --skip-build       # Deploy without rebuilding images
-#   ./deploy.sh --clean --all      # Clean and redeploy everything
+#   ./deploy.sh                           # Deploy everything
+#   ./deploy.sh --infra --databases       # Deploy only infra and databases
+#   ./deploy.sh --auth-service            # Deploy only auth-service
+#   ./deploy.sh --auth-service --user-service  # Deploy multiple services
+#   ./deploy.sh --build --product-service # Build and deploy product-service
+#   ./deploy.sh --dapr --all              # Deploy all with Dapr sidecars
+#   ./deploy.sh --clean --all             # Clean and redeploy everything
 # =============================================================================
 
 set -e
@@ -36,50 +59,79 @@ set -e
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULES_DIR="$SCRIPT_DIR/modules"
+SERVICES_DIR="$MODULES_DIR/services"
 
 # Source common utilities
 source "$MODULES_DIR/common.sh"
 
 # -----------------------------------------------------------------------------
-# Parse command line arguments
+# Default configuration
 # -----------------------------------------------------------------------------
+DEPLOY_ALL=false
 DEPLOY_INFRA=false
 DEPLOY_DBS=false
 DEPLOY_SERVICES=false
 DEPLOY_FRONTENDS=false
-SKIP_BUILD=false
+BUILD_IMAGES=false
+DAPR_ENABLED=false
 CLEAN_FIRST=false
-DEPLOY_ALL=true
 
+# Individual service flags
+declare -A SERVICES_TO_DEPLOY
+
+# All available services
+ALL_SERVICES=(
+    "auth-service"
+    "user-service"
+    "product-service"
+    "inventory-service"
+    "order-service"
+    "payment-service"
+    "cart-service"
+    "review-service"
+    "admin-service"
+    "notification-service"
+    "audit-service"
+    "chat-service"
+    "order-processor-service"
+    "web-bff"
+    "customer-ui"
+    "admin-ui"
+)
+
+# -----------------------------------------------------------------------------
+# Parse command line arguments
+# -----------------------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
     case $1 in
         --all)
             DEPLOY_ALL=true
             shift
             ;;
-        --infra-only)
-            DEPLOY_ALL=false
+        --infra)
             DEPLOY_INFRA=true
             shift
             ;;
-        --db-only)
-            DEPLOY_ALL=false
+        --databases)
             DEPLOY_DBS=true
             shift
             ;;
-        --services-only)
-            DEPLOY_ALL=false
+        --services)
             DEPLOY_SERVICES=true
             shift
             ;;
-        --frontends-only)
-            DEPLOY_ALL=false
+        --frontends)
             DEPLOY_FRONTENDS=true
             shift
             ;;
-        --skip-build)
-            SKIP_BUILD=true
-            export BUILD_IMAGES=false
+        --build)
+            BUILD_IMAGES=true
+            export BUILD_IMAGES=true
+            shift
+            ;;
+        --dapr)
+            DAPR_ENABLED=true
+            export DAPR_ENABLED=true
             shift
             ;;
         --clean)
@@ -87,8 +139,16 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            head -50 "$0" | grep -E "^#" | sed 's/^# //' | sed 's/^#//'
+            head -60 "$0" | grep -E "^#" | sed 's/^# //' | sed 's/^#//'
             exit 0
+            ;;
+        --auth-service|--user-service|--product-service|--inventory-service|\
+        --order-service|--payment-service|--cart-service|--review-service|\
+        --admin-service|--notification-service|--audit-service|--chat-service|\
+        --order-processor-service|--web-bff|--customer-ui|--admin-ui)
+            service_name="${1#--}"  # Remove -- prefix
+            SERVICES_TO_DEPLOY[$service_name]=true
+            shift
             ;;
         *)
             print_error "Unknown option: $1"
@@ -98,7 +158,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# If deploy all, enable all components
+# If no specific options given, deploy all
+if [ "$DEPLOY_ALL" = false ] && [ "$DEPLOY_INFRA" = false ] && \
+   [ "$DEPLOY_DBS" = false ] && [ "$DEPLOY_SERVICES" = false ] && \
+   [ "$DEPLOY_FRONTENDS" = false ] && [ ${#SERVICES_TO_DEPLOY[@]} -eq 0 ]; then
+    DEPLOY_ALL=true
+fi
+
+# If deploy all, enable everything
 if [ "$DEPLOY_ALL" = true ]; then
     DEPLOY_INFRA=true
     DEPLOY_DBS=true
@@ -106,38 +173,45 @@ if [ "$DEPLOY_ALL" = true ]; then
     DEPLOY_FRONTENDS=true
 fi
 
+# If deploy services flag is set, add all backend services
+if [ "$DEPLOY_SERVICES" = true ]; then
+    for service in "auth-service" "user-service" "product-service" "inventory-service" \
+                   "order-service" "payment-service" "cart-service" "review-service" \
+                   "admin-service" "notification-service" "audit-service" "chat-service" \
+                   "order-processor-service" "web-bff"; do
+        SERVICES_TO_DEPLOY[$service]=true
+    done
+fi
+
+# If deploy frontends flag is set, add frontend services
+if [ "$DEPLOY_FRONTENDS" = true ]; then
+    SERVICES_TO_DEPLOY["customer-ui"]=true
+    SERVICES_TO_DEPLOY["admin-ui"]=true
+fi
+
 # Track deployment progress
 SCRIPT_START_TIME=$SECONDS
-TOTAL_STEPS=0
-CURRENT_STEP=0
 
-# Count total steps
-[ "$DEPLOY_INFRA" = true ] && TOTAL_STEPS=$((TOTAL_STEPS + 2))
-[ "$DEPLOY_DBS" = true ] && TOTAL_STEPS=$((TOTAL_STEPS + 4))
-[ "$DEPLOY_SERVICES" = true ] && TOTAL_STEPS=$((TOTAL_STEPS + 4))
-[ "$DEPLOY_FRONTENDS" = true ] && TOTAL_STEPS=$((TOTAL_STEPS + 1))
-
-print_progress() {
-    CURRENT_STEP=$((CURRENT_STEP + 1))
-    local ELAPSED=$((SECONDS - SCRIPT_START_TIME))
-    echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}[$CURRENT_STEP/$TOTAL_STEPS] $1${NC} ${CYAN}(${ELAPSED}s elapsed)${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
-}
-
-# =============================================================================
-# Prerequisites Check
-# =============================================================================
+# -----------------------------------------------------------------------------
+# Show deployment plan
+# -----------------------------------------------------------------------------
 print_header "xshopai Local Docker Deployment"
 
 echo -e "${CYAN}Configuration:${NC}"
-echo -e "  Deploy Infrastructure: ${DEPLOY_INFRA}"
-echo -e "  Deploy Databases:      ${DEPLOY_DBS}"
-echo -e "  Deploy Services:       ${DEPLOY_SERVICES}"
-echo -e "  Deploy Frontends:      ${DEPLOY_FRONTENDS}"
-echo -e "  Skip Build:            ${SKIP_BUILD}"
-echo -e "  Clean First:           ${CLEAN_FIRST}"
+echo -e "  Build Images:     ${BUILD_IMAGES}"
+echo -e "  Dapr Enabled:     ${DAPR_ENABLED}"
+echo -e "  Clean First:      ${CLEAN_FIRST}"
+echo -e "  Deploy Infra:     ${DEPLOY_INFRA}"
+echo -e "  Deploy Databases: ${DEPLOY_DBS}"
 echo ""
+
+if [ ${#SERVICES_TO_DEPLOY[@]} -gt 0 ]; then
+    echo -e "${CYAN}Services to deploy:${NC}"
+    for service in "${!SERVICES_TO_DEPLOY[@]}"; do
+        echo -e "  - $service"
+    done
+    echo ""
+fi
 
 # Check Docker
 check_docker
@@ -168,14 +242,14 @@ fi
 # =============================================================================
 # Deploy Network
 # =============================================================================
-print_progress "Setting up Docker Network"
+print_header "Setting up Docker Network"
 source "$MODULES_DIR/01-network.sh"
 
 # =============================================================================
 # Deploy Infrastructure
 # =============================================================================
 if [ "$DEPLOY_INFRA" = true ]; then
-    print_progress "Deploying Infrastructure Services"
+    print_header "Deploying Infrastructure Services"
     source "$MODULES_DIR/02-infrastructure.sh"
 fi
 
@@ -183,42 +257,29 @@ fi
 # Deploy Databases
 # =============================================================================
 if [ "$DEPLOY_DBS" = true ]; then
-    print_progress "Deploying MongoDB Databases"
+    print_header "Deploying Databases"
     source "$MODULES_DIR/03-mongodb.sh"
-    
-    print_progress "Deploying PostgreSQL Databases"
     source "$MODULES_DIR/04-postgresql.sh"
-    
-    print_progress "Deploying SQL Server Databases"
     source "$MODULES_DIR/05-sqlserver.sh"
-    
-    print_progress "Deploying MySQL Database"
     source "$MODULES_DIR/06-mysql.sh"
 fi
 
 # =============================================================================
-# Deploy Application Services
+# Deploy Individual Services
 # =============================================================================
-if [ "$DEPLOY_SERVICES" = true ]; then
-    print_progress "Deploying Node.js Services"
-    source "$MODULES_DIR/07-nodejs-services.sh"
+if [ ${#SERVICES_TO_DEPLOY[@]} -gt 0 ]; then
+    print_header "Deploying Application Services"
     
-    print_progress "Deploying Python Services"
-    source "$MODULES_DIR/08-python-services.sh"
-    
-    print_progress "Deploying .NET Services"
-    source "$MODULES_DIR/09-dotnet-services.sh"
-    
-    print_progress "Deploying Java Services"
-    source "$MODULES_DIR/10-java-services.sh"
-fi
-
-# =============================================================================
-# Deploy Frontend Applications
-# =============================================================================
-if [ "$DEPLOY_FRONTENDS" = true ]; then
-    print_progress "Deploying Frontend Applications"
-    source "$MODULES_DIR/11-frontends.sh"
+    for service in "${!SERVICES_TO_DEPLOY[@]}"; do
+        service_script="$SERVICES_DIR/${service}.sh"
+        
+        if [ -f "$service_script" ]; then
+            print_subheader "Deploying $service"
+            source "$service_script"
+        else
+            print_error "Service script not found: $service_script"
+        fi
+    done
 fi
 
 # =============================================================================
@@ -230,6 +291,10 @@ print_header "Deployment Complete! (${TOTAL_TIME}s)"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}                    xshopai Platform is Ready!                               ${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Show running containers
+echo -e "\n${CYAN}Running xshopai containers:${NC}"
+docker ps --filter "name=xshopai-" --format "  {{.Names}}: {{.Status}}" 2>/dev/null || echo "  No containers running"
 
 echo -e "\n${CYAN}📱 Frontend Applications:${NC}"
 echo -e "  Customer UI:            ${GREEN}http://localhost:3000${NC}"
@@ -256,9 +321,16 @@ echo -e "  RabbitMQ Management:    ${GREEN}http://localhost:15672${NC} (admin/ad
 echo -e "  Jaeger UI:              ${GREEN}http://localhost:16686${NC}"
 echo -e "  Mailpit UI:             ${GREEN}http://localhost:8025${NC}"
 
+if [ "$DAPR_ENABLED" = true ]; then
+    echo -e "\n${CYAN}🔗 Dapr Sidecars:${NC}"
+    echo -e "  Dapr sidecars are running alongside services"
+    echo -e "  Each service can communicate via Dapr at localhost:3500"
+fi
+
 echo -e "\n${CYAN}📊 Useful Commands:${NC}"
 echo -e "  View all containers:    ${YELLOW}docker ps --filter 'name=xshopai-'${NC}"
 echo -e "  View container logs:    ${YELLOW}docker logs -f xshopai-<service-name>${NC}"
+echo -e "  Deploy single service:  ${YELLOW}./deploy.sh --<service-name>${NC}"
 echo -e "  Stop all containers:    ${YELLOW}./stop.sh${NC}"
 echo -e "  Check status:           ${YELLOW}./status.sh${NC}"
 

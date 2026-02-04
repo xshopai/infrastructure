@@ -1,6 +1,6 @@
 # xshopai Local Docker Deployment
 
-This folder contains scripts to deploy the entire xshopai microservices platform locally using pure Docker commands (no docker-compose). This provides a production-like environment for local development and testing.
+This folder contains scripts to deploy the entire xshopai microservices platform locally using pure Docker commands. The deployment system supports both full platform deployment and individual service deployment.
 
 ## Overview
 
@@ -8,8 +8,74 @@ The local Docker deployment creates all infrastructure, databases, and services 
 
 - **Full Platform Testing**: Test the entire microservices ecosystem locally
 - **Production Parity**: Same container images as production deployments
-- **Isolated Development**: Each service runs in its own container with dedicated database
-- **Easy Debugging**: View logs, restart services, and inspect containers individually
+- **Individual Service Deployment**: Deploy and debug single services independently
+- **Optional Dapr Support**: Run with or without Dapr sidecars
+- **Pre-built Images**: Assumes images are already built (use `--build` to build)
+
+## Quick Start
+
+```bash
+# Deploy everything (all services, databases, infrastructure)
+./deploy.sh
+
+# Deploy only infrastructure and databases
+./deploy.sh --infra --databases
+
+# Deploy a single service (for debugging)
+./deploy.sh --auth-service
+
+# Deploy multiple specific services
+./deploy.sh --auth-service --user-service --product-service
+
+# Deploy with Dapr sidecars enabled
+./deploy.sh --dapr --all
+
+# Build images before deploying
+./deploy.sh --build --product-service
+
+# Clean and redeploy everything
+./deploy.sh --clean --all
+```
+
+## Directory Structure
+
+```
+docker/
+├── deploy.sh              # Main deployment orchestrator
+├── stop.sh                # Stop all containers
+├── status.sh              # Show container status
+├── cleanup.sh             # Remove containers, volumes, networks
+├── logs.sh                # View container logs
+├── docs/
+│   ├── README.md          # This file
+│   └── port-mapping.md    # Port reference
+└── modules/
+    ├── common.sh          # Shared utilities
+    ├── 01-network.sh      # Docker network setup
+    ├── 02-infrastructure.sh  # RabbitMQ, Redis, Jaeger, Mailpit
+    ├── 03-mongodb.sh      # MongoDB instances
+    ├── 04-postgresql.sh   # PostgreSQL instances
+    ├── 05-sqlserver.sh    # SQL Server instances
+    ├── 06-mysql.sh        # MySQL instance
+    └── services/          # Individual service scripts
+        ├── _common.sh     # Service deployment functions
+        ├── auth-service.sh
+        ├── user-service.sh
+        ├── product-service.sh
+        ├── inventory-service.sh
+        ├── order-service.sh
+        ├── payment-service.sh
+        ├── cart-service.sh
+        ├── review-service.sh
+        ├── admin-service.sh
+        ├── notification-service.sh
+        ├── audit-service.sh
+        ├── chat-service.sh
+        ├── order-processor-service.sh
+        ├── web-bff.sh
+        ├── customer-ui.sh
+        └── admin-ui.sh
+```
 
 ## Architecture
 
