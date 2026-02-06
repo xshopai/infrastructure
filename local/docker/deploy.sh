@@ -217,6 +217,69 @@ fi
 check_docker
 
 # =============================================================================
+# Initialize Dapr (if not already initialized)
+# =============================================================================
+print_header "Checking Dapr Installation"
+
+# Check if Dapr CLI is installed
+if ! command -v dapr &> /dev/null; then
+    print_error "Dapr CLI not found!"
+    echo -e "\n${YELLOW}Please install Dapr CLI:${NC}"
+    echo -e "  Windows:  ${CYAN}winget install Dapr.CLI${NC}"
+    echo -e "  macOS:    ${CYAN}brew install dapr/tap/dapr-cli${NC}"
+    echo -e "  Linux:    ${CYAN}wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash${NC}"
+    echo -e "\nOr visit: ${CYAN}https://docs.dapr.io/getting-started/install-dapr-cli/${NC}"
+    exit 1
+fi
+
+print_success "Dapr CLI found: $(dapr version | grep 'CLI version' | awk '{print $3}')"
+
+# Check if Dapr runtime is initialized
+print_step "Checking Dapr runtime initialization..."
+DAPR_VERSION_OUTPUT=$(dapr version 2>&1)
+
+if echo "$DAPR_VERSION_OUTPUT" | grep -q "Runtime version: n/a"; then
+    print_warning "Dapr runtime not initialized"
+    print_step "Initializing Dapr runtime (this may take a minute)..."
+    
+    if dapr init; then
+        print_success "Dapr initialized successfully!"
+        echo -e "${CYAN}Created containers:${NC}"
+        echo -e "  - dapr_redis (port 6379)     - State store and caching"
+        echo -e "  - dapr_zipkin (port 9411)    - Distributed tracing"
+        echo -e "  - dapr_placement (port 6050) - Actor placement"
+        echo -e "  - dapr_scheduler (port 6060) - Job scheduling"
+    else
+        print_error "Failed to initialize Dapr"
+        echo -e "\n${YELLOW}Try running manually:${NC} ${CYAN}dapr init${NC}"
+        exit 1
+    fi
+else
+    RUNTIME_VERSION=$(echo "$DAPR_VERSION_OUTPUT" | grep 'Runtime version' | awk '{print $3}')
+    print_success "Dapr runtime already initialized: $RUNTIME_VERSION"
+    
+    # Verify Dapr containers are running
+    print_step "Verifying Dapr containers..."
+    MISSING_CONTAINERS=()
+    
+    for container in "dapr_redis" "dapr_zipkin" "dapr_placement" "dapr_scheduler"; do
+        if ! docker ps --filter "name=$container" --format "{{.Names}}" | grep -q "$container"; then
+            MISSING_CONTAINERS+=("$container")
+        fi
+    done
+    
+    if [ ${#MISSING_CONTAINERS[@]} -gt 0 ]; then
+        print_warning "Some Dapr containers are not running: ${MISSING_CONTAINERS[*]}"
+        print_step "Reinitializing Dapr..."
+        dapr uninstall --all
+        dapr init
+        print_success "Dapr reinitialized"
+    else
+        print_success "All Dapr containers are running"
+    fi
+fi
+
+# =============================================================================
 # Clean up if requested
 # =============================================================================
 if [ "$CLEAN_FIRST" = true ]; then
@@ -318,8 +381,14 @@ echo -e "  Chat Service:           ${GREEN}http://localhost:8013${NC}"
 
 echo -e "\n${CYAN}🛠️ Infrastructure:${NC}"
 echo -e "  RabbitMQ Management:    ${GREEN}http://localhost:15672${NC} (admin/admin123)"
-echo -e "  Jaeger UI:              ${GREEN}http://localhost:16686${NC}"
+echo -e "  Zipkin (Dapr):          ${GREEN}http://localhost:9411${NC}"
 echo -e "  Mailpit UI:             ${GREEN}http://localhost:8025${NC}"
+
+echo -e "\n${CYAN}🔗 Dapr Infrastructure:${NC}"
+echo -e "  Redis (State Store):    ${GREEN}localhost:6379${NC}"
+echo -e "  Zipkin (Tracing):       ${GREEN}http://localhost:9411${NC}"
+echo -e "  Placement:              ${GREEN}localhost:6050${NC}"
+echo -e "  Scheduler:              ${GREEN}localhost:6060${NC}"
 
 if [ "$DAPR_ENABLED" = true ]; then
     echo -e "\n${CYAN}🔗 Dapr Sidecars:${NC}"

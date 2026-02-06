@@ -29,8 +29,8 @@ export LOCAL_DIR="$(dirname "$SCRIPTS_DIR")"
 export INFRA_DIR="$(dirname "$LOCAL_DIR")"
 export WORKSPACE_DIR="$(dirname "$INFRA_DIR")"
 
-# Service directories
-export SERVICES_DIR="$WORKSPACE_DIR"
+# Service source code directories (for building images)
+export SERVICE_REPOS_DIR="$WORKSPACE_DIR"
 
 # -----------------------------------------------------------------------------
 # Network Configuration

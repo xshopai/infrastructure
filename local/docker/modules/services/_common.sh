@@ -58,9 +58,15 @@ deploy_service() {
         return 1
     fi
     
-    # Build image if requested
+    # Build image if requested or if image doesn't exist
     if [ "${BUILD_IMAGES:-false}" = "true" ]; then
+        print_info "Building image (--build flag)"
         build_service_image "$service_name" "$service_dir" "$IMAGE_TAG"
+    elif ! docker image inspect "$image_name" &> /dev/null; then
+        print_warning "Image not found locally, building: $image_name"
+        build_service_image "$service_name" "$service_dir" "$IMAGE_TAG"
+    else
+        print_info "Using existing image: $image_name"
     fi
     
     # Stop existing containers
@@ -131,7 +137,7 @@ deploy_dapr_sidecar() {
     local components_path="${4:-}"
     
     local sidecar_name="${app_container}-dapr"
-    local service_dir="$SERVICES_DIR/${app_id}"
+    local service_dir="$SERVICE_REPOS_DIR/${app_id}"
     
     print_step "Starting Dapr sidecar for ${app_id}..."
     
@@ -270,7 +276,7 @@ deploy_frontend() {
     
     local container_name="xshopai-${service_name}"
     local image_name="xshopai/${service_name}:${IMAGE_TAG}"
-    local service_dir="$SERVICES_DIR/${service_name}"
+    local service_dir="$SERVICE_REPOS_DIR/${service_name}"
     
     print_subheader "Deploying ${service_name} (port ${external_port})"
     
@@ -280,9 +286,15 @@ deploy_frontend() {
         return 1
     fi
     
-    # Build image if requested
+    # Build image if requested or if image doesn't exist
     if [ "${BUILD_IMAGES:-false}" = "true" ]; then
+        print_info "Building image (--build flag)"
         build_service_image "$service_name" "$service_dir" "$IMAGE_TAG"
+    elif ! docker image inspect "$image_name" &> /dev/null; then
+        print_warning "Image not found locally, building: $image_name"
+        build_service_image "$service_name" "$service_dir" "$IMAGE_TAG"
+    else
+        print_info "Using existing image: $image_name"
     fi
     
     # Stop existing container

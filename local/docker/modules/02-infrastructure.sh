@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # =============================================================================
-# Module 02: Infrastructure Services (RabbitMQ, Redis, Observability)
+# Module 02: Infrastructure Services (RabbitMQ, Mailpit)
 # =============================================================================
 # Deploys shared infrastructure services:
 # - RabbitMQ (Message Broker)
-# - Redis (Cache/State Store for Dapr)
-# - Jaeger (Distributed Tracing)
 # - Mailpit (Email Testing)
+#
+# Note: Redis and Zipkin are managed by Dapr (dapr init)
 # =============================================================================
 
 set -e
@@ -57,82 +57,6 @@ fi
 wait_for_container "$RABBITMQ_CONTAINER" 60
 
 # =============================================================================
-# Redis (Cache/State Store)
-# =============================================================================
-print_subheader "Redis Cache/State Store"
-
-REDIS_CONTAINER="xshopai-redis"
-REDIS_IMAGE="redis:7-alpine"
-REDIS_PORT="6379"
-REDIS_PASSWORD="${REDIS_PASSWORD:-redis123}"
-
-ensure_image "$REDIS_IMAGE"
-
-if is_container_running "$REDIS_CONTAINER"; then
-    print_info "Redis is already running"
-else
-    remove_container "$REDIS_CONTAINER"
-    
-    docker run -d \
-        --name "$REDIS_CONTAINER" \
-        --network "$DOCKER_NETWORK" \
-        --restart unless-stopped \
-        -p "${REDIS_PORT}:6379" \
-        -v xshopai_redis_data:/data \
-        --health-cmd "redis-cli ping | grep PONG" \
-        --health-interval 10s \
-        --health-timeout 5s \
-        --health-retries 5 \
-        "$REDIS_IMAGE" \
-        redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"
-    
-    print_success "Redis started"
-fi
-
-wait_for_container "$REDIS_CONTAINER" 30
-
-# =============================================================================
-# Jaeger (Distributed Tracing)
-# =============================================================================
-print_subheader "Jaeger Distributed Tracing"
-
-JAEGER_CONTAINER="xshopai-jaeger"
-JAEGER_IMAGE="jaegertracing/all-in-one:latest"
-JAEGER_UI_PORT="16686"
-JAEGER_COLLECTOR_HTTP="14268"
-JAEGER_COLLECTOR_GRPC="14250"
-JAEGER_OTLP_HTTP="4318"
-JAEGER_OTLP_GRPC="4317"
-
-ensure_image "$JAEGER_IMAGE"
-
-if is_container_running "$JAEGER_CONTAINER"; then
-    print_info "Jaeger is already running"
-else
-    remove_container "$JAEGER_CONTAINER"
-    
-    docker run -d \
-        --name "$JAEGER_CONTAINER" \
-        --network "$DOCKER_NETWORK" \
-        --restart unless-stopped \
-        -p "${JAEGER_UI_PORT}:16686" \
-        -p "${JAEGER_COLLECTOR_HTTP}:14268" \
-        -p "${JAEGER_COLLECTOR_GRPC}:14250" \
-        -p "${JAEGER_OTLP_HTTP}:4318" \
-        -p "${JAEGER_OTLP_GRPC}:4317" \
-        -e COLLECTOR_OTLP_ENABLED=true \
-        --health-cmd "wget --spider -q http://localhost:16686/ || exit 1" \
-        --health-interval 10s \
-        --health-timeout 5s \
-        --health-retries 3 \
-        "$JAEGER_IMAGE"
-    
-    print_success "Jaeger started"
-fi
-
-wait_for_container "$JAEGER_CONTAINER" 30
-
-# =============================================================================
 # Mailpit (Email Testing)
 # =============================================================================
 print_subheader "Mailpit Email Testing Server"
@@ -176,8 +100,10 @@ print_header "Infrastructure Services Deployed"
 
 echo -e "\n${CYAN}Service URLs:${NC}"
 echo -e "  RabbitMQ Management:  ${GREEN}http://localhost:${RABBITMQ_MGMT_PORT}${NC} (${RABBITMQ_USER}/${RABBITMQ_PASS})"
-echo -e "  Redis:                ${GREEN}localhost:${REDIS_PORT}${NC} (password: ${REDIS_PASSWORD})"
-echo -e "  Jaeger UI:            ${GREEN}http://localhost:${JAEGER_UI_PORT}${NC}"
+echo -e "  Redis (Dapr):         ${GREEN}localhost:6379${NC} (managed by dapr init)"
+echo -e "  Zipkin (Dapr):        ${GREEN}http://localhost:9411${NC} (managed by dapr init)"
 echo -e "  Mailpit UI:           ${GREEN}http://localhost:${MAILPIT_UI_PORT}${NC}"
+
+echo -e "\n${YELLOW}Note:${NC} Redis and Zipkin are managed by Dapr. Run 'dapr init' to create dapr_redis and dapr_zipkin containers."
 
 print_success "Infrastructure deployment complete"
