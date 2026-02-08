@@ -231,7 +231,7 @@ echo "   Resource Group:        $RESOURCE_GROUP"
 echo "   Managed Identity:      $MANAGED_IDENTITY"
 echo "   Container Registry:    $ACR_NAME"
 echo "   Log Analytics:         $LOG_ANALYTICS"
-echo "   Application Insights:  $APP_INSIGHTS"
+echo "   Application Insights:  ${APP_INSIGHTS_PREFIX}-<service> (16 services)"
 echo "   Container Apps Env:    $CONTAINER_ENV"
 echo "   Service Bus:           $SERVICE_BUS"
 echo "   Redis Cache:           $REDIS_NAME"
@@ -296,9 +296,9 @@ log_debug "Deploying ACR: $ACR_NAME"
 deploy_acr || { print_error "ACR deployment failed"; exit 1; }
 log_debug "ACR deployed successfully"
 
-log_debug "Deploying Monitoring (Log Analytics: $LOG_ANALYTICS, App Insights: $APP_INSIGHTS)"
+log_debug "Deploying Monitoring (Log Analytics: $LOG_ANALYTICS, App Insights: ${APP_INSIGHTS_PREFIX}-<service>)"
 deploy_monitoring || { print_error "Monitoring deployment failed"; exit 1; }
-log_debug "Monitoring deployed successfully"
+log_debug "Monitoring deployed successfully (${#APP_INSIGHTS_CONNECTIONS[@]} App Insights resources)"
 
 # -----------------------------------------------------------------------------
 # Step 4: Container Apps Environment

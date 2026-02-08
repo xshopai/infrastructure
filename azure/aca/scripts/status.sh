@@ -584,13 +584,25 @@ else
     check_fail "Log Analytics not found: $LOG_ANALYTICS"
 fi
 
-if az monitor app-insights component show --app "$APP_INSIGHTS" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
-    check_pass "Application Insights exists: $APP_INSIGHTS"
-    
-    APP_INSIGHTS_KEY=$(az monitor app-insights component show --app "$APP_INSIGHTS" --resource-group "$RESOURCE_GROUP" --query instrumentationKey -o tsv)
-    check_info "Instrumentation Key: ${APP_INSIGHTS_KEY:0:8}..."
+# Check per-service Application Insights resources
+check_info "Checking per-service Application Insights..."
+APP_INSIGHTS_COUNT=0
+APP_INSIGHTS_MISSING=0
+
+for SERVICE in "${XSHOPAI_SERVICES[@]}"; do
+    APP_INSIGHTS_NAME="${APP_INSIGHTS_PREFIX}-${SERVICE}"
+    if az monitor app-insights component show --app "$APP_INSIGHTS_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+        APP_INSIGHTS_COUNT=$((APP_INSIGHTS_COUNT + 1))
+    else
+        APP_INSIGHTS_MISSING=$((APP_INSIGHTS_MISSING + 1))
+        check_warn "  Missing App Insights: $APP_INSIGHTS_NAME"
+    fi
+done
+
+if [ $APP_INSIGHTS_MISSING -eq 0 ]; then
+    check_pass "All ${APP_INSIGHTS_COUNT} per-service App Insights resources exist"
 else
-    check_fail "Application Insights not found: $APP_INSIGHTS"
+    check_warn "App Insights: $APP_INSIGHTS_COUNT found, $APP_INSIGHTS_MISSING missing"
 fi
 
 # =============================================================================

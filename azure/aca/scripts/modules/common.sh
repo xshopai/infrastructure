@@ -118,6 +118,30 @@ create_role_assignment() {
 }
 
 # -----------------------------------------------------------------------------
+# Service List
+# All microservices in the xshopai platform (used for per-service App Insights)
+# -----------------------------------------------------------------------------
+XSHOPAI_SERVICES=(
+    "admin-service"
+    "admin-ui"
+    "audit-service"
+    "auth-service"
+    "cart-service"
+    "chat-service"
+    "customer-ui"
+    "inventory-service"
+    "notification-service"
+    "order-processor-service"
+    "order-service"
+    "payment-service"
+    "product-service"
+    "review-service"
+    "user-service"
+    "web-bff"
+)
+export XSHOPAI_SERVICES
+
+# -----------------------------------------------------------------------------
 # Resource naming helper
 # Generates consistent resource names based on project, environment, and suffix
 # -----------------------------------------------------------------------------
@@ -129,7 +153,8 @@ generate_resource_names() {
     # Resources with hyphens allowed
     export RESOURCE_GROUP="rg-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
     export LOG_ANALYTICS="law-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
-    export APP_INSIGHTS="appi-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
+    # APP_INSIGHTS is now per-service, use APP_INSIGHTS_PREFIX for naming
+    export APP_INSIGHTS_PREFIX="appi-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
     export CONTAINER_ENV="cae-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
     export REDIS_NAME="redis-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"
     export MYSQL_SERVER="mysql-${PROJECT_NAME}-${ENVIRONMENT}-${SUFFIX}"

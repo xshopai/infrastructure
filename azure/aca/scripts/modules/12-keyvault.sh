@@ -24,7 +24,24 @@
 #   - MYSQL_SERVER_CONNECTION -> mysql-server-connection
 #   - SQL_SERVER_CONNECTION -> sql-server-connection
 #   - POSTGRES_SERVER_CONNECTION -> postgres-server-connection
-#   - APP_INSIGHTS_CONNECTION_STRING -> appinsights-connection
+#
+# Per-Service Application Insights (from APP_INSIGHTS_CONNECTIONS associative array):
+#   - appinsights-admin-service (for admin-service)
+#   - appinsights-admin-ui (for admin-ui)
+#   - appinsights-audit-service (for audit-service)
+#   - appinsights-auth-service (for auth-service)
+#   - appinsights-cart-service (for cart-service)
+#   - appinsights-chat-service (for chat-service)
+#   - appinsights-customer-ui (for customer-ui)
+#   - appinsights-inventory-service (for inventory-service)
+#   - appinsights-notification-service (for notification-service)
+#   - appinsights-order-processor-service (for order-processor-service)
+#   - appinsights-order-service (for order-service)
+#   - appinsights-payment-service (for payment-service)
+#   - appinsights-product-service (for product-service)
+#   - appinsights-review-service (for review-service)
+#   - appinsights-user-service (for user-service)
+#   - appinsights-web-bff (for web-bff)
 #
 # Communication Services Secrets (from 14-communication-service.sh):
 #   - ACS_CONNECTION_STRING -> acs-connection-string
@@ -205,7 +222,22 @@ store_keyvault_secrets() {
     store_secret "mysql-server-connection" "$MYSQL_SERVER_CONNECTION"
     store_secret "sql-server-connection" "$SQL_SERVER_CONNECTION"
     store_secret "postgres-server-connection" "$POSTGRES_SERVER_CONNECTION"
-    store_secret "appinsights-connection" "$APP_INSIGHTS_CONNECTION_STRING"
+    
+    # Per-Service Application Insights connection strings
+    # Each service gets its own App Insights for clean telemetry separation
+    # Secret name: appinsights-<service-name> (e.g., appinsights-admin-service)
+    print_info "Storing per-service Application Insights connection strings..."
+    
+    if [ ${#APP_INSIGHTS_CONNECTIONS[@]} -gt 0 ]; then
+        for SERVICE in "${!APP_INSIGHTS_CONNECTIONS[@]}"; do
+            local SECRET_NAME="appinsights-${SERVICE}"
+            local CONNECTION_STRING="${APP_INSIGHTS_CONNECTIONS[$SERVICE]}"
+            store_secret "$SECRET_NAME" "$CONNECTION_STRING"
+        done
+        print_success "Stored ${#APP_INSIGHTS_CONNECTIONS[@]} App Insights connection strings"
+    else
+        print_warning "No App Insights connections found - run 04-monitoring.sh first"
+    fi
     
     # Azure Communication Services secrets (from 14-communication-service.sh)
     # These are used by notification-service for email sending
