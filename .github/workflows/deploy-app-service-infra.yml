@@ -72,45 +72,73 @@ jobs:
           echo "✅ Resource Group: rg-xshopai-gh-$ENV"
 
       # ========================================================================
-      # IDEMPOTENT SECRET MANAGEMENT
-      # Check if secrets exist BEFORE deploying, generate only if missing
+      # PHASE 1: CHECK DEPLOYMENT STATE
+      # Determine if this is a fresh deployment or an update
+      # ========================================================================
+
+      - name: Check Deployment State
+        id: state
+        run: |
+          echo "🔍 Checking if infrastructure already exists..."
+          
+          RG_NAME="${{ steps.env.outputs.resourceGroup }}"
+          KV_NAME="${{ steps.env.outputs.keyVaultName }}"
+          
+          # Check if Resource Group exists (indicates previous deployment)
+          if az group show --name "$RG_NAME" &> /dev/null; then
+            echo "✅ Resource Group exists: $RG_NAME"
+            echo "existingDeployment=true" >> $GITHUB_OUTPUT
+            
+            # Check if Key Vault exists
+            if az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &> /dev/null; then
+              echo "✅ Key Vault exists: $KV_NAME"
+              echo "keyVaultExists=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Key Vault not found (will be created)"
+              echo "keyVaultExists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "📦 Fresh deployment - Resource Group does not exist"
+            echo "existingDeployment=false" >> $GITHUB_OUTPUT
+            echo "keyVaultExists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ========================================================================
+      # PHASE 2: SECRET MANAGEMENT
+      # Reuse existing secrets or generate new ones
       # ========================================================================
 
       - name: Get or Generate Database Password
         id: dbpassword
         run: |
-          echo "🔐 Checking for existing database password..."
-
           KV_NAME="${{ steps.env.outputs.keyVaultName }}"
-          RG_NAME="${{ steps.env.outputs.resourceGroup }}"
-
-          # Check if Key Vault and secret exist
-          if az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &> /dev/null; then
-            echo "Key Vault exists, checking for db-admin-password secret..."
+          KV_EXISTS="${{ steps.state.outputs.keyVaultExists }}"
+          
+          if [ "$KV_EXISTS" == "true" ]; then
+            echo "🔐 Retrieving existing database password from Key Vault..."
             
-            # Try to get existing password
             EXISTING_PASSWORD=$(az keyvault secret show --vault-name "$KV_NAME" --name db-admin-password --query value -o tsv 2>/dev/null || echo "")
             
             if [ -n "$EXISTING_PASSWORD" ]; then
-              echo "✅ Using existing database password from Key Vault"
+              echo "✅ Using existing database password"
               echo "password=$EXISTING_PASSWORD" >> $GITHUB_OUTPUT
               echo "isNew=false" >> $GITHUB_OUTPUT
             else
-              echo "⚠️ Secret not found, generating new password..."
-              # Generate password meeting SQL Server requirements: uppercase, lowercase, number, special char
+              echo "⚠️ Secret not found in Key Vault, generating new password..."
               NEW_PASSWORD="Xshop$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)@1"
               echo "password=$NEW_PASSWORD" >> $GITHUB_OUTPUT
               echo "isNew=true" >> $GITHUB_OUTPUT
             fi
           else
-            echo "⚠️ Key Vault doesn't exist yet, generating new password..."
+            echo "🆕 First-time deployment - generating database password..."
             NEW_PASSWORD="Xshop$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)@1"
             echo "password=$NEW_PASSWORD" >> $GITHUB_OUTPUT
             echo "isNew=true" >> $GITHUB_OUTPUT
           fi
 
       # ========================================================================
-      # DEPLOY BICEP TEMPLATE
+      # PHASE 3: DEPLOY INFRASTRUCTURE
+      # Bicep creates: RG, Key Vault, databases, App Services, etc.
       # ========================================================================
 
       - name: Deploy Bicep template
@@ -152,8 +180,8 @@ jobs:
           echo "✅ Key Vault: $KV_NAME"
 
       # ========================================================================
-      # STORE/UPDATE SECRETS IN KEY VAULT (Idempotent)
-      # Only creates secrets if they don't exist
+      # PHASE 4: STORE SECRETS IN KEY VAULT
+      # Now that Key Vault exists (from Bicep), store generated secrets
       # ========================================================================
 
       - name: Store Database Password in Key Vault
@@ -233,7 +261,7 @@ jobs:
           fi
 
       # ========================================================================
-      # DEPLOYMENT SUMMARY
+      # PHASE 5: DEPLOYMENT SUMMARY
       # ========================================================================
 
       - name: Deployment Summary
