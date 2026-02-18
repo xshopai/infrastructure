@@ -1,0 +1,217 @@
+name: Deploy App Service Infrastructure
+
+on:
+  # Automatic trigger on push to main (CI)
+  push:
+    branches:
+      - main
+    paths:
+      - "azure/app-service/bicep/**"
+      - ".github/workflows/deploy-app-service-infra.yml"
+
+  # Manual trigger (workflow_dispatch) - CD
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        type: choice
+        options:
+          - development
+          - production
+      skipSecrets:
+        description: "Skip secret generation (if already exist)"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  LOCATION: eastus
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy Infrastructure to ${{ inputs.environment || 'development' }}
+    runs-on: ubuntu-latest
+
+    # Use GitHub environment for production approval
+    environment:
+      name: ${{ inputs.environment || (github.event_name == 'push' && 'development') || 'development' }}
+      url: https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-xshopai-gh-${{ inputs.environment || 'development' }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      keyVaultName: ${{ steps.deploy.outputs.keyVaultName }}
+      resourceGroupName: ${{ steps.deploy.outputs.resourceGroupName }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log deployment info
+        run: |
+          echo "🚀 Deploying infrastructure to: ${{ inputs.environment || 'development' }}"
+          echo "📍 Location: ${{ env.LOCATION }}"
+          echo "🔄 Trigger: ${{ github.event_name }}"
+
+      - name: Azure Login (Service Principal)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Set environment variables
+        id: env
+        run: |
+          ENV="${{ inputs.environment || 'development' }}"
+          SHORT_ENV="${ENV:0:3}"
+
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "shortEnv=$SHORT_ENV" >> $GITHUB_OUTPUT
+          echo "resourceGroup=rg-xshopai-gh-$ENV" >> $GITHUB_OUTPUT
+          echo "keyVaultName=kv-xshopai-gh-$SHORT_ENV" >> $GITHUB_OUTPUT
+
+          echo "✅ Environment: $ENV"
+          echo "✅ Resource Group: rg-xshopai-gh-$ENV"
+
+      - name: Deploy Bicep template
+        id: deploy
+        uses: azure/arm-deploy@v1
+        with:
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          resourceGroupName: ${{ steps.env.outputs.resourceGroup }}
+          template: ./azure/app-service/bicep/main.bicep
+          parameters: >
+            environment=${{ steps.env.outputs.environment }}
+            location=${{ env.LOCATION }}
+            acrName=${{ secrets.ACR_LOGIN_SERVER }}
+          deploymentName: "infra-${{ steps.env.outputs.environment }}-${{ github.run_number }}"
+          failOnStdErr: false
+          deploymentMode: Incremental
+
+      - name: Generate JWT Keys
+        if: ${{ !inputs.skipSecrets }}
+        id: jwt
+        run: |
+          echo "🔐 Generating JWT RS256 key pair..."
+
+          # Generate private key
+          openssl genrsa -out private.pem 2048
+
+          # Generate public key
+          openssl rsa -in private.pem -outform PEM -pubout -out public.pem
+
+          # Read keys and encode for GitHub output
+          PRIVATE_KEY=$(cat private.pem | base64 -w 0)
+          PUBLIC_KEY=$(cat public.pem | base64 -w 0)
+
+          echo "privateKey=$PRIVATE_KEY" >> $GITHUB_OUTPUT
+          echo "publicKey=$PUBLIC_KEY" >> $GITHUB_OUTPUT
+
+          echo "✅ JWT keys generated"
+
+      - name: Generate Passwords
+        if: ${{ !inputs.skipSecrets }}
+        id: passwords
+        run: |
+          echo "🔐 Generating secure passwords..."
+
+          ADMIN_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+          MONGODB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+          POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+          MYSQL_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+          SQLSERVER_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)Aa1!
+
+          echo "adminPassword=$ADMIN_PASSWORD" >> $GITHUB_OUTPUT
+          echo "mongodbPassword=$MONGODB_PASSWORD" >> $GITHUB_OUTPUT
+          echo "postgresPassword=$POSTGRES_PASSWORD" >> $GITHUB_OUTPUT
+          echo "mysqlPassword=$MYSQL_PASSWORD" >> $GITHUB_OUTPUT
+          echo "sqlserverPassword=$SQLSERVER_PASSWORD" >> $GITHUB_OUTPUT
+
+          echo "✅ Passwords generated"
+
+      - name: Store JWT Keys in Key Vault
+        if: ${{ !inputs.skipSecrets }}
+        run: |
+          echo "🔐 Storing JWT keys in Key Vault..."
+
+          PRIVATE_KEY=$(echo "${{ steps.jwt.outputs.privateKey }}" | base64 -d)
+          PUBLIC_KEY=$(echo "${{ steps.jwt.outputs.publicKey }}" | base64 -d)
+
+          az keyvault secret set \
+            --vault-name ${{ steps.env.outputs.keyVaultName }} \
+            --name jwt-private-key \
+            --value "$PRIVATE_KEY" \
+            --output none
+
+          az keyvault secret set \
+            --vault-name ${{ steps.env.outputs.keyVaultName }} \
+            --name jwt-public-key \
+            --value "$PUBLIC_KEY" \
+            --output none
+
+          echo "✅ JWT keys stored"
+
+      - name: Store Passwords in Key Vault
+        if: ${{ !inputs.skipSecrets }}
+        run: |
+          echo "🔐 Storing passwords in Key Vault..."
+
+          KV_NAME="${{ steps.env.outputs.keyVaultName }}"
+
+          az keyvault secret set --vault-name $KV_NAME --name admin-password --value "${{ steps.passwords.outputs.adminPassword }}" --output none
+          az keyvault secret set --vault-name $KV_NAME --name mongodb-password --value "${{ steps.passwords.outputs.mongodbPassword }}" --output none
+          az keyvault secret set --vault-name $KV_NAME --name postgres-password --value "${{ steps.passwords.outputs.postgresPassword }}" --output none
+          az keyvault secret set --vault-name $KV_NAME --name mysql-password --value "${{ steps.passwords.outputs.mysqlPassword }}" --output none
+          az keyvault secret set --vault-name $KV_NAME --name sqlserver-password --value "${{ steps.passwords.outputs.sqlserverPassword }}" --output none
+
+          echo "✅ Passwords stored"
+
+      - name: Display Generated Secrets Summary
+        if: ${{ !inputs.skipSecrets }}
+        run: |
+          echo "## 🔐 Generated Secrets Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All secrets have been generated and stored in Key Vault: **${{ steps.env.outputs.keyVaultName }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Secrets Created:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ jwt-private-key" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ jwt-public-key" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ admin-password" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ mongodb-password" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ postgres-password" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ mysql-password" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ sqlserver-password" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### View Secrets:" >> $GITHUB_STEP_SUMMARY
+          echo "[Open Key Vault in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ steps.env.outputs.resourceGroup }}/providers/Microsoft.KeyVault/vaults/${{ steps.env.outputs.keyVaultName }}/secrets)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Deployment Summary
+        run: |
+          echo "## 🎉 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Group:** ${{ steps.env.outputs.resourceGroup }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Location:** ${{ env.LOCATION }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Resources Deployed:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ RabbitMQ Container Instance" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Cosmos DB (MongoDB API)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ PostgreSQL Flexible Server" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ MySQL Flexible Server" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SQL Server + Database" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Redis Cache" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Key Vault" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Application Insights" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Log Analytics Workspace" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 16 App Services (empty, ready for deployment)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify resources in [Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ steps.env.outputs.resourceGroup }})" >> $GITHUB_STEP_SUMMARY
+          echo "2. Deploy services using their respective workflows" >> $GITHUB_STEP_SUMMARY
+          echo "3. Monitor deployments in Application Insights" >> $GITHUB_STEP_SUMMARY

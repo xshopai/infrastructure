@@ -1,0 +1,358 @@
+# =============================================================================
+# xshopai - Application Services Docker Compose Configuration
+# =============================================================================
+# This file contains all application services that depend on the infrastructure.
+# Start infrastructure first using docker-compose.infrastructure.yml
+#
+# Usage:
+#   docker-compose -f docker-compose.services.yml up -d
+#   docker-compose -f docker-compose.services.yml down
+#   docker-compose -f docker-compose.services.yml down --volumes  # Remove volumes
+#   docker-compose -f docker-compose.services.yml ps
+#
+# Or start both infrastructure and services together:
+#   docker-compose -f docker-compose.infrastructure.yml -f docker-compose.services.yml up -d
+
+services:
+  # ============================================================================
+  # Databases (each service's database is co-located with the service)
+  # ============================================================================
+
+  # MongoDB for User Service
+  user-mongodb:
+    image: mongo:latest
+    container_name: user-mongodb
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    env_file:
+      - ../../services/user-service/.env
+    volumes:
+      - user_mongodb_data:/data/db
+    networks:
+      - xshopai-network
+
+  # MongoDB for Product Service
+  product-mongodb:
+    image: mongo:latest
+    container_name: product-mongodb
+    restart: unless-stopped
+    ports:
+      - "27019:27017"
+    env_file:
+      - ../../services/product-service/.env
+    volumes:
+      - product_mongodb_data:/data/db
+    networks:
+      - xshopai-network
+
+  # MongoDB for Review Service
+  review-mongodb:
+    image: mongo:latest
+    container_name: review-mongodb
+    restart: unless-stopped
+    ports:
+      - "27020:27017"
+    env_file:
+      - ../../services/review-service/.env
+    volumes:
+      - review_mongodb_data:/data/db
+    networks:
+      - xshopai-network
+
+  # MongoDB for Auth Service
+  auth-mongodb:
+    image: mongo:latest
+    container_name: auth-mongodb
+    restart: unless-stopped
+    ports:
+      - "27021:27017"
+    env_file:
+      - ../../services/auth-service/.env
+    volumes:
+      - auth_mongodb_data:/data/db
+    networks:
+      - xshopai-network
+
+  # PostgreSQL for Audit Service
+  audit-postgres:
+    image: postgres:latest
+    container_name: audit-postgres
+    restart: unless-stopped
+    ports:
+      - "5434:5432"
+    env_file:
+      - ../../services/audit-service/.env
+    volumes:
+      - audit_postgres_data:/var/lib/postgresql
+    networks:
+      - xshopai-network
+
+  # PostgreSQL for Order Processor Service
+  order-processor-postgres:
+    image: postgres:latest
+    container_name: order-processor-postgres
+    restart: unless-stopped
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: order_processor_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - order_processor_postgres_data:/var/lib/postgresql
+      - ../../services/order-processor-service/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    networks:
+      - xshopai-network
+
+  # SQL Server for Order Service
+  order-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: order-sqlserver
+    restart: unless-stopped
+    ports:
+      - "1434:1433"
+    environment:
+      SA_PASSWORD: Admin123!
+      ACCEPT_EULA: Y
+      MSSQL_PID: Developer
+    volumes:
+      - order_sqlserver_data:/var/opt/mssql
+    networks:
+      - xshopai-network
+
+  # SQL Server for Payment Service
+  payment-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: payment-sqlserver
+    restart: unless-stopped
+    ports:
+      - "1433:1433"
+    environment:
+      SA_PASSWORD: Admin123!
+      ACCEPT_EULA: Y
+      MSSQL_DB: payment_service_db
+    volumes:
+      - payment_sqlserver_data:/var/opt/mssql
+    networks:
+      - xshopai-network
+
+  # MySQL for Inventory Service
+  inventory-mysql:
+    image: mysql:latest
+    container_name: inventory-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    env_file:
+      - ../../services/inventory-service/.env
+    volumes:
+      - inventory_mysql_data:/var/lib/mysql
+    networks:
+      - xshopai-network
+
+  # ============================================================================
+  # Node.js Microservices
+  # ============================================================================
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ../../services/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../../services/auth-service/.env
+    depends_on:
+      - auth-mongodb
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/auth-service:/app
+      - /app/node_modules
+
+  # User Service
+  user-service:
+    build:
+      context: ../../services/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../../services/user-service/.env
+    depends_on:
+      - user-mongodb
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/user-service:/app
+      - /app/node_modules
+
+  # Review Service
+  review-service:
+    build:
+      context: ../../services/review-service
+      dockerfile: Dockerfile
+    container_name: review-service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    env_file:
+      - ../../services/review-service/.env
+    depends_on:
+      - review-mongodb
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/review-service:/app
+      - /app/node_modules
+
+  # Audit Service
+  audit-service:
+    build:
+      context: ../../services/audit-service
+      dockerfile: Dockerfile
+    container_name: audit-service
+    restart: unless-stopped
+    ports:
+      - "1012:1012"
+    env_file:
+      - ../../services/audit-service/.env
+    depends_on:
+      - audit-postgres
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/audit-service:/app
+      - /app/node_modules
+
+  # ============================================================================
+  # Python Microservices
+  # ============================================================================
+
+  # Product Service
+  product-service:
+    build:
+      context: ../../services/product-service
+      dockerfile: Dockerfile
+    container_name: product-service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    env_file:
+      - ../../services/product-service/.env
+    depends_on:
+      - product-mongodb
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/product-service:/app
+
+  # Inventory Service
+  inventory-service:
+    build:
+      context: ../../services/inventory-service
+      dockerfile: Dockerfile
+    container_name: inventory-service
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    env_file:
+      - ../../services/inventory-service/.env
+    depends_on:
+      - inventory-mysql
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/inventory-service:/app
+
+  # ============================================================================
+  # .NET Microservices
+  # ============================================================================
+
+  # Order Service
+  order-service:
+    build:
+      context: ../../services/order-service
+      dockerfile: Dockerfile
+    container_name: order-service
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    depends_on:
+      - order-sqlserver
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/order-service:/app
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ../../services/payment-service
+      dockerfile: Dockerfile
+    container_name: payment-service
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    depends_on:
+      - payment-sqlserver
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/payment-service:/app
+
+  # ============================================================================
+  # Java Microservices
+  # ============================================================================
+
+  # Order Processor Service
+  order-processor-service:
+    build:
+      context: ../../services/order-processor-service
+      dockerfile: Dockerfile
+    container_name: order-processor-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - order-processor-postgres
+    networks:
+      - xshopai-network
+    volumes:
+      - ../../services/order-processor-service:/app
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  user_mongodb_data:
+    name: user_mongodb_data
+  product_mongodb_data:
+    name: product_mongodb_data
+  review_mongodb_data:
+    name: review_mongodb_data
+  auth_mongodb_data:
+    name: auth_mongodb_data
+  audit_postgres_data:
+    name: audit_postgres_data
+  order_sqlserver_data:
+    name: order_sqlserver_data
+  order_processor_postgres_data:
+    name: order_processor_postgres_data
+  payment_sqlserver_data:
+    name: payment_sqlserver_data
+  inventory_mysql_data:
+    name: inventory_mysql_data
+
+# ============================================================================
+# Network (shared with infrastructure)
+# ============================================================================
+networks:
+  xshopai-network:
+    external: true

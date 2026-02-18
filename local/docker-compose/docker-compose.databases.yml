@@ -1,0 +1,206 @@
+# =============================================================================
+# xshopai - Database Services Docker Compose Configuration
+# =============================================================================
+# This file contains only the database services needed by the application services.
+# Use this when running services locally with their dev scripts/tasks.
+#
+# Usage:
+#   docker-compose -f docker-compose.databases.yml up -d
+#   docker-compose -f docker-compose.databases.yml down
+#   docker-compose -f docker-compose.databases.yml down --volumes  # Remove volumes
+#   docker-compose -f docker-compose.databases.yml ps
+#
+# Start infrastructure + databases:
+#   docker-compose -f docker-compose.infrastructure.yml -f docker-compose.databases.yml up -d
+
+services:
+  # ============================================================================
+  # MongoDB Databases
+  # ============================================================================
+
+  # MongoDB for User Service
+  user-mongodb:
+    image: mongo:latest
+    container_name: user-mongodb
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: user_service_db
+    volumes:
+      - user_mongodb_data:/data/db
+    networks:
+      - xshopai-network
+
+  # MongoDB for Product Service
+  product-mongodb:
+    image: mongo:latest
+    container_name: product-mongodb
+    restart: unless-stopped
+    ports:
+      - "27019:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: product_service_db
+    volumes:
+      - product_mongodb_data:/data/db
+    networks:
+      - xshopai-network
+
+  # MongoDB for Review Service
+  review-mongodb:
+    image: mongo:latest
+    container_name: review-mongodb
+    restart: unless-stopped
+    ports:
+      - "27020:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: review_service_db
+    volumes:
+      - review_mongodb_data:/data/db
+    networks:
+      - xshopai-network
+
+  # MongoDB for Auth Service
+  auth-mongodb:
+    image: mongo:latest
+    container_name: auth-mongodb
+    restart: unless-stopped
+    ports:
+      - "27021:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: auth_service_db
+    volumes:
+      - auth_mongodb_data:/data/db
+    networks:
+      - xshopai-network
+
+  # ============================================================================
+  # PostgreSQL Databases
+  # ============================================================================
+
+  # PostgreSQL for Audit Service
+  audit-postgres:
+    image: postgres:16
+    container_name: audit-postgres
+    restart: unless-stopped
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: audit_service_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    volumes:
+      - audit_postgres_data:/var/lib/postgresql/data
+    networks:
+      - xshopai-network
+
+  # PostgreSQL for Order Processor Service
+  order-processor-postgres:
+    image: postgres:16
+    container_name: order-processor-postgres
+    restart: unless-stopped
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: order_processor_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - order_processor_postgres_data:/var/lib/postgresql/data
+    networks:
+      - xshopai-network
+
+  # ============================================================================
+  # SQL Server Databases
+  # ============================================================================
+
+  # SQL Server for Order Service
+  order-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: order-sqlserver
+    restart: unless-stopped
+    ports:
+      - "1434:1433"
+    environment:
+      SA_PASSWORD: Admin123!
+      ACCEPT_EULA: Y
+      MSSQL_PID: Developer
+    volumes:
+      - order_sqlserver_data:/var/opt/mssql
+    networks:
+      - xshopai-network
+
+  # SQL Server for Payment Service
+  payment-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: payment-sqlserver
+    restart: unless-stopped
+    ports:
+      - "1433:1433"
+    environment:
+      SA_PASSWORD: Admin123!
+      ACCEPT_EULA: Y
+      MSSQL_DB: payment_service_db
+    volumes:
+      - payment_sqlserver_data:/var/opt/mssql
+    networks:
+      - xshopai-network
+
+  # ============================================================================
+  # MySQL Database
+  # ============================================================================
+
+  # MySQL for Inventory Service
+  # MySQL for Inventory Service
+  inventory-mysql:
+    image: mysql:latest
+    container_name: inventory-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: inventory_root_pass_123
+      MYSQL_DATABASE: inventory_service_db
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin123
+    volumes:
+      - inventory_mysql_data:/var/lib/mysql
+    networks:
+      - xshopai-network
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  user_mongodb_data:
+    name: user_mongodb_data
+  product_mongodb_data:
+    name: product_mongodb_data
+  review_mongodb_data:
+    name: review_mongodb_data
+  auth_mongodb_data:
+    name: auth_mongodb_data
+  audit_postgres_data:
+    name: audit_postgres_data
+  order_sqlserver_data:
+    name: order_sqlserver_data
+  order_processor_postgres_data:
+    name: order_processor_postgres_data
+  payment_sqlserver_data:
+    name: payment_sqlserver_data
+  inventory_mysql_data:
+    name: inventory_mysql_data
+
+# ============================================================================
+# Network (shared with infrastructure)
+# ============================================================================
+networks:
+  xshopai-network:
+    external: true

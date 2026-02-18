@@ -1,0 +1,128 @@
+# =============================================================================
+# xshopai - Infrastructure Docker Compose Configuration
+# =============================================================================
+# This file contains SHARED infrastructure services needed for local development.
+#
+# Included Services:
+#   - RabbitMQ (Message Broker)      - Port 5672 (AMQP), 15672 (Management UI)
+#   - Zipkin (Distributed Tracing)   - Port 9411 (UI & API)
+#   - Mailpit (Email Testing)        - Port 1025 (SMTP), 8025 (Web UI)
+#
+# Database services are in docker-compose.databases.yml
+#
+# Usage:
+#   # Start infrastructure only
+#   docker-compose -f docker-compose.infrastructure.yml up -d
+#
+#   # Start infrastructure + databases
+#   docker-compose -f docker-compose.infrastructure.yml -f docker-compose.databases.yml up -d
+#
+#   # Stop services
+#   docker-compose -f docker-compose.infrastructure.yml down
+#
+#   # Remove volumes (WARNING: deletes all data)
+#   docker-compose -f docker-compose.infrastructure.yml down --volumes
+#
+#   # View running services
+#   docker-compose -f docker-compose.infrastructure.yml ps
+#
+# Access Points:
+#   - RabbitMQ UI:  http://localhost:15672 (admin/admin123)
+#   - Zipkin UI:    http://localhost:9411
+#   - Mailpit UI:   http://localhost:8025
+
+services:
+  # ============================================================================
+  # Message Broker & Middleware
+  # ============================================================================
+
+  # RabbitMQ (Message Broker - SHARED across all services)
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq-message-broker
+    restart: unless-stopped
+    ports:
+      - "5672:5672" # AMQP port
+      - "15672:15672" # Management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - xshopai-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # Observability
+  # ============================================================================
+
+  # Zipkin (Distributed Tracing)
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    restart: unless-stopped
+    ports:
+      - "9411:9411" # Zipkin UI and API
+    environment:
+      JAVA_OPTS: -Xms512m -Xmx512m
+    networks:
+      - xshopai-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9411/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ============================================================================
+  # Development Tools
+  # ============================================================================
+
+  # Mailpit (Email Testing Server)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP server
+      - "8025:8025" # Web UI
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      MP_UI_BIND_ADDR: 0.0.0.0:8025
+      MP_SMTP_BIND_ADDR: 0.0.0.0:1025
+    networks:
+      - xshopai-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8025",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  rabbitmq_data:
+    name: rabbitmq_data
+
+# ============================================================================
+# Network
+# ============================================================================
+networks:
+  xshopai-network:
+    name: xshopai-network
+    driver: bridge
