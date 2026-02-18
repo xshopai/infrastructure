@@ -80,17 +80,19 @@ prompt_input() {
     fi
 }
 
-# Prompt for confirmation
+# Prompt for confirmation (defaults to yes)
 prompt_confirm() {
     local prompt_text=$1
     local response
 
     while true; do
-        read -p "$(echo -e ${YELLOW}$prompt_text ${NC}[y/n]: )" response
+        read -p "$(echo -e ${YELLOW}$prompt_text ${NC}[${GREEN}yes${NC}]: )" response
+        # Default to yes if empty
+        response=${response:-yes}
         case $response in
-            [Yy]* ) return 0;;
-            [Nn]* ) return 1;;
-            * ) echo "Please answer yes (y) or no (n).";;
+            [Yy]* | yes | YES ) return 0;;
+            [Nn]* | no | NO ) return 1;;
+            * ) echo "Please answer yes or no.";;
         esac
     done
 }

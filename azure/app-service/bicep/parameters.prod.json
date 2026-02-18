@@ -6,10 +6,13 @@
       "value": "production"
     },
     "location": {
-      "value": "eastus"
+      "value": "swedencentral"
     },
-    "acrName": {
-      "value": "acrxshopaigh.azurecr.io"
+    "orgName": {
+      "value": "xshopai"
+    },
+    "pipeline": {
+      "value": "gh"
     }
   }
 }

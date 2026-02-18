@@ -5,11 +5,14 @@
 #
 # This master script orchestrates the complete setup process:
 # 1. Authenticates to Azure and GitHub
-# 2. Creates Azure Service Principal and Container Registry
+# 2. Creates Azure Service Principal for GitHub Actions
 # 3. Configures GitHub organization secrets automatically
 # 4. Creates GitHub environments in all service repositories
 # 5. Offers to trigger infrastructure deployment
 # 6. Provides verification and next steps
+#
+# Note: Resource Group, ACR, and all other Azure resources are created
+# by the Bicep templates - NOT by this script.
 #
 # Goal: Turn a fresh clone into a fully configured deployment in minutes.
 #
@@ -32,7 +35,7 @@ source "$SCRIPT_DIR/common.sh"
 
 # Configuration
 DEFAULT_ORG_NAME="xshopai"
-DEFAULT_LOCATION="eastus"
+DEFAULT_LOCATION="swedencentral"
 DEFAULT_PIPELINE="gh"  # Short identifier for GitHub Actions
 
 ################################################################################
@@ -123,6 +126,14 @@ auth_github() {
         return 0
     fi
     
+    # Check if GH_TOKEN is set (common in CI/CD and automation)
+    if [ -n "${GH_TOKEN:-}" ]; then
+        log_success "Using GH_TOKEN for authentication"
+        log_info "GitHub CLI will use the token from environment variable"
+        echo ""
+        return 0
+    fi
+    
     if gh auth status &> /dev/null; then
         log_success "Already authenticated to GitHub"
         gh auth status 2>&1 | grep "Logged in" || true
@@ -138,12 +149,12 @@ auth_github() {
 }
 
 ################################################################################
-# Run Bootstrap (Service Principal + ACR)
+# Run Bootstrap (Service Principal Setup)
 ################################################################################
 
 run_bootstrap() {
-    log_header "🚀 Azure Setup"
-    log_info "Creating Service Principal and Container Registry..."
+    log_header "🚀 Azure Service Principal Setup"
+    log_info "Creating Service Principal for GitHub Actions authentication..."
     echo ""
     
     # Make azure-setup script executable
@@ -359,10 +370,11 @@ to Azure App Service using GitHub Actions.
 What this does:
   ✅ Authenticates to Azure and GitHub
   ✅ Creates Service Principal for GitHub Actions
-  ✅ Creates shared Azure Container Registry
   ✅ Configures GitHub organization secrets (automatic if gh CLI available)
   ✅ Creates GitHub environments in all service repos
   ✅ Offers to trigger infrastructure deployment
+
+Note: ACR, databases, and all other resources are created by Bicep templates
 
 Time required: 10-15 minutes (mostly automated)
 
@@ -386,7 +398,7 @@ EOF
     # Step 3: Authenticate to GitHub (if CLI available)
     auth_github
     
-    # Step 4: Run bootstrap (Service Principal + ACR)
+    # Step 4: Run bootstrap (Service Principal)
     if ! run_bootstrap; then
         log_error "Bootstrap failed. Please check errors above."
         exit 1

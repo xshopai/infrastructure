@@ -19,15 +19,10 @@ on:
         options:
           - development
           - production
-      skipSecrets:
-        description: "Skip secret generation (if already exist)"
-        required: false
-        type: boolean
-        default: false
 
 env:
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  LOCATION: eastus
+  LOCATION: swedencentral
 
 jobs:
   deploy-infrastructure:
@@ -44,8 +39,9 @@ jobs:
       contents: read
 
     outputs:
-      keyVaultName: ${{ steps.deploy.outputs.keyVaultName }}
-      resourceGroupName: ${{ steps.deploy.outputs.resourceGroupName }}
+      keyVaultName: ${{ steps.outputs.outputs.keyVaultName }}
+      resourceGroupName: ${{ steps.outputs.outputs.resourceGroup }}
+      acrLoginServer: ${{ steps.outputs.outputs.acrLoginServer }}
 
     steps:
       - name: Checkout code
@@ -79,139 +75,208 @@ jobs:
           echo "✅ Environment: $ENV"
           echo "✅ Resource Group: rg-xshopai-gh-$ENV"
 
+      # ========================================================================
+      # IDEMPOTENT SECRET MANAGEMENT
+      # Check if secrets exist BEFORE deploying, generate only if missing
+      # ========================================================================
+
+      - name: Get or Generate Database Password
+        id: dbpassword
+        run: |
+          echo "🔐 Checking for existing database password..."
+
+          KV_NAME="${{ steps.env.outputs.keyVaultName }}"
+          RG_NAME="${{ steps.env.outputs.resourceGroup }}"
+
+          # Check if Key Vault and secret exist
+          if az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &> /dev/null; then
+            echo "Key Vault exists, checking for db-admin-password secret..."
+            
+            # Try to get existing password
+            EXISTING_PASSWORD=$(az keyvault secret show --vault-name "$KV_NAME" --name db-admin-password --query value -o tsv 2>/dev/null || echo "")
+            
+            if [ -n "$EXISTING_PASSWORD" ]; then
+              echo "✅ Using existing database password from Key Vault"
+              echo "password=$EXISTING_PASSWORD" >> $GITHUB_OUTPUT
+              echo "isNew=false" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Secret not found, generating new password..."
+              # Generate password meeting SQL Server requirements: uppercase, lowercase, number, special char
+              NEW_PASSWORD="Xshop$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)@1"
+              echo "password=$NEW_PASSWORD" >> $GITHUB_OUTPUT
+              echo "isNew=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Key Vault doesn't exist yet, generating new password..."
+            NEW_PASSWORD="Xshop$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)@1"
+            echo "password=$NEW_PASSWORD" >> $GITHUB_OUTPUT
+            echo "isNew=true" >> $GITHUB_OUTPUT
+          fi
+
+      # ========================================================================
+      # DEPLOY BICEP TEMPLATE
+      # ========================================================================
+
       - name: Deploy Bicep template
         id: deploy
         uses: azure/arm-deploy@v1
         with:
           subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          resourceGroupName: ${{ steps.env.outputs.resourceGroup }}
+          scope: subscription
+          region: ${{ env.LOCATION }}
           template: ./azure/app-service/bicep/main.bicep
           parameters: >
             environment=${{ steps.env.outputs.environment }}
             location=${{ env.LOCATION }}
-            acrName=${{ secrets.ACR_LOGIN_SERVER }}
+            orgName=xshopai
+            pipeline=gh
+            dbAdminPassword=${{ steps.dbpassword.outputs.password }}
           deploymentName: "infra-${{ steps.env.outputs.environment }}-${{ github.run_number }}"
           failOnStdErr: false
-          deploymentMode: Incremental
 
-      - name: Generate JWT Keys
-        if: ${{ !inputs.skipSecrets }}
-        id: jwt
+      - name: Get Deployment Outputs
+        id: outputs
         run: |
-          echo "🔐 Generating JWT RS256 key pair..."
+          echo "📊 Getting deployment outputs..."
 
-          # Generate private key
-          openssl genrsa -out private.pem 2048
+          DEPLOYMENT_NAME="infra-${{ steps.env.outputs.environment }}-${{ github.run_number }}"
 
-          # Generate public key
-          openssl rsa -in private.pem -outform PEM -pubout -out public.pem
+          RG_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.resourceGroupName.value -o tsv)
+          ACR_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.acrName.value -o tsv)
+          ACR_SERVER=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.acrLoginServer.value -o tsv)
+          KV_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.keyVaultName.value -o tsv)
 
-          # Read keys and encode for GitHub output
-          PRIVATE_KEY=$(cat private.pem | base64 -w 0)
-          PUBLIC_KEY=$(cat public.pem | base64 -w 0)
+          echo "resourceGroup=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "acrName=$ACR_NAME" >> $GITHUB_OUTPUT
+          echo "acrLoginServer=$ACR_SERVER" >> $GITHUB_OUTPUT
+          echo "keyVaultName=$KV_NAME" >> $GITHUB_OUTPUT
 
-          echo "privateKey=$PRIVATE_KEY" >> $GITHUB_OUTPUT
-          echo "publicKey=$PUBLIC_KEY" >> $GITHUB_OUTPUT
+          echo "✅ Resource Group: $RG_NAME"
+          echo "✅ ACR: $ACR_NAME ($ACR_SERVER)"
+          echo "✅ Key Vault: $KV_NAME"
 
-          echo "✅ JWT keys generated"
+      # ========================================================================
+      # STORE/UPDATE SECRETS IN KEY VAULT (Idempotent)
+      # Only creates secrets if they don't exist
+      # ========================================================================
 
-      - name: Generate Passwords
-        if: ${{ !inputs.skipSecrets }}
-        id: passwords
+      - name: Store Database Password in Key Vault
+        if: steps.dbpassword.outputs.isNew == 'true'
         run: |
-          echo "🔐 Generating secure passwords..."
+          echo "🔐 Storing new database password in Key Vault..."
 
-          ADMIN_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
-          MONGODB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
-          POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
-          MYSQL_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
-          SQLSERVER_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)Aa1!
-
-          echo "adminPassword=$ADMIN_PASSWORD" >> $GITHUB_OUTPUT
-          echo "mongodbPassword=$MONGODB_PASSWORD" >> $GITHUB_OUTPUT
-          echo "postgresPassword=$POSTGRES_PASSWORD" >> $GITHUB_OUTPUT
-          echo "mysqlPassword=$MYSQL_PASSWORD" >> $GITHUB_OUTPUT
-          echo "sqlserverPassword=$SQLSERVER_PASSWORD" >> $GITHUB_OUTPUT
-
-          echo "✅ Passwords generated"
-
-      - name: Store JWT Keys in Key Vault
-        if: ${{ !inputs.skipSecrets }}
-        run: |
-          echo "🔐 Storing JWT keys in Key Vault..."
-
-          PRIVATE_KEY=$(echo "${{ steps.jwt.outputs.privateKey }}" | base64 -d)
-          PUBLIC_KEY=$(echo "${{ steps.jwt.outputs.publicKey }}" | base64 -d)
+          KV_NAME="${{ steps.outputs.outputs.keyVaultName }}"
 
           az keyvault secret set \
-            --vault-name ${{ steps.env.outputs.keyVaultName }} \
-            --name jwt-private-key \
-            --value "$PRIVATE_KEY" \
+            --vault-name "$KV_NAME" \
+            --name db-admin-password \
+            --value "${{ steps.dbpassword.outputs.password }}" \
             --output none
 
-          az keyvault secret set \
-            --vault-name ${{ steps.env.outputs.keyVaultName }} \
-            --name jwt-public-key \
-            --value "$PUBLIC_KEY" \
-            --output none
+          # Also store as individual database passwords (same password for simplicity)
+          az keyvault secret set --vault-name "$KV_NAME" --name postgres-password --value "${{ steps.dbpassword.outputs.password }}" --output none
+          az keyvault secret set --vault-name "$KV_NAME" --name mysql-password --value "${{ steps.dbpassword.outputs.password }}" --output none
+          az keyvault secret set --vault-name "$KV_NAME" --name sqlserver-password --value "${{ steps.dbpassword.outputs.password }}" --output none
 
-          echo "✅ JWT keys stored"
+          echo "✅ Database passwords stored"
 
-      - name: Store Passwords in Key Vault
-        if: ${{ !inputs.skipSecrets }}
+      - name: Generate and Store JWT Keys (if not exist)
         run: |
-          echo "🔐 Storing passwords in Key Vault..."
+          echo "🔐 Checking JWT keys..."
 
-          KV_NAME="${{ steps.env.outputs.keyVaultName }}"
+          KV_NAME="${{ steps.outputs.outputs.keyVaultName }}"
 
-          az keyvault secret set --vault-name $KV_NAME --name admin-password --value "${{ steps.passwords.outputs.adminPassword }}" --output none
-          az keyvault secret set --vault-name $KV_NAME --name mongodb-password --value "${{ steps.passwords.outputs.mongodbPassword }}" --output none
-          az keyvault secret set --vault-name $KV_NAME --name postgres-password --value "${{ steps.passwords.outputs.postgresPassword }}" --output none
-          az keyvault secret set --vault-name $KV_NAME --name mysql-password --value "${{ steps.passwords.outputs.mysqlPassword }}" --output none
-          az keyvault secret set --vault-name $KV_NAME --name sqlserver-password --value "${{ steps.passwords.outputs.sqlserverPassword }}" --output none
+          # Check if JWT keys already exist
+          EXISTING_JWT=$(az keyvault secret show --vault-name "$KV_NAME" --name jwt-private-key --query value -o tsv 2>/dev/null || echo "")
 
-          echo "✅ Passwords stored"
+          if [ -n "$EXISTING_JWT" ]; then
+            echo "✅ JWT keys already exist in Key Vault, skipping generation"
+          else
+            echo "⚠️ JWT keys not found, generating new RS256 key pair..."
+            
+            # Generate private key
+            openssl genrsa -out private.pem 2048 2>/dev/null
+            
+            # Generate public key
+            openssl rsa -in private.pem -outform PEM -pubout -out public.pem 2>/dev/null
+            
+            # Store in Key Vault
+            az keyvault secret set \
+              --vault-name "$KV_NAME" \
+              --name jwt-private-key \
+              --file private.pem \
+              --output none
+            
+            az keyvault secret set \
+              --vault-name "$KV_NAME" \
+              --name jwt-public-key \
+              --file public.pem \
+              --output none
+            
+            # Cleanup
+            rm -f private.pem public.pem
+            
+            echo "✅ JWT keys generated and stored"
+          fi
 
-      - name: Display Generated Secrets Summary
-        if: ${{ !inputs.skipSecrets }}
+      - name: Generate and Store Admin Password (if not exist)
         run: |
-          echo "## 🔐 Generated Secrets Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All secrets have been generated and stored in Key Vault: **${{ steps.env.outputs.keyVaultName }}**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Secrets Created:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ jwt-private-key" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ jwt-public-key" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ admin-password" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ mongodb-password" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ postgres-password" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ mysql-password" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ sqlserver-password" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### View Secrets:" >> $GITHUB_STEP_SUMMARY
-          echo "[Open Key Vault in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ steps.env.outputs.resourceGroup }}/providers/Microsoft.KeyVault/vaults/${{ steps.env.outputs.keyVaultName }}/secrets)" >> $GITHUB_STEP_SUMMARY
+          echo "🔐 Checking admin password..."
+
+          KV_NAME="${{ steps.outputs.outputs.keyVaultName }}"
+
+          EXISTING=$(az keyvault secret show --vault-name "$KV_NAME" --name admin-password --query value -o tsv 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            echo "✅ Admin password already exists, skipping"
+          else
+            echo "⚠️ Admin password not found, generating..."
+            ADMIN_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+            az keyvault secret set --vault-name "$KV_NAME" --name admin-password --value "$ADMIN_PASSWORD" --output none
+            echo "✅ Admin password generated and stored"
+          fi
+
+      # ========================================================================
+      # DEPLOYMENT SUMMARY
+      # ========================================================================
 
       - name: Deployment Summary
         run: |
           echo "## 🎉 Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ steps.env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Resource Group:** ${{ steps.env.outputs.resourceGroup }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Group:** ${{ steps.outputs.outputs.resourceGroup }}" >> $GITHUB_STEP_SUMMARY
           echo "**Location:** ${{ env.LOCATION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**ACR:** ${{ steps.outputs.outputs.acrLoginServer }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔒 Idempotency Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Database Password: ${{ steps.dbpassword.outputs.isNew == 'true' && '🆕 Generated new' || '✅ Reused existing' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Resources Deployed:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Azure Container Registry" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ RabbitMQ Container Instance" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Cosmos DB (MongoDB API)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ PostgreSQL Flexible Server" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ MySQL Flexible Server" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ SQL Server + Database" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SQL Server + Databases" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Redis Cache" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Key Vault" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Key Vault (with all secrets)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Application Insights" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Log Analytics Workspace" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ 16 App Services (empty, ready for deployment)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ App Service Plan" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 16 App Services (with environment variables configured)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Secrets in Key Vault:" >> $GITHUB_STEP_SUMMARY
+          echo "- jwt-private-key" >> $GITHUB_STEP_SUMMARY
+          echo "- jwt-public-key" >> $GITHUB_STEP_SUMMARY
+          echo "- admin-password" >> $GITHUB_STEP_SUMMARY
+          echo "- db-admin-password" >> $GITHUB_STEP_SUMMARY
+          echo "- postgres-password" >> $GITHUB_STEP_SUMMARY
+          echo "- mysql-password" >> $GITHUB_STEP_SUMMARY
+          echo "- sqlserver-password" >> $GITHUB_STEP_SUMMARY
+          echo "- cosmos-connection-string (auto-generated by Bicep)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Verify resources in [Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ steps.env.outputs.resourceGroup }})" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify resources in [Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ steps.outputs.outputs.resourceGroup }})" >> $GITHUB_STEP_SUMMARY
           echo "2. Deploy services using their respective workflows" >> $GITHUB_STEP_SUMMARY
           echo "3. Monitor deployments in Application Insights" >> $GITHUB_STEP_SUMMARY
