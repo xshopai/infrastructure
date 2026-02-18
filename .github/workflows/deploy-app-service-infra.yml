@@ -80,10 +80,10 @@ jobs:
         id: state
         run: |
           echo "🔍 Checking if infrastructure already exists..."
-          
+
           RG_NAME="${{ steps.env.outputs.resourceGroup }}"
           KV_NAME="${{ steps.env.outputs.keyVaultName }}"
-          
+
           # Check if Resource Group exists (indicates previous deployment)
           if az group show --name "$RG_NAME" &> /dev/null; then
             echo "✅ Resource Group exists: $RG_NAME"
@@ -113,7 +113,7 @@ jobs:
         run: |
           KV_NAME="${{ steps.env.outputs.keyVaultName }}"
           KV_EXISTS="${{ steps.state.outputs.keyVaultExists }}"
-          
+
           if [ "$KV_EXISTS" == "true" ]; then
             echo "🔐 Retrieving existing database password from Key Vault..."
             
@@ -143,20 +143,24 @@ jobs:
 
       - name: Deploy Bicep template
         id: deploy
-        uses: azure/arm-deploy@v1
-        with:
-          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          scope: subscription
-          region: ${{ env.LOCATION }}
-          template: ./azure/app-service/bicep/main.bicep
-          parameters: >
-            environment=${{ steps.env.outputs.environment }}
-            location=${{ env.LOCATION }}
-            orgName=xshopai
-            pipeline=gh
-            dbAdminPassword=${{ steps.dbpassword.outputs.password }}
-          deploymentName: "infra-${{ steps.env.outputs.environment }}-${{ github.run_number }}"
-          failOnStdErr: false
+        run: |
+          echo "🚀 Deploying infrastructure with Bicep..."
+
+          DEPLOYMENT_NAME="infra-${{ steps.env.outputs.environment }}-${{ github.run_number }}"
+
+          az deployment sub create \
+            --name "$DEPLOYMENT_NAME" \
+            --location "${{ env.LOCATION }}" \
+            --template-file ./azure/app-service/bicep/main.bicep \
+            --parameters \
+              environment=${{ steps.env.outputs.environment }} \
+              location=${{ env.LOCATION }} \
+              orgName=xshopai \
+              pipeline=gh \
+              dbAdminPassword='${{ steps.dbpassword.outputs.password }}' \
+            --verbose
+
+          echo "✅ Deployment completed: $DEPLOYMENT_NAME"
 
       - name: Get Deployment Outputs
         id: outputs
