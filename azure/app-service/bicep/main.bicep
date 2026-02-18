@@ -192,72 +192,100 @@ module rabbitmq './modules/rabbitmq.bicep' = {
 // APP SERVICES - Individual modules per service
 // ============================================================================
 
-// Common parameters for all services
-var commonServiceParams = {
-  location: location
-  environment: environment
-  shortEnv: shortEnv
-  appServicePlanId: appServicePlan.outputs.planId
-  acrLoginServer: acr.outputs.acrLoginServer
-  keyVaultName: keyVault.outputs.keyVaultName
-  applicationInsightsKey: monitoring.outputs.instrumentationKey
-  tags: tags
-}
-
 // ---------- Cosmos DB Services ----------
 
 module authService './modules/services/auth-service.bicep' = {
   name: 'auth-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     cosmosEndpoint: cosmos.outputs.cosmosEndpoint
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [cosmos, redis, rabbitmq]
 }
 
 module userService './modules/services/user-service.bicep' = {
   name: 'user-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     cosmosEndpoint: cosmos.outputs.cosmosEndpoint
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [cosmos, redis, rabbitmq]
 }
 
 module productService './modules/services/product-service.bicep' = {
   name: 'product-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     cosmosEndpoint: cosmos.outputs.cosmosEndpoint
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [cosmos, redis, rabbitmq]
 }
 
 module inventoryService './modules/services/inventory-service.bicep' = {
   name: 'inventory-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     cosmosEndpoint: cosmos.outputs.cosmosEndpoint
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [cosmos, redis, rabbitmq]
 }
 
 module auditService './modules/services/audit-service.bicep' = {
   name: 'audit-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     cosmosEndpoint: cosmos.outputs.cosmosEndpoint
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [cosmos, redis, rabbitmq]
 }
 
@@ -266,11 +294,19 @@ module auditService './modules/services/audit-service.bicep' = {
 module notificationService './modules/services/notification-service.bicep' = {
   name: 'notification-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     postgresHost: postgres.outputs.postgresHost
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [postgres, redis, rabbitmq]
 }
 
@@ -279,22 +315,38 @@ module notificationService './modules/services/notification-service.bicep' = {
 module reviewService './modules/services/review-service.bicep' = {
   name: 'review-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     mysqlHost: mysql.outputs.mysqlHost
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [mysql, redis, rabbitmq]
 }
 
 module adminServiceModule './modules/services/admin-service.bicep' = {
   name: 'admin-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     mysqlHost: mysql.outputs.mysqlHost
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [mysql, redis, rabbitmq]
 }
 
@@ -303,44 +355,76 @@ module adminServiceModule './modules/services/admin-service.bicep' = {
 module cartService './modules/services/cart-service.bicep' = {
   name: 'cart-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     sqlServerHost: sqlserver.outputs.sqlServerHost
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [sqlserver, redis, rabbitmq]
 }
 
 module paymentService './modules/services/payment-service.bicep' = {
   name: 'payment-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     sqlServerHost: sqlserver.outputs.sqlServerHost
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [sqlserver, redis, rabbitmq]
 }
 
 module orderService './modules/services/order-service.bicep' = {
   name: 'order-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     sqlServerHost: sqlserver.outputs.sqlServerHost
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [sqlserver, redis, rabbitmq]
 }
 
 module orderProcessorService './modules/services/order-processor-service.bicep' = {
   name: 'order-processor-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     sqlServerHost: sqlserver.outputs.sqlServerHost
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [sqlserver, redis, rabbitmq]
 }
 
@@ -349,19 +433,35 @@ module orderProcessorService './modules/services/order-processor-service.bicep' 
 module chatService './modules/services/chat-service.bicep' = {
   name: 'chat-service-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
-  })
+  }
   dependsOn: [redis, rabbitmq]
 }
 
 module webBff './modules/services/web-bff.bicep' = {
   name: 'web-bff-deployment'
   scope: resourceGroup
-  params: union(commonServiceParams, {
+  params: {
+    location: location
+    environment: environment
+    shortEnv: shortEnv
+    appServicePlanId: appServicePlan.outputs.planId
+    acrLoginServer: acr.outputs.acrLoginServer
+    keyVaultName: keyVault.outputs.keyVaultName
+    applicationInsightsKey: monitoring.outputs.instrumentationKey
+    tags: tags
     redisHost: redis.outputs.redisHost
-  })
+  }
   dependsOn: [redis]
 }
 
