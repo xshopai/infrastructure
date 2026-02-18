@@ -184,6 +184,48 @@ jobs:
           echo "✅ Key Vault: $KV_NAME"
 
       # ========================================================================
+      # PHASE 3.5: CONFIGURE KEY VAULT RBAC
+      # Grant Service Principal and users access to Key Vault secrets
+      # ========================================================================
+
+      - name: Configure Key Vault RBAC Access
+        run: |
+          echo "🔐 Configuring Key Vault RBAC access..."
+          
+          KV_NAME="${{ steps.outputs.outputs.keyVaultName }}"
+          RG_NAME="${{ steps.outputs.outputs.resourceGroup }}"
+          SUB_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          
+          KV_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
+          
+          # Get Service Principal Object ID from AZURE_CREDENTIALS
+          SP_APP_ID="${{ secrets.AZURE_CLIENT_ID }}"
+          SP_OBJECT_ID=$(az ad sp show --id "$SP_APP_ID" --query id -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$SP_OBJECT_ID" ]; then
+            echo "📌 Service Principal Object ID: $SP_OBJECT_ID"
+            
+            # Grant Service Principal "Key Vault Secrets Officer" role (can read + write secrets)
+            echo "Granting Key Vault Secrets Officer role to Service Principal..."
+            az role assignment create \
+              --assignee-object-id "$SP_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Key Vault Secrets Officer" \
+              --scope "$KV_SCOPE" \
+              --output none 2>/dev/null || echo "Role may already exist"
+            
+            echo "✅ Service Principal granted Key Vault Secrets Officer"
+          else
+            echo "⚠️ Could not get Service Principal Object ID"
+          fi
+          
+          # Wait for RBAC propagation (Azure AD can take up to 10 mins, but usually 30s)
+          echo "⏳ Waiting 30s for RBAC propagation..."
+          sleep 30
+          
+          echo "✅ Key Vault RBAC configured"
+
+      # ========================================================================
       # PHASE 4: STORE SECRETS IN KEY VAULT
       # Now that Key Vault exists (from Bicep), store generated secrets
       # ========================================================================

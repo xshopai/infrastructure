@@ -1,10 +1,11 @@
 // Monitoring module - Application Insights and Log Analytics
 param location string
 param environment string
+param shortEnv string
 param tags object
 
-var logAnalyticsName = 'log-xshopai-gh-${environment}'
-var appInsightsName = 'appi-xshopai-gh-${environment}'
+var logAnalyticsName = 'log-xshopai-gh-${shortEnv}'
+var appInsightsName = 'appi-xshopai-gh-${shortEnv}'
 
 // Log Analytics Workspace
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {

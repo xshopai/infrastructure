@@ -1,9 +1,10 @@
 // RabbitMQ Container Instance module
 param location string
 param environment string
+param shortEnv string
 param tags object
 
-var containerGroupName = 'aci-rabbitmq-${environment}'
+var containerGroupName = 'aci-rabbitmq-${shortEnv}'
 
 resource rabbitmqContainer 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {
   name: containerGroupName

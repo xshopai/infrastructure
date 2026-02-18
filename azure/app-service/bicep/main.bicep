@@ -74,6 +74,7 @@ module monitoring './modules/monitoring.bicep' = {
   params: {
     location: location
     environment: environment
+    shortEnv: shortEnv
     tags: tags
   }
 }
@@ -184,6 +185,7 @@ module rabbitmq './modules/rabbitmq.bicep' = {
   params: {
     location: location
     environment: environment
+    shortEnv: shortEnv
     tags: tags
   }
 }
