@@ -89,8 +89,31 @@ if ! az account show &> /dev/null; then
     print_warning "Not logged into Azure. Initiating login..."
     az login
 fi
-log_debug "Logged in as: $(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null || echo 'Service Principal')"
-print_success "Logged into Azure"
+
+# Ensure we're logged in as a user (not service principal) for Key Vault portal access
+LOGIN_TYPE=$(az account show --query user.type -o tsv 2>/dev/null || echo "unknown")
+if [ "$LOGIN_TYPE" = "servicePrincipal" ]; then
+    print_warning "Currently logged in as Service Principal"
+    print_warning "Key Vault secrets won't be viewable in Azure Portal without user login"
+    echo ""
+    read -p "Do you want to login as your user account? (recommended) [Y/n]: " LOGIN_CHOICE
+    if [[ "$LOGIN_CHOICE" != "n" && "$LOGIN_CHOICE" != "N" ]]; then
+        print_info "Opening browser for Azure login..."
+        az login
+        LOGIN_TYPE=$(az account show --query user.type -o tsv 2>/dev/null || echo "unknown")
+    fi
+fi
+
+if [ "$LOGIN_TYPE" = "user" ]; then
+    CURRENT_USER=$(az ad signed-in-user show --query userPrincipalName -o tsv 2>/dev/null)
+    log_debug "Logged in as: $CURRENT_USER"
+    print_success "Logged into Azure as: $CURRENT_USER (user account)"
+else
+    CURRENT_USER=$(az account show --query user.name -o tsv 2>/dev/null)
+    log_debug "Logged in as Service Principal: $CURRENT_USER"
+    print_warning "Logged into Azure as: Service Principal"
+    print_warning "Key Vault secrets may not be viewable in portal"
+fi
 
 # Check openssl
 if ! command -v openssl &> /dev/null; then
