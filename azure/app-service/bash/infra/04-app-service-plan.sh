@@ -13,11 +13,8 @@ deploy_app_service_plan() {
     else
         print_info "Creating App Service Plan: $APP_SERVICE_PLAN"
         
-        # Use B1 for development, P1v2 for production
-        local SKU="B1"
-        if [ "$ENVIRONMENT" = "production" ]; then
-            SKU="P1v2"
-        fi
+        # Use P3v3 for both dev and production
+        local SKU="P3V3"
         
         if az appservice plan create \
             --name "$APP_SERVICE_PLAN" \
