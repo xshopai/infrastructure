@@ -10,6 +10,40 @@ SERVICES_ROOT="${SERVICES_ROOT:-/c/gh/xshopai}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
 # -----------------------------------------------------------------------------
+# Get Health Check Path for a Service
+# Returns the appropriate health check endpoint based on service technology
+# -----------------------------------------------------------------------------
+get_health_check_path() {
+    local service_name="$1"
+    case "$service_name" in
+        # Node.js services use /health/live
+        admin-service|admin-ui|auth-service|audit-service|chat-service|notification-service|review-service|user-service|web-bff)
+            echo "/health/live"
+            ;;
+        # Python FastAPI services use /health
+        inventory-service|product-service)
+            echo "/health"
+            ;;
+        # .NET services use /health
+        order-service|payment-service)
+            echo "/health"
+            ;;
+        # Java Spring Boot services use /actuator/health
+        cart-service|order-processor-service)
+            echo "/actuator/health"
+            ;;
+        # Static UI apps (customer-ui) - use root or simple path
+        customer-ui)
+            echo "/"
+            ;;
+        *)
+            # Default fallback
+            echo "/health"
+            ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
 # Load a secret from Azure Key Vault
 # Usage: value=$(load_secret "my-secret-name")
 # -----------------------------------------------------------------------------
@@ -55,12 +89,19 @@ create_app_service() {
         --resource-group "$RESOURCE_GROUP" \
         --output none 2>/dev/null
 
-    # Enable Always On (services have publisher and consumer responsibilities)
-    az webapp config set \
+    # Get health check path for this service
+    local health_path
+    health_path=$(get_health_check_path "$service_name")
+
+    # Enable Always On and configure health check
+    MSYS_NO_PATHCONV=1 az webapp config set \
         --name "$app_name" \
         --resource-group "$RESOURCE_GROUP" \
         --always-on true \
+        --generic-configurations "{\"healthCheckPath\":\"$health_path\"}" \
         --output none 2>/dev/null
+    
+    print_info "Health check configured: $health_path"
 
     # Configure container registry
     az webapp config container set \
@@ -70,6 +111,33 @@ create_app_service() {
         --docker-registry-server-user "$ACR_USERNAME" \
         --docker-registry-server-password "$ACR_PASSWORD" \
         --output none 2>/dev/null
+
+    # Link Application Insights (if configured)
+    if [ -n "$APP_INSIGHTS" ] && [ -n "$APP_INSIGHTS_CONNECTION" ]; then
+        print_info "Linking Application Insights: $APP_INSIGHTS"
+        
+        # Get App Insights resource ID
+        local app_insights_id
+        app_insights_id=$(az monitor app-insights component show \
+            --app "$APP_INSIGHTS" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query id -o tsv 2>/dev/null)
+        
+        if [ -n "$app_insights_id" ]; then
+            # Link App Insights to Web App using REST API (more reliable than CLI)
+            local webapp_id
+            webapp_id=$(az webapp show --name "$app_name" --resource-group "$RESOURCE_GROUP" --query id -o tsv 2>/dev/null)
+            
+            if [ -n "$webapp_id" ]; then
+                # Update web app properties to link App Insights
+                MSYS_NO_PATHCONV=1 az rest --method PATCH \
+                    --uri "https://management.azure.com${webapp_id}?api-version=2023-01-01" \
+                    --body "{\"properties\":{\"siteConfig\":{\"appSettings\":[{\"name\":\"APPINSIGHTS_INSTRUMENTATIONKEY\",\"value\":\"$APP_INSIGHTS_KEY\"},{\"name\":\"APPLICATIONINSIGHTS_CONNECTION_STRING\",\"value\":\"$APP_INSIGHTS_CONNECTION\"}]}}}" \
+                    --output none 2>/dev/null || true
+                print_success "Application Insights linked"
+            fi
+        fi
+    fi
 }
 
 # -----------------------------------------------------------------------------

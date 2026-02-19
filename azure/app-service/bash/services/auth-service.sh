@@ -20,17 +20,28 @@ deploy_auth_service() {
     local jwt_expires_in=$(load_secret "jwt-expires-in")
     local rabbitmq_url=$(load_secret "rabbitmq-url")
 
+    # User service URL for credential validation
+    local user_service_url="https://app-user-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
+
     local settings=(
-        "NODE_ENV=$ENVIRONMENT"
+        "SERVICE_NAME=auth-service"
+        "VERSION=1.0.0"
         "JWT_SECRET=$jwt_secret"
         "JWT_ALGORITHM=$jwt_algorithm"
         "JWT_ISSUER=$jwt_issuer"
         "JWT_AUDIENCE=$jwt_audience"
         "JWT_EXPIRES_IN=$jwt_expires_in"
+        "USER_SERVICE_URL=$user_service_url"
         "RABBITMQ_URL=$rabbitmq_url"
         "RABBITMQ_EXCHANGE=xshopai.events"
         "MESSAGING_PROVIDER=rabbitmq"
-
+        # OpenTelemetry
+        "OTEL_TRACES_EXPORTER=azure"
+        "OTEL_SERVICE_NAME=auth-service"
+        # Logging
+        "LOG_LEVEL=info"
+        "LOG_FORMAT=json"
+        "LOG_TO_CONSOLE=true"
     )
 
     deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
