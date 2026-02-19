@@ -16,6 +16,9 @@ deploy_product_service() {
     local mongodb_uri=$(load_secret "product-service-mongodb-uri")
     local rabbitmq_url=$(load_secret "rabbitmq-url")
     local jwt_secret=$(load_secret "jwt-secret")
+    local jwt_issuer=$(load_secret "jwt-issuer")
+    local jwt_audience=$(load_secret "jwt-audience")
+    local jwt_algorithm=$(load_secret "jwt-algorithm")
     local service_product_token=$(load_secret "admin-service-token")
     local service_order_token=$(load_secret "order-service-token")
     local service_cart_token=$(load_secret "cart-service-token")
@@ -34,9 +37,9 @@ deploy_product_service() {
         "MESSAGING_PROVIDER=rabbitmq"
         # JWT Authentication
         "JWT_SECRET=$jwt_secret"
-        "JWT_ALGORITHM=HS256"
-        "JWT_ISSUER=auth-service"
-        "JWT_AUDIENCE=xshopai-platform"
+        "JWT_ALGORITHM=$jwt_algorithm"
+        "JWT_ISSUER=$jwt_issuer"
+        "JWT_AUDIENCE=$jwt_audience"
         # Service-to-Service Tokens
         "SERVICE_PRODUCT_TOKEN=$service_product_token"
         "SERVICE_ORDER_TOKEN=$service_order_token"

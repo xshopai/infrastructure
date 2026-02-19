@@ -204,6 +204,18 @@ deploy_container() {
 }
 
 # -----------------------------------------------------------------------------
+# Map ENVIRONMENT to NODE_ENV (Node.js requires: development, production, test)
+# -----------------------------------------------------------------------------
+get_node_env() {
+    case "${ENVIRONMENT:-dev}" in
+        dev|development) echo "development" ;;
+        prod|production) echo "production" ;;
+        test|testing)    echo "test" ;;
+        *)               echo "production" ;;  # default to production for safety
+    esac
+}
+
+# -----------------------------------------------------------------------------
 # Full Service Deployment (create + configure + build + push + deploy)
 # -----------------------------------------------------------------------------
 deploy_service_full() {
@@ -219,11 +231,14 @@ deploy_service_full() {
     local app_name="app-${service_name}-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}"
     create_app_service "$service_name" "$runtime" || return 1
     
-    # 2. Common settings
+    # 2. Common settings (NODE_ENV mapped from ENVIRONMENT for Node.js compatibility)
+    local node_env
+    node_env=$(get_node_env)
     local common_settings=(
         "WEBSITES_PORT=$port"
         "PORT=$port"
         "ENVIRONMENT=$ENVIRONMENT"
+        "NODE_ENV=$node_env"
         "APPLICATIONINSIGHTS_CONNECTION_STRING=$APP_INSIGHTS_CONNECTION"
         "APPINSIGHTS_INSTRUMENTATIONKEY=$APP_INSIGHTS_KEY"
         "ApplicationInsightsAgent_EXTENSION_VERSION=~3"

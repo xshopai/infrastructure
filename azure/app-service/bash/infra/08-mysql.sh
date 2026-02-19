@@ -77,6 +77,22 @@ deploy_mysql() {
         --end-ip-address 0.0.0.0 \
         --output none 2>/dev/null || true
     
+    # Add developer's IP for dev environment (allows local seeding, testing)
+    if [[ "$ENVIRONMENT" == "dev" ]]; then
+        local dev_ip
+        dev_ip=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || echo "")
+        if [[ -n "$dev_ip" && "$dev_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            az mysql flexible-server firewall-rule create \
+                --name "$MYSQL_SERVER" \
+                --resource-group "$RESOURCE_GROUP" \
+                --rule-name "developer-ip-${dev_ip//./-}" \
+                --start-ip-address "$dev_ip" \
+                --end-ip-address "$dev_ip" \
+                --output none 2>/dev/null || true
+            print_info "Added developer IP to firewall: $dev_ip"
+        fi
+    fi
+    
     # Create service databases
     for db_name in "inventory_service_db" "cart_service_db" "chat_service_db"; do
         if ! az mysql flexible-server db show \

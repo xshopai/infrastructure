@@ -27,7 +27,8 @@ deploy_user_service() {
     local token_webbff=$(load_secret "web-bff-token")
 
     local settings=(
-        "NODE_ENV=$ENVIRONMENT"
+        "SERVICE_NAME=user-service"
+        "VERSION=1.0.0"
         "MONGODB_URI=$mongodb_uri"
         "MONGODB_DB_NAME=user_service_db"
         "JWT_SECRET=$jwt_secret"
@@ -42,7 +43,13 @@ deploy_user_service() {
         "SERVICE_ADMIN_TOKEN=$token_admin"
         "SERVICE_ORDER_TOKEN=$token_order"
         "SERVICE_WEBBFF_TOKEN=$token_webbff"
-
+        # OpenTelemetry (Azure Application Insights)
+        "OTEL_TRACES_EXPORTER=azure"
+        "OTEL_SERVICE_NAME=user-service"
+        # Logging
+        "LOG_LEVEL=INFO"
+        "LOG_FORMAT=json"
+        "LOG_TO_CONSOLE=true"
     )
 
     deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
