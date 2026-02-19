@@ -45,3 +45,8 @@ deploy_order_processor_service() {
         "INVENTORY_SERVICE_URL=https://app-inventory-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
         "PAYMENT_SERVICE_URL=https://app-payment-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
         "NOTIFICATION_SERVICE_URL=https://app-notification-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
+
+    )
+
+    deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
+}

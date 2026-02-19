@@ -42,3 +42,8 @@ deploy_user_service() {
         "SERVICE_ADMIN_TOKEN=$token_admin"
         "SERVICE_ORDER_TOKEN=$token_order"
         "SERVICE_WEBBFF_TOKEN=$token_webbff"
+
+    )
+
+    deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
+}

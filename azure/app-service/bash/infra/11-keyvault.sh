@@ -119,7 +119,6 @@ deploy_keyvault() {
     store_secret "jwt-audience" "xshopai-platform"
     store_secret "jwt-algorithm" "HS256"
     store_secret "jwt-expires-in" "24h"
-    store_secret "jwt-refresh-expires-in" "7d"
     
     # -------------------------------------------------------------------------
     # RabbitMQ (Event bus for all services)
@@ -163,11 +162,9 @@ deploy_keyvault() {
     # -------------------------------------------------------------------------
     # MySQL - inventory-service
     # -------------------------------------------------------------------------
-    print_info "Storing service-specific MySQL URL..."
+    print_info "Storing service-specific MySQL server connection..."
     
-    local mysql_inventory_url="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306/inventory_service_db"
     local mysql_inventory_server="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306"
-    store_secret "inventory-service-mysql-url" "$mysql_inventory_url"
     store_secret "inventory-service-mysql-server" "$mysql_inventory_server"
     
     # -------------------------------------------------------------------------
@@ -180,14 +177,6 @@ deploy_keyvault() {
     
     store_secret "order-service-sql-connection" "$sql_order_conn"
     store_secret "payment-service-sql-connection" "$sql_payment_conn"
-    
-    # -------------------------------------------------------------------------
-    # Redis - cart-service
-    # -------------------------------------------------------------------------
-    print_info "Storing service-specific Redis URL..."
-    
-    local redis_cart_url="rediss://:${REDIS_KEY}@${REDIS_HOST}:6380"
-    store_secret "cart-service-redis-url" "$redis_cart_url"
     
     # =========================================================================
     # SERVICE-TO-SERVICE AUTHENTICATION TOKENS
@@ -209,49 +198,36 @@ deploy_keyvault() {
         fi
     }
     
-    # Service tokens (each service uses these to authenticate to other services)
+    # Only tokens that are loaded by service scripts via load_secret() are stored:
+    #   admin-service-token  → admin-service.sh, user-service.sh
+    #   auth-service-token   → user-service.sh
+    #   user-service-token   → payment-service.sh
+    #   cart-service-token   → cart-service.sh
+    #   order-service-token  → payment-service.sh, user-service.sh
+    #   web-bff-token        → user-service.sh
     local token_admin=$(generate_or_get_token "admin-service-token")
     local token_auth=$(generate_or_get_token "auth-service-token")
     local token_user=$(generate_or_get_token "user-service-token")
-    local token_product=$(generate_or_get_token "product-service-token")
-    local token_inventory=$(generate_or_get_token "inventory-service-token")
     local token_cart=$(generate_or_get_token "cart-service-token")
     local token_order=$(generate_or_get_token "order-service-token")
-    local token_orderproc=$(generate_or_get_token "order-processor-service-token")
-    local token_payment=$(generate_or_get_token "payment-service-token")
-    local token_review=$(generate_or_get_token "review-service-token")
-    local token_notification=$(generate_or_get_token "notification-service-token")
-    local token_audit=$(generate_or_get_token "audit-service-token")
-    local token_chat=$(generate_or_get_token "chat-service-token")
     local token_webbff=$(generate_or_get_token "web-bff-token")
     
     store_secret "admin-service-token" "$token_admin"
     store_secret "auth-service-token" "$token_auth"
     store_secret "user-service-token" "$token_user"
-    store_secret "product-service-token" "$token_product"
-    store_secret "inventory-service-token" "$token_inventory"
     store_secret "cart-service-token" "$token_cart"
     store_secret "order-service-token" "$token_order"
-    store_secret "order-processor-service-token" "$token_orderproc"
-    store_secret "payment-service-token" "$token_payment"
-    store_secret "review-service-token" "$token_review"
-    store_secret "notification-service-token" "$token_notification"
-    store_secret "audit-service-token" "$token_audit"
-    store_secret "chat-service-token" "$token_chat"
     store_secret "web-bff-token" "$token_webbff"
 
     # =========================================================================
-    # ADMIN CREDENTIALS (needed for services-only re-deployment)
-    # Services-only runs load these to reconstruct per-service connection strings
+    # DATABASE/MESSAGING CREDENTIALS (loaded directly by service scripts)
+    # Postgres credentials: audit-service, order-processor-service
+    # RabbitMQ credentials: cart-service, order-processor-service
     # =========================================================================
-    print_info "Storing admin credentials..."
+    print_info "Storing service credentials..."
 
-    store_secret "mysql-admin-user" "$MYSQL_ADMIN_USER"
-    store_secret "mysql-admin-password" "$MYSQL_ADMIN_PASSWORD"
     store_secret "postgres-admin-user" "$POSTGRES_ADMIN_USER"
     store_secret "postgres-admin-password" "$POSTGRES_ADMIN_PASSWORD"
-    store_secret "sql-admin-user" "$SQL_ADMIN_USER"
-    store_secret "sql-admin-password" "$SQL_ADMIN_PASSWORD"
     store_secret "rabbitmq-user" "$RABBITMQ_USER"
     store_secret "rabbitmq-password" "$RABBITMQ_PASSWORD"
     
@@ -265,36 +241,32 @@ deploy_keyvault() {
     store_secret "chat-service-openai-api-key" "${AZURE_OPENAI_API_KEY:-placeholder-set-after-deployment}"
     store_secret "chat-service-openai-deployment" "${AZURE_OPENAI_DEPLOYMENT_NAME:-gpt-4o}"
     
-    print_success "All secrets stored in Key Vault (43 total)"
+    print_success "All secrets stored in Key Vault (28 total)"
     print_info "Key Vault URL: $KEY_VAULT_URL"
     
     # =========================================================================
     # Print Summary
     # =========================================================================
     echo ""
-    print_header "Secrets Summary (Service-Specific + Shared Only)"
+    print_header "Secrets Summary"
     echo ""
-    echo "SHARED SECRETS (8):"
-    echo "  JWT: jwt-secret, jwt-issuer, jwt-audience, jwt-algorithm, jwt-expires-in, jwt-refresh-expires-in"
+    echo "SHARED SECRETS (7):"
+    echo "  JWT: jwt-secret, jwt-issuer, jwt-audience, jwt-algorithm, jwt-expires-in"
     echo "  Event Bus: rabbitmq-url"
     echo "  Telemetry: appinsights-connection-string"
     echo ""
-    echo "SERVICE-SPECIFIC DATABASE CONNECTIONS (9):"
+    echo "SERVICE-SPECIFIC DATABASE CONNECTIONS (8):"
     echo "  MongoDB: user-service-mongodb-uri, product-service-mongodb-uri, review-service-mongodb-uri"
     echo "  PostgreSQL: audit-service-postgres-url, order-processor-service-postgres-url"
-    echo "  MySQL: inventory-service-mysql-url"
+    echo "  MySQL: inventory-service-mysql-server"
     echo "  SQL Server: order-service-sql-connection, payment-service-sql-connection"
-    echo "  Redis: cart-service-redis-url"
     echo ""
-    echo "ADMIN CREDENTIALS (8):"
-    echo "  mysql-admin-user/password, postgres-admin-user/password"
-    echo "  sql-admin-user/password, rabbitmq-user/password"
+    echo "SERVICE CREDENTIALS (4):"
+    echo "  postgres-admin-user/password, rabbitmq-user/password"
     echo ""
-    echo "SERVICE-TO-SERVICE TOKENS (14):"
-    echo "  admin-service-token, auth-service-token, user-service-token, product-service-token"
-    echo "  inventory-service-token, cart-service-token, order-service-token, order-processor-service-token"
-    echo "  payment-service-token, review-service-token, notification-service-token, audit-service-token"
-    echo "  chat-service-token, web-bff-token"
+    echo "SERVICE-TO-SERVICE TOKENS (6):"
+    echo "  admin-service-token, auth-service-token, user-service-token"
+    echo "  cart-service-token, order-service-token, web-bff-token"
     echo ""
     echo "AZURE OPENAI (3):"
     echo "  chat-service-openai-endpoint, chat-service-openai-api-key, chat-service-openai-deployment"

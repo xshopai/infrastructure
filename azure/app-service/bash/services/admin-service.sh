@@ -33,3 +33,8 @@ deploy_admin_service() {
         "AUDIT_SERVICE_URL=https://app-audit-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
         "NOTIFICATION_SERVICE_URL=https://app-notification-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
         "INVENTORY_SERVICE_URL=https://app-inventory-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
+
+    )
+
+    deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
+}

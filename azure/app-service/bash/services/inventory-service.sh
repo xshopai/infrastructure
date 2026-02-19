@@ -24,3 +24,7 @@ deploy_inventory_service() {
         "RABBITMQ_URL=$rabbitmq_url"
         "RABBITMQ_EXCHANGE=xshopai.events"
         "MESSAGING_PROVIDER=rabbitmq"
+    )
+
+    deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
+}

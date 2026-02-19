@@ -34,7 +34,7 @@ create_app_service() {
     print_info "Creating App Service: $app_name"
     
     if az webapp show --name "$app_name" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
-        print_warning "App Service already exists: $app_name"
+        print_info "App Service already exists, updating: $app_name"
     else
         if az webapp create \
             --name "$app_name" \
@@ -70,8 +70,6 @@ create_app_service() {
         --docker-registry-server-user "$ACR_USERNAME" \
         --docker-registry-server-password "$ACR_PASSWORD" \
         --output none 2>/dev/null
-        
-    echo "$app_name"
 }
 
 # -----------------------------------------------------------------------------
@@ -92,6 +90,55 @@ configure_app_settings() {
 }
 
 # -----------------------------------------------------------------------------
+# Configure Diagnostic Settings (stream App Service logs to Log Analytics)
+# -----------------------------------------------------------------------------
+configure_diagnostic_settings() {
+    local app_name="$1"
+
+    if [ -z "$LOG_ANALYTICS" ]; then
+        print_warning "LOG_ANALYTICS not set - skipping diagnostic settings"
+        return 0
+    fi
+
+    local workspace_id
+    workspace_id=$(MSYS_NO_PATHCONV=1 az monitor log-analytics workspace show \
+        --workspace-name "$LOG_ANALYTICS" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query id -o tsv 2>/dev/null)
+
+    if [ -z "$workspace_id" ]; then
+        print_warning "Log Analytics workspace not found - skipping diagnostic settings"
+        return 0
+    fi
+
+    print_info "Configuring diagnostic settings for $app_name..."
+
+    # Delete existing setting first so create is always idempotent
+    MSYS_NO_PATHCONV=1 az monitor diagnostic-settings delete \
+        --name "diag-${app_name}" \
+        --resource "$app_name" \
+        --resource-group "$RESOURCE_GROUP" \
+        --resource-namespace "Microsoft.Web" \
+        --resource-type "sites" \
+        --output none 2>/dev/null
+
+    if MSYS_NO_PATHCONV=1 az monitor diagnostic-settings create \
+        --name "diag-${app_name}" \
+        --resource "$app_name" \
+        --resource-group "$RESOURCE_GROUP" \
+        --resource-namespace "Microsoft.Web" \
+        --resource-type "sites" \
+        --workspace "$workspace_id" \
+        --logs '[{"category":"AppServiceHTTPLogs","enabled":true},{"category":"AppServiceConsoleLogs","enabled":true},{"category":"AppServiceAppLogs","enabled":true},{"category":"AppServicePlatformLogs","enabled":true}]' \
+        --metrics '[{"category":"AllMetrics","enabled":true}]' \
+        --output none; then
+        print_success "Diagnostic settings configured: $app_name"
+    else
+        print_warning "Failed to configure diagnostic settings: $app_name"
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Build Docker Image
 # -----------------------------------------------------------------------------
 build_image() {
@@ -108,7 +155,6 @@ build_image() {
     
     if docker build -t "$image_name" "$service_path"; then
         print_success "Built: $image_name"
-        echo "$image_name"
     else
         print_error "Failed to build: $service_name"
         return 1
@@ -143,7 +189,7 @@ deploy_container() {
     if az webapp config container set \
         --name "$app_name" \
         --resource-group "$RESOURCE_GROUP" \
-        --docker-custom-image-name "$image_name" \
+        --container-image-name "$image_name" \
         --output none; then
         print_success "Deployed: $app_name"
     else
@@ -168,10 +214,10 @@ deploy_service_full() {
     local extra_settings=("$@")
     
     print_header "Deploying: $service_name"
-    
-    # 1. Create App Service
-    local app_name
-    app_name=$(create_app_service "$service_name" "$runtime") || return 1
+
+    # 1. Create App Service (pre-compute name to avoid capturing print output via $())
+    local app_name="app-${service_name}-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}"
+    create_app_service "$service_name" "$runtime" || return 1
     
     # 2. Common settings
     local common_settings=(
@@ -180,18 +226,23 @@ deploy_service_full() {
         "ENVIRONMENT=$ENVIRONMENT"
         "APPLICATIONINSIGHTS_CONNECTION_STRING=$APP_INSIGHTS_CONNECTION"
         "APPINSIGHTS_INSTRUMENTATIONKEY=$APP_INSIGHTS_KEY"
+        "ApplicationInsightsAgent_EXTENSION_VERSION=~3"
     )
     
     # 3. Configure all settings
     configure_app_settings "$app_name" "${common_settings[@]}" "${extra_settings[@]}"
-    
-    # 4. Build image (skip if no Docker or Dockerfile)
+
+    # 4. Configure diagnostic settings (logs + metrics → Log Analytics)
+    configure_diagnostic_settings "$app_name"
+
+    # 5. Build image(skip if no Docker or Dockerfile)
     if command -v docker &> /dev/null && docker info &> /dev/null; then
-        local image_name
-        if image_name=$(build_image "$service_name"); then
-            # 5. Push to ACR
+        # Pre-compute image name directly (avoids capturing print output via $(...))
+        local image_name="$ACR_LOGIN_SERVER/$service_name:$IMAGE_TAG"
+        if build_image "$service_name"; then
+            # 6. Push to ACR
             if push_image "$image_name"; then
-                # 6. Deploy container
+                # 7. Deploy container
                 deploy_container "$app_name" "$image_name"
             fi
         fi

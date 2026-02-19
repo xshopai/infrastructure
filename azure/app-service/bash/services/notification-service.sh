@@ -30,3 +30,8 @@ deploy_notification_service() {
         "EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-xShopAI}"
         "EMAIL_ENABLED=${EMAIL_ENABLED:-false}"
         "EMAIL_PROVIDER=${EMAIL_PROVIDER:-smtp}"
+
+    )
+
+    deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
+}

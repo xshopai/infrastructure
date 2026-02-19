@@ -24,3 +24,8 @@ deploy_product_service() {
         "MESSAGING_PROVIDER=rabbitmq"
         "NAME=product-service"
         "API_VERSION=1.0.0"
+
+    )
+
+    deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
+}

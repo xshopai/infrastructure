@@ -411,7 +411,6 @@ deploy_infrastructure() {
     # Redis
     export REDIS_HOST="${REDIS_CACHE}.redis.cache.windows.net"
     export REDIS_KEY=$(az redis list-keys --name "$REDIS_CACHE" --resource-group "$RESOURCE_GROUP" --query primaryKey -o tsv 2>/dev/null || echo "")
-    export REDIS_CONNECTION="rediss://:${REDIS_KEY}@${REDIS_HOST}:6380"
     
     # Cosmos DB
     export COSMOS_ENDPOINT=$(az cosmosdb show --name "$COSMOS_ACCOUNT" --resource-group "$RESOURCE_GROUP" --query documentEndpoint -o tsv 2>/dev/null || echo "")
@@ -419,9 +418,6 @@ deploy_infrastructure() {
     
     # PostgreSQL
     export POSTGRES_HOST="${POSTGRESQL_SERVER}.postgres.database.azure.com"
-    export POSTGRESQL_HOST="$POSTGRES_HOST"
-    export POSTGRESQL_CONNECTION="Host=$POSTGRES_HOST;Database=postgres;Username=${POSTGRES_ADMIN_USER};Password=${POSTGRES_ADMIN_PASSWORD};SslMode=Require"
-    export POSTGRES_SERVER_CONNECTION="$POSTGRESQL_CONNECTION"
     
     # MySQL
     export MYSQL_HOST="${MYSQL_SERVER}.mysql.database.azure.com"
@@ -448,18 +444,6 @@ deploy_infrastructure() {
     source "$INFRA_DIR/11-keyvault.sh"
     deploy_keyvault || { print_error "Key Vault deployment failed"; exit 1; }
 
-    # -------------------------------------------------------------------------
-    # Export service-specific connection strings so service scripts work in the
-    # combined infra+services run (same variable names loaded_infrastructure_config
-    # loads from Key Vault for the services-only run path).
-    # -------------------------------------------------------------------------
-    print_info "Exporting service connection strings..."
-    export ORDER_SERVICE_SQL_CONNECTION="Server=${SQL_HOST};Database=order_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
-    export PAYMENT_SERVICE_SQL_CONNECTION="Server=${SQL_HOST};Database=payment_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
-    export AUDIT_SERVICE_POSTGRES_URL="postgresql://${POSTGRES_ADMIN_USER}:${POSTGRES_ADMIN_PASSWORD}@${POSTGRES_HOST}:5432/audit_service_db?sslmode=require"
-    export ORDER_PROCESSOR_SERVICE_POSTGRES_URL="jdbc:postgresql://${POSTGRES_HOST}:5432/order_processor_db?user=${POSTGRES_ADMIN_USER}&password=${POSTGRES_ADMIN_PASSWORD}&ssl=true"
-    export INVENTORY_SERVICE_MYSQL_URL="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306/inventory_service_db"
-
     print_success "Infrastructure deployment complete"
 }
 
@@ -482,108 +466,28 @@ load_infrastructure_config() {
     export ACR_PASSWORD=$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv 2>/dev/null)
     
     # -------------------------------------------------------------------------
-    # Load secrets from Key Vault
+    # Load only what's needed as environment variables for service deployment.
+    # Service scripts load all other secrets directly from KV via load_secret().
     # -------------------------------------------------------------------------
-    print_info "Loading secrets from Key Vault: $KEY_VAULT"
-    
+    print_info "Loading configuration from Key Vault: $KEY_VAULT"
+
     # Helper function to load secret
     load_secret() {
         az keyvault secret show --vault-name "$KEY_VAULT" --name "$1" --query value -o tsv 2>/dev/null || echo ""
     }
-    
-    # =========================================================================
-    # SHARED SECRETS (Used by multiple services)
-    # =========================================================================
-    export JWT_SECRET=$(load_secret "jwt-secret")
-    export JWT_ISSUER=$(load_secret "jwt-issuer")
-    export JWT_AUDIENCE=$(load_secret "jwt-audience")
-    export JWT_ALGORITHM=$(load_secret "jwt-algorithm")
-    export JWT_EXPIRES_IN=$(load_secret "jwt-expires-in")
-    export JWT_REFRESH_EXPIRES_IN=$(load_secret "jwt-refresh-expires-in")
-    export RABBITMQ_URL=$(load_secret "rabbitmq-url")
-    export APPINSIGHTS_CONNECTION_STRING=$(load_secret "appinsights-connection-string")
-    
-    # =========================================================================
-    # SERVICE-SPECIFIC DATABASE CONNECTIONS
-    # =========================================================================
-    # MongoDB (Cosmos DB)
-    export USER_SERVICE_MONGODB_URI=$(load_secret "user-service-mongodb-uri")
-    export PRODUCT_SERVICE_MONGODB_URI=$(load_secret "product-service-mongodb-uri")
-    export REVIEW_SERVICE_MONGODB_URI=$(load_secret "review-service-mongodb-uri")
-    
-    # PostgreSQL
-    export AUDIT_SERVICE_POSTGRES_URL=$(load_secret "audit-service-postgres-url")
-    export ORDER_PROCESSOR_SERVICE_POSTGRES_URL=$(load_secret "order-processor-service-postgres-url")
-    
-    # MySQL
-    export INVENTORY_SERVICE_MYSQL_URL=$(load_secret "inventory-service-mysql-url")
-    
-    # SQL Server
-    export ORDER_SERVICE_SQL_CONNECTION=$(load_secret "order-service-sql-connection")
-    export PAYMENT_SERVICE_SQL_CONNECTION=$(load_secret "payment-service-sql-connection")
-    
-    # Redis
-    export CART_SERVICE_REDIS_URL=$(load_secret "cart-service-redis-url")
-    
-    # =========================================================================
-    # SERVICE-TO-SERVICE TOKENS
-    # =========================================================================
-    export ADMIN_SERVICE_TOKEN=$(load_secret "admin-service-token")
-    export AUTH_SERVICE_TOKEN=$(load_secret "auth-service-token")
-    export USER_SERVICE_TOKEN=$(load_secret "user-service-token")
-    export PRODUCT_SERVICE_TOKEN=$(load_secret "product-service-token")
-    export INVENTORY_SERVICE_TOKEN=$(load_secret "inventory-service-token")
-    export CART_SERVICE_TOKEN=$(load_secret "cart-service-token")
-    export ORDER_SERVICE_TOKEN=$(load_secret "order-service-token")
-    export ORDER_PROCESSOR_SERVICE_TOKEN=$(load_secret "order-processor-service-token")
-    export PAYMENT_SERVICE_TOKEN=$(load_secret "payment-service-token")
-    export REVIEW_SERVICE_TOKEN=$(load_secret "review-service-token")
-    export NOTIFICATION_SERVICE_TOKEN=$(load_secret "notification-service-token")
-    export AUDIT_SERVICE_TOKEN=$(load_secret "audit-service-token")
-    export CHAT_SERVICE_TOKEN=$(load_secret "chat-service-token")
-    export WEB_BFF_TOKEN=$(load_secret "web-bff-token")
-    
-    # =========================================================================
-    # AZURE OPENAI (chat-service)
-    # =========================================================================
-    export CHAT_SERVICE_OPENAI_ENDPOINT=$(load_secret "chat-service-openai-endpoint")
-    export CHAT_SERVICE_OPENAI_API_KEY=$(load_secret "chat-service-openai-api-key")
-    export CHAT_SERVICE_OPENAI_DEPLOYMENT=$(load_secret "chat-service-openai-deployment")
-    
-    print_success "Loaded secrets from Key Vault"
 
-    # -------------------------------------------------------------------------
-    # Load admin credentials (stored during infra deployment for services-only
-    # re-deployment without re-running infrastructure)
-    # -------------------------------------------------------------------------
-    export MYSQL_ADMIN_USER=$(load_secret "mysql-admin-user")
-    export MYSQL_ADMIN_PASSWORD=$(load_secret "mysql-admin-password")
-    export POSTGRES_ADMIN_USER=$(load_secret "postgres-admin-user")
-    export POSTGRES_ADMIN_PASSWORD=$(load_secret "postgres-admin-password")
-    export SQL_ADMIN_USER=$(load_secret "sql-admin-user")
-    export SQL_ADMIN_PASSWORD=$(load_secret "sql-admin-password")
-    export RABBITMQ_USER=$(load_secret "rabbitmq-user")
-    export RABBITMQ_PASSWORD=$(load_secret "rabbitmq-password")
-
-    # Derive database host names from resource names (not stored in KV)
-    export POSTGRES_HOST="${POSTGRESQL_SERVER}.postgres.database.azure.com"
-    export MYSQL_HOST="${MYSQL_SERVER}.mysql.database.azure.com"
-    export SQL_HOST="${SQL_SERVER}.database.windows.net"
-
-    # APP_INSIGHTS aliases expected by service scripts
-    export APP_INSIGHTS_CONNECTION="$APPINSIGHTS_CONNECTION_STRING"
+    # Application Insights — injected into all services by deploy_service_full in _common.sh
+    export APP_INSIGHTS_CONNECTION=$(load_secret "appinsights-connection-string")
     export APP_INSIGHTS_KEY=$(az monitor app-insights component show \
         --app "$APP_INSIGHTS" \
         --resource-group "$RESOURCE_GROUP" \
         --query instrumentationKey -o tsv 2>/dev/null || echo "")
 
-    # Reconstruct service-specific connection strings using loaded credentials
-    # (ensures correct format regardless of what was stored in Key Vault)
-    export ORDER_SERVICE_SQL_CONNECTION="Server=${SQL_HOST};Database=order_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
-    export PAYMENT_SERVICE_SQL_CONNECTION="Server=${SQL_HOST};Database=payment_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
-    export AUDIT_SERVICE_POSTGRES_URL="postgresql://${POSTGRES_ADMIN_USER}:${POSTGRES_ADMIN_PASSWORD}@${POSTGRES_HOST}:5432/audit_service_db?sslmode=require"
-    export ORDER_PROCESSOR_SERVICE_POSTGRES_URL="jdbc:postgresql://${POSTGRES_HOST}:5432/order_processor_db?user=${POSTGRES_ADMIN_USER}&password=${POSTGRES_ADMIN_PASSWORD}&ssl=true"
-    export INVENTORY_SERVICE_MYSQL_URL="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306/inventory_service_db"
+    # Redis — cart-service reads REDIS_HOST and REDIS_KEY directly from env vars
+    export REDIS_HOST="${REDIS_CACHE}.redis.cache.windows.net"
+    export REDIS_KEY=$(az redis list-keys --name "$REDIS_CACHE" --resource-group "$RESOURCE_GROUP" --query primaryKey -o tsv 2>/dev/null || echo "")
+
+    print_success "Infrastructure configuration loaded"
 }
 
 # =============================================================================
