@@ -24,8 +24,11 @@ get_health_check_path() {
         inventory-service|product-service)
             echo "/health"
             ;;
-        # .NET services use /health
-        order-service|payment-service)
+        # .NET services — order-service exposes /health/live, payment-service /health
+        order-service)
+            echo "/health/live"
+            ;;
+        payment-service)
             echo "/health"
             ;;
         # Java Spring Boot services use /actuator/health
@@ -254,10 +257,14 @@ deploy_container() {
     
     print_info "Deploying container to $app_name"
     
+    # Always include registry credentials to avoid clearing them on updates
     if az webapp config container set \
         --name "$app_name" \
         --resource-group "$RESOURCE_GROUP" \
         --container-image-name "$image_name" \
+        --docker-registry-server-url "https://${ACR_LOGIN_SERVER}" \
+        --docker-registry-server-user "$ACR_USERNAME" \
+        --docker-registry-server-password "$ACR_PASSWORD" \
         --output none; then
         print_success "Deployed: $app_name"
     else

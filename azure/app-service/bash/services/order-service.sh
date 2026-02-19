@@ -32,6 +32,7 @@ deploy_order_service() {
         "JWT_SECRET=$jwt_secret"
         # Telemetry (App Insights via OTEL)
         "OTEL_TRACES_EXPORTER=azure"
+        "OTEL_SERVICE_NAME=order-service"
         # Downstream service URLs (Services:CartService -> Services__CartService in env vars)
         "Services__CartService=https://app-cart-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
         "Services__ProductService=https://app-product-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"

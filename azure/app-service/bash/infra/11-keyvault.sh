@@ -144,9 +144,11 @@ deploy_keyvault() {
     # -------------------------------------------------------------------------
     print_info "Storing service-specific MongoDB URIs..."
     
-    store_secret "user-service-mongodb-uri" "${COSMOS_CONNECTION}&database=user_service_db"
-    store_secret "product-service-mongodb-uri" "${COSMOS_CONNECTION}&database=product_service_db"
-    store_secret "review-service-mongodb-uri" "${COSMOS_CONNECTION}&database=review_service_db"
+    # Use /dbname? format (database name in URI path) - required by MongoDB driver 5+
+    # Pattern: replace /? with /dbname? in the base Cosmos connection string
+    store_secret "user-service-mongodb-uri" "${COSMOS_CONNECTION/\/\?/\/user_service_db\?}"
+    store_secret "product-service-mongodb-uri" "${COSMOS_CONNECTION/\/\?/\/product_service_db\?}"
+    store_secret "review-service-mongodb-uri" "${COSMOS_CONNECTION/\/\?/\/review_service_db\?}"
     
     # -------------------------------------------------------------------------
     # PostgreSQL - audit-service, order-processor-service
@@ -199,17 +201,19 @@ deploy_keyvault() {
     }
     
     # Only tokens that are loaded by service scripts via load_secret() are stored:
-    #   admin-service-token  → admin-service.sh, user-service.sh
-    #   auth-service-token   → user-service.sh
-    #   user-service-token   → payment-service.sh
-    #   cart-service-token   → cart-service.sh
-    #   order-service-token  → payment-service.sh, user-service.sh
-    #   web-bff-token        → user-service.sh
+    #   admin-service-token    → admin-service.sh, user-service.sh
+    #   auth-service-token     → user-service.sh
+    #   user-service-token     → payment-service.sh
+    #   cart-service-token     → cart-service.sh
+    #   order-service-token    → payment-service.sh, user-service.sh, review-service.sh
+    #   product-service-token  → review-service.sh
+    #   web-bff-token          → user-service.sh, review-service.sh
     local token_admin=$(generate_or_get_token "admin-service-token")
     local token_auth=$(generate_or_get_token "auth-service-token")
     local token_user=$(generate_or_get_token "user-service-token")
     local token_cart=$(generate_or_get_token "cart-service-token")
     local token_order=$(generate_or_get_token "order-service-token")
+    local token_product=$(generate_or_get_token "product-service-token")
     local token_webbff=$(generate_or_get_token "web-bff-token")
     
     store_secret "admin-service-token" "$token_admin"
@@ -217,6 +221,7 @@ deploy_keyvault() {
     store_secret "user-service-token" "$token_user"
     store_secret "cart-service-token" "$token_cart"
     store_secret "order-service-token" "$token_order"
+    store_secret "product-service-token" "$token_product"
     store_secret "web-bff-token" "$token_webbff"
 
     # =========================================================================
@@ -241,7 +246,7 @@ deploy_keyvault() {
     store_secret "chat-service-openai-api-key" "${AZURE_OPENAI_API_KEY:-placeholder-set-after-deployment}"
     store_secret "chat-service-openai-deployment" "${AZURE_OPENAI_DEPLOYMENT_NAME:-gpt-4o}"
     
-    print_success "All secrets stored in Key Vault (28 total)"
+    print_success "All secrets stored in Key Vault (29 total)"
     print_info "Key Vault URL: $KEY_VAULT_URL"
     
     # =========================================================================
@@ -264,9 +269,9 @@ deploy_keyvault() {
     echo "SERVICE CREDENTIALS (4):"
     echo "  postgres-admin-user/password, rabbitmq-user/password"
     echo ""
-    echo "SERVICE-TO-SERVICE TOKENS (6):"
+    echo "SERVICE-TO-SERVICE TOKENS (7):"
     echo "  admin-service-token, auth-service-token, user-service-token"
-    echo "  cart-service-token, order-service-token, web-bff-token"
+    echo "  cart-service-token, order-service-token, product-service-token, web-bff-token"
     echo ""
     echo "AZURE OPENAI (3):"
     echo "  chat-service-openai-endpoint, chat-service-openai-api-key, chat-service-openai-deployment"
