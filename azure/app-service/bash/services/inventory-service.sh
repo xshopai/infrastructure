@@ -2,28 +2,25 @@
 # =============================================================================
 # Inventory Service Deployment
 # =============================================================================
-# Runtime: Python 3.11
-# Database: PostgreSQL
+# Runtime: Python 3.11 (Flask)
+# Database: MySQL (Azure Flexible Server)
 # Port: 8004
+# Code reads MYSQL_SERVER_CONNECTION (server URL without DB) + DB_NAME separately
 # =============================================================================
 
 deploy_inventory_service() {
     local service_name="inventory-service"
     local runtime="PYTHON|3.11"
     local port="8004"
-    
+
+    # Load secrets from Key Vault
+    # inventory-service-mysql-server = mysql+pymysql://user:pass@host:3306 (no DB name)
+    local mysql_server=$(load_secret "inventory-service-mysql-server")
+    local rabbitmq_url=$(load_secret "rabbitmq-url")
+
     local settings=(
-        "DATABASE_URL=$POSTGRESQL_CONNECTION"
-        "POSTGRESQL_HOST=$POSTGRESQL_HOST"
-        "POSTGRESQL_USER=$DB_ADMIN_USER"
-        "POSTGRESQL_PASSWORD=$DB_ADMIN_PASSWORD"
-        "POSTGRESQL_DB=inventory-service-db"
-        "REDIS_HOST=$REDIS_HOST"
-        "REDIS_KEY=$REDIS_KEY"
-        "RABBITMQ_HOST=$RABBITMQ_HOST"
-        "RABBITMQ_USER=$RABBITMQ_USER"
-        "RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD"
-    )
-    
-    deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"
-}
+        "MYSQL_SERVER_CONNECTION=$mysql_server"
+        "DB_NAME=inventory_service_db"
+        "RABBITMQ_URL=$rabbitmq_url"
+        "RABBITMQ_EXCHANGE=xshopai.events"
+        "MESSAGING_PROVIDER=rabbitmq"

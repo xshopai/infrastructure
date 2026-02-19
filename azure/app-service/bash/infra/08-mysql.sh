@@ -12,7 +12,7 @@
 #
 # Optional Environment Variables:
 #   - MYSQL_ADMIN_USER: Admin username (default: mysqladmin)
-#   - MYSQL_ADMIN_PASSWORD: Admin password (from DB_ADMIN_PASSWORD)
+#   - MYSQL_ADMIN_PASSWORD: Admin password (unique per deployment)
 #
 # Exports:
 #   - MYSQL_HOST: MySQL server hostname
@@ -77,17 +77,19 @@ deploy_mysql() {
         --end-ip-address 0.0.0.0 \
         --output none 2>/dev/null || true
     
-    # Create service database if not exists
-    if ! az mysql flexible-server db show \
-        --resource-group "$RESOURCE_GROUP" \
-        --server-name "$MYSQL_SERVER" \
-        --database-name "inventory_service_db" &>/dev/null; then
-        az mysql flexible-server db create \
+    # Create service databases
+    for db_name in "inventory_service_db" "cart_service_db" "chat_service_db"; do
+        if ! az mysql flexible-server db show \
             --resource-group "$RESOURCE_GROUP" \
             --server-name "$MYSQL_SERVER" \
-            --database-name "inventory_service_db" \
-            --output none 2>/dev/null || true
-    fi
+            --database-name "$db_name" &>/dev/null; then
+            az mysql flexible-server db create \
+                --resource-group "$RESOURCE_GROUP" \
+                --server-name "$MYSQL_SERVER" \
+                --database-name "$db_name" \
+                --output none 2>/dev/null || true
+        fi
+    done
     
     # Build connection string
     export MYSQL_SERVER_CONNECTION="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306"

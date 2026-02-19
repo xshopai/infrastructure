@@ -37,7 +37,7 @@ source "$SCRIPT_DIR/common.sh"
 # Default Configuration
 # -----------------------------------------------------------------------------
 ENVIRONMENT=""
-LOCATION="swedencentral"
+LOCATION="francecentral"
 SUFFIX=""
 PROJECT_NAME="xshopai"
 
@@ -58,7 +58,7 @@ show_help() {
     echo "  --services            Deploy all services only (requires existing infra)"
     echo "  --service NAME        Deploy a single service (requires existing infra)"
     echo "  --env ENV             Environment: dev or prod"
-    echo "  --location REGION     Azure region (default: swedencentral)"
+    echo "  --location REGION     Azure region (default: northeurope)"
     echo "  --suffix SUFFIX       Unique suffix for global resources (3-6 alphanumeric)"
     echo "  --help, -h            Show this help"
     echo ""
@@ -298,19 +298,14 @@ fi
 deploy_infrastructure() {
     print_header "Phase 1: Infrastructure Deployment"
     
-    # Try to retrieve existing password from Key Vault (for re-runs)
-    local existing_password=""
-    if [ -n "$KEY_VAULT" ]; then
-        existing_password=$(az keyvault secret show --vault-name "$KEY_VAULT" --name "db-admin-password" --query value -o tsv 2>/dev/null || echo "")
-    fi
-    
-    if [ -n "$existing_password" ]; then
-        export DB_ADMIN_PASSWORD="$existing_password"
-        print_info "Retrieved existing database password from Key Vault"
-    else
-        export DB_ADMIN_PASSWORD=$(generate_password "Xshop" 16)
-        print_info "Generated new database password"
-    fi
+    # Generate unique passwords for each database type (no shared password)
+    print_info "Generating database credentials (unique per database type)"
+    export MYSQL_ADMIN_USER="${MYSQL_ADMIN_USER:-mysqladmin}"
+    export MYSQL_ADMIN_PASSWORD="${MYSQL_ADMIN_PASSWORD:-$(generate_password 'Mysql' 16)}"
+    export POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-pgadmin}"
+    export POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-$(generate_password 'Pg' 16)}"
+    export SQL_ADMIN_USER="${SQL_ADMIN_USER:-sqladmin}"
+    export SQL_ADMIN_PASSWORD="${SQL_ADMIN_PASSWORD:-$(generate_password 'Sql' 16)}"
     
     # -------------------------------------------------------------------------
     # Sequential Steps (dependencies required)
@@ -347,14 +342,6 @@ deploy_infrastructure() {
     source "$INFRA_DIR/07-postgresql.sh"
     source "$INFRA_DIR/08-mysql.sh"
     source "$INFRA_DIR/09-sql-server.sh"
-    
-    # Fixed database credentials for consistency
-    export MYSQL_ADMIN_USER="${MYSQL_ADMIN_USER:-mysqladmin}"
-    export MYSQL_ADMIN_PASSWORD="${MYSQL_ADMIN_PASSWORD:-${DB_ADMIN_PASSWORD}}"
-    export POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-pgadmin}"
-    export POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-${DB_ADMIN_PASSWORD}}"
-    export SQL_ADMIN_USER="${SQL_ADMIN_USER:-sqladmin}"
-    export SQL_ADMIN_PASSWORD="${SQL_ADMIN_PASSWORD:-${DB_ADMIN_PASSWORD}}"
     
     # Run data resources in parallel
     deploy_redis > /tmp/redis_deploy.log 2>&1 &
@@ -441,6 +428,12 @@ deploy_infrastructure() {
     
     # SQL Server
     export SQL_HOST="${SQL_SERVER}.database.windows.net"
+
+    # RabbitMQ (ACI)
+    export RABBITMQ_HOST=$(az container show \
+        --name "$RABBITMQ_INSTANCE" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query "ipAddress.fqdn" -o tsv 2>/dev/null || echo "")
     
     # -------------------------------------------------------------------------
     # Final Sequential Steps
@@ -454,7 +447,19 @@ deploy_infrastructure() {
     echo -e "\n${BLUE}[$current/$total] Creating Key Vault & Storing Secrets${NC}"
     source "$INFRA_DIR/11-keyvault.sh"
     deploy_keyvault || { print_error "Key Vault deployment failed"; exit 1; }
-    
+
+    # -------------------------------------------------------------------------
+    # Export service-specific connection strings so service scripts work in the
+    # combined infra+services run (same variable names loaded_infrastructure_config
+    # loads from Key Vault for the services-only run path).
+    # -------------------------------------------------------------------------
+    print_info "Exporting service connection strings..."
+    export ORDER_SERVICE_SQL_CONNECTION="Server=${SQL_HOST};Database=order_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
+    export PAYMENT_SERVICE_SQL_CONNECTION="Server=${SQL_HOST};Database=payment_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
+    export AUDIT_SERVICE_POSTGRES_URL="postgresql://${POSTGRES_ADMIN_USER}:${POSTGRES_ADMIN_PASSWORD}@${POSTGRES_HOST}:5432/audit_service_db?sslmode=require"
+    export ORDER_PROCESSOR_SERVICE_POSTGRES_URL="jdbc:postgresql://${POSTGRES_HOST}:5432/order_processor_db?user=${POSTGRES_ADMIN_USER}&password=${POSTGRES_ADMIN_PASSWORD}&ssl=true"
+    export INVENTORY_SERVICE_MYSQL_URL="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306/inventory_service_db"
+
     print_success "Infrastructure deployment complete"
 }
 
@@ -486,58 +491,43 @@ load_infrastructure_config() {
         az keyvault secret show --vault-name "$KEY_VAULT" --name "$1" --query value -o tsv 2>/dev/null || echo ""
     }
     
-    # Shared credentials
-    export DB_ADMIN_PASSWORD=$(load_secret "db-admin-password")
+    # =========================================================================
+    # SHARED SECRETS (Used by multiple services)
+    # =========================================================================
     export JWT_SECRET=$(load_secret "jwt-secret")
-    
-    # MongoDB (Cosmos DB) - Service-specific URIs
-    export USER_SERVICE_MONGODB_URI=$(load_secret "user-service-mongodb-uri")
-    export PRODUCT_SERVICE_MONGODB_URI=$(load_secret "product-service-mongodb-uri")
-    export REVIEW_SERVICE_MONGODB_URI=$(load_secret "review-service-mongodb-uri")
-    export AUTH_SERVICE_MONGODB_URI=$(load_secret "auth-service-mongodb-uri")
-    export COSMOS_CONNECTION=$(load_secret "mongodb-connection")
-    
-    # PostgreSQL - Service-specific URLs
-    export AUDIT_SERVICE_POSTGRES_URL=$(load_secret "audit-service-postgres-url")
-    export ORDER_PROCESSOR_POSTGRES_URL=$(load_secret "order-processor-postgres-url")
-    export POSTGRES_HOST=$(load_secret "postgres-host")
-    export POSTGRES_USER=$(load_secret "postgres-user")
-    export POSTGRES_PASSWORD=$(load_secret "postgres-password")
-    
-    # MySQL - Service-specific connection
-    export INVENTORY_SERVICE_MYSQL_CONNECTION=$(load_secret "inventory-service-mysql-connection")
-    export MYSQL_HOST=$(load_secret "mysql-host")
-    export MYSQL_USER=$(load_secret "mysql-user")
-    export MYSQL_PASSWORD=$(load_secret "mysql-password")
-    
-    # SQL Server - Service-specific connections
-    export ORDER_SERVICE_SQL_CONNECTION=$(load_secret "order-service-sql-connection")
-    export PAYMENT_SERVICE_SQL_CONNECTION=$(load_secret "payment-service-sql-connection")
-    export SQL_HOST=$(load_secret "sql-host")
-    export SQL_USER=$(load_secret "sql-user")
-    export SQL_PASSWORD=$(load_secret "sql-password")
-    
-    # Redis - Service-specific connection
-    export CART_SERVICE_REDIS_URL=$(load_secret "cart-service-redis-url")
-    export REDIS_HOST=$(load_secret "redis-host")
-    export REDIS_PASSWORD=$(load_secret "redis-password")
-    
-    # RabbitMQ
-    export RABBITMQ_URL=$(load_secret "rabbitmq-url")
-    export RABBITMQ_HOST=$(load_secret "rabbitmq-host")
-    export RABBITMQ_USER=$(load_secret "rabbitmq-user")
-    export RABBITMQ_PASSWORD=$(load_secret "rabbitmq-password")
-    
-    # Application Insights
-    export APPINSIGHTS_CONNECTION_STRING=$(load_secret "appinsights-connection-string")
-    export APPINSIGHTS_INSTRUMENTATION_KEY=$(load_secret "appinsights-instrumentation-key")
-    
-    # JWT configuration
     export JWT_ISSUER=$(load_secret "jwt-issuer")
     export JWT_AUDIENCE=$(load_secret "jwt-audience")
     export JWT_ALGORITHM=$(load_secret "jwt-algorithm")
+    export JWT_EXPIRES_IN=$(load_secret "jwt-expires-in")
+    export JWT_REFRESH_EXPIRES_IN=$(load_secret "jwt-refresh-expires-in")
+    export RABBITMQ_URL=$(load_secret "rabbitmq-url")
+    export APPINSIGHTS_CONNECTION_STRING=$(load_secret "appinsights-connection-string")
     
-    # Service-to-service tokens
+    # =========================================================================
+    # SERVICE-SPECIFIC DATABASE CONNECTIONS
+    # =========================================================================
+    # MongoDB (Cosmos DB)
+    export USER_SERVICE_MONGODB_URI=$(load_secret "user-service-mongodb-uri")
+    export PRODUCT_SERVICE_MONGODB_URI=$(load_secret "product-service-mongodb-uri")
+    export REVIEW_SERVICE_MONGODB_URI=$(load_secret "review-service-mongodb-uri")
+    
+    # PostgreSQL
+    export AUDIT_SERVICE_POSTGRES_URL=$(load_secret "audit-service-postgres-url")
+    export ORDER_PROCESSOR_SERVICE_POSTGRES_URL=$(load_secret "order-processor-service-postgres-url")
+    
+    # MySQL
+    export INVENTORY_SERVICE_MYSQL_URL=$(load_secret "inventory-service-mysql-url")
+    
+    # SQL Server
+    export ORDER_SERVICE_SQL_CONNECTION=$(load_secret "order-service-sql-connection")
+    export PAYMENT_SERVICE_SQL_CONNECTION=$(load_secret "payment-service-sql-connection")
+    
+    # Redis
+    export CART_SERVICE_REDIS_URL=$(load_secret "cart-service-redis-url")
+    
+    # =========================================================================
+    # SERVICE-TO-SERVICE TOKENS
+    # =========================================================================
     export ADMIN_SERVICE_TOKEN=$(load_secret "admin-service-token")
     export AUTH_SERVICE_TOKEN=$(load_secret "auth-service-token")
     export USER_SERVICE_TOKEN=$(load_secret "user-service-token")
@@ -553,17 +543,47 @@ load_infrastructure_config() {
     export CHAT_SERVICE_TOKEN=$(load_secret "chat-service-token")
     export WEB_BFF_TOKEN=$(load_secret "web-bff-token")
     
-    # Azure OpenAI (for chat-service)
-    export AZURE_OPENAI_ENDPOINT=$(load_secret "azure-openai-endpoint")
-    export AZURE_OPENAI_API_KEY=$(load_secret "azure-openai-api-key")
-    export AZURE_OPENAI_DEPLOYMENT_NAME=$(load_secret "azure-openai-deployment-name")
+    # =========================================================================
+    # AZURE OPENAI (chat-service)
+    # =========================================================================
+    export CHAT_SERVICE_OPENAI_ENDPOINT=$(load_secret "chat-service-openai-endpoint")
+    export CHAT_SERVICE_OPENAI_API_KEY=$(load_secret "chat-service-openai-api-key")
+    export CHAT_SERVICE_OPENAI_DEPLOYMENT=$(load_secret "chat-service-openai-deployment")
     
-    # Database hosts (fallback if not in KV)
-    export POSTGRESQL_HOST="${POSTGRES_HOST:-${POSTGRESQL_SERVER}.postgres.database.azure.com}"
-    export MYSQL_HOST="${MYSQL_HOST:-${MYSQL_SERVER}.mysql.database.azure.com}"
-    export SQL_HOST="${SQL_HOST:-${SQL_SERVER}.database.windows.net}"
-    
-    print_success "Configuration loaded from existing infrastructure"
+    print_success "Loaded secrets from Key Vault"
+
+    # -------------------------------------------------------------------------
+    # Load admin credentials (stored during infra deployment for services-only
+    # re-deployment without re-running infrastructure)
+    # -------------------------------------------------------------------------
+    export MYSQL_ADMIN_USER=$(load_secret "mysql-admin-user")
+    export MYSQL_ADMIN_PASSWORD=$(load_secret "mysql-admin-password")
+    export POSTGRES_ADMIN_USER=$(load_secret "postgres-admin-user")
+    export POSTGRES_ADMIN_PASSWORD=$(load_secret "postgres-admin-password")
+    export SQL_ADMIN_USER=$(load_secret "sql-admin-user")
+    export SQL_ADMIN_PASSWORD=$(load_secret "sql-admin-password")
+    export RABBITMQ_USER=$(load_secret "rabbitmq-user")
+    export RABBITMQ_PASSWORD=$(load_secret "rabbitmq-password")
+
+    # Derive database host names from resource names (not stored in KV)
+    export POSTGRES_HOST="${POSTGRESQL_SERVER}.postgres.database.azure.com"
+    export MYSQL_HOST="${MYSQL_SERVER}.mysql.database.azure.com"
+    export SQL_HOST="${SQL_SERVER}.database.windows.net"
+
+    # APP_INSIGHTS aliases expected by service scripts
+    export APP_INSIGHTS_CONNECTION="$APPINSIGHTS_CONNECTION_STRING"
+    export APP_INSIGHTS_KEY=$(az monitor app-insights component show \
+        --app "$APP_INSIGHTS" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query instrumentationKey -o tsv 2>/dev/null || echo "")
+
+    # Reconstruct service-specific connection strings using loaded credentials
+    # (ensures correct format regardless of what was stored in Key Vault)
+    export ORDER_SERVICE_SQL_CONNECTION="Server=${SQL_HOST};Database=order_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
+    export PAYMENT_SERVICE_SQL_CONNECTION="Server=${SQL_HOST};Database=payment_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
+    export AUDIT_SERVICE_POSTGRES_URL="postgresql://${POSTGRES_ADMIN_USER}:${POSTGRES_ADMIN_PASSWORD}@${POSTGRES_HOST}:5432/audit_service_db?sslmode=require"
+    export ORDER_PROCESSOR_SERVICE_POSTGRES_URL="jdbc:postgresql://${POSTGRES_HOST}:5432/order_processor_db?user=${POSTGRES_ADMIN_USER}&password=${POSTGRES_ADMIN_PASSWORD}&ssl=true"
+    export INVENTORY_SERVICE_MYSQL_URL="mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306/inventory_service_db"
 }
 
 # =============================================================================

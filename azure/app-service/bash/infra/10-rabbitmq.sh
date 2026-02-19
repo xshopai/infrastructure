@@ -28,12 +28,36 @@ deploy_rabbitmq() {
         # New container - generate password
         export RABBITMQ_PASSWORD="${RABBITMQ_PASSWORD:-$(generate_password)}"
         print_info "Creating RabbitMQ: $RABBITMQ_INSTANCE"
-        
+
+        # Import rabbitmq image into ACR to avoid Docker Hub rate limits on ACI
+        local rabbitmq_image="$ACR_LOGIN_SERVER/rabbitmq:3-management"
+        print_info "Importing rabbitmq:3-management into ACR..."
+        if ! az acr import \
+            --name "$ACR_NAME" \
+            --source "docker.io/library/rabbitmq:3-management" \
+            --image "rabbitmq:3-management" \
+            --force \
+            --output none 2>/dev/null; then
+            print_warning "ACR import failed — falling back to direct Docker Hub pull"
+            rabbitmq_image="rabbitmq:3-management"
+        else
+            print_success "Image imported to ACR: $rabbitmq_image"
+        fi
+
+        # Determine registry credentials (only needed for ACR image)
+        local reg_server="" reg_user="" reg_pass=""
+        if [[ "$rabbitmq_image" == *"$ACR_LOGIN_SERVER"* ]]; then
+            reg_server="--registry-login-server $ACR_LOGIN_SERVER"
+            reg_user="--registry-username $ACR_USERNAME"
+            reg_pass="--registry-password $ACR_PASSWORD"
+        fi
+
         if az container create \
             --name "$RABBITMQ_INSTANCE" \
             --resource-group "$RESOURCE_GROUP" \
             --location "$LOCATION" \
-            --image rabbitmq:3-management \
+            --image "$rabbitmq_image" \
+            $reg_server $reg_user $reg_pass \
             --cpu 1 \
             --memory 1.5 \
             --ports 5672 15672 \

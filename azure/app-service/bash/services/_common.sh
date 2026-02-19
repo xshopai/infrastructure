@@ -10,6 +10,20 @@ SERVICES_ROOT="${SERVICES_ROOT:-/c/gh/xshopai}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 
 # -----------------------------------------------------------------------------
+# Load a secret from Azure Key Vault
+# Usage: value=$(load_secret "my-secret-name")
+# -----------------------------------------------------------------------------
+load_secret() {
+    local name="$1"
+    if [ -z "$KEY_VAULT" ]; then
+        print_warning "KEY_VAULT not set - cannot load secret: $name"
+        echo ""
+        return 1
+    fi
+    az keyvault secret show --vault-name "$KEY_VAULT" --name "$name" --query value -o tsv 2>/dev/null || echo ""
+}
+
+# -----------------------------------------------------------------------------
 # Create App Service
 # -----------------------------------------------------------------------------
 create_app_service() {
@@ -40,7 +54,14 @@ create_app_service() {
         --name "$app_name" \
         --resource-group "$RESOURCE_GROUP" \
         --output none 2>/dev/null
-    
+
+    # Enable Always On (services have publisher and consumer responsibilities)
+    az webapp config set \
+        --name "$app_name" \
+        --resource-group "$RESOURCE_GROUP" \
+        --always-on true \
+        --output none 2>/dev/null
+
     # Configure container registry
     az webapp config container set \
         --name "$app_name" \
@@ -155,7 +176,7 @@ deploy_service_full() {
     # 2. Common settings
     local common_settings=(
         "WEBSITES_PORT=$port"
-        "NODE_ENV=$ENVIRONMENT"
+        "PORT=$port"
         "ENVIRONMENT=$ENVIRONMENT"
         "APPLICATIONINSIGHTS_CONNECTION_STRING=$APP_INSIGHTS_CONNECTION"
         "APPINSIGHTS_INSTRUMENTATIONKEY=$APP_INSIGHTS_KEY"

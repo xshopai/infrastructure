@@ -31,9 +31,9 @@ deploy_postgresql() {
     # Validate required variables
     validate_required_vars "POSTGRES_SERVER" "RESOURCE_GROUP" "LOCATION" || return 1
     
-    # Use fixed credentials (set by deploy.sh or use defaults)
+    # Admin credentials (set by deploy.sh or use defaults)
+    # POSTGRES_ADMIN_USER and POSTGRES_ADMIN_PASSWORD must be provided
     export POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-pgadmin}"
-    export POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD:-${DB_ADMIN_PASSWORD}}"
     
     # Check if already exists - skip quickly
     if az postgres flexible-server show --name "$POSTGRES_SERVER" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
