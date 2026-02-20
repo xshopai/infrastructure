@@ -8,7 +8,7 @@ name: Deploy App Service Infrastructure
 #
 # PREREQUISITES:
 # 1. AZURE_CREDENTIALS secret configured with service principal credentials
-# 2. Service principal must have "User Access Administrator" role at 
+# 2. Service principal must have "User Access Administrator" role at
 #    subscription level (for RBAC assignments to managed identities)
 #    - Grant manually using Azure REST API (one-time per subscription)
 #    - TODO: automate via IaC (Terraform/Bicep) in future iterations
@@ -579,12 +579,12 @@ jobs:
           fi
 
           AZURE_OPENAI_ENDPOINT="https://${AZURE_OPENAI_NAME}.openai.azure.com/"
-          
+
           # Store endpoint only (services will use Managed Identity for auth)
           {
             echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT"
           } >> "$GITHUB_ENV"
-          
+
           echo "✓ Azure OpenAI configured for Managed Identity authentication"
 
       # -----------------------------------------------------------------------
@@ -752,7 +752,7 @@ jobs:
   # Pre-configured with environment settings, secrets from Key Vault,
   # diagnostics, managed identity, and health checks. Service CI workflows
   # only need to zip-deploy code.
-  # 
+  #
   # Can run independently if infrastructure already exists (services-only mode)
   # =========================================================================
   deploy-service-shells:
@@ -1099,7 +1099,7 @@ jobs:
             "INVENTORY_SERVICE_URL=$(svc_url inventory-service)" \
             "OTEL_TRACES_EXPORTER=azure" \
             "OTEL_SERVICE_NAME=chat-service"
-          
+
           # -------------------------------------------------------------------
           # RBAC: Grant chat-service Managed Identity access to Azure OpenAI
           # 
@@ -1121,7 +1121,7 @@ jobs:
             --name "app-chat-service-xshopai-${ENV}-${SUFFIX}" \
             --resource-group "$RESOURCE_GROUP" \
             --query principalId -o tsv 2>/dev/null)
-          
+
           if [ -n "$CHAT_PRINCIPAL_ID" ]; then
             OPENAI_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/${AZURE_OPENAI_NAME}"
             if ! az role assignment list --assignee "$CHAT_PRINCIPAL_ID" --scope "$OPENAI_RESOURCE_ID" \
