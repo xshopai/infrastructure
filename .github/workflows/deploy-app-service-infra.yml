@@ -1,352 +1,122 @@
 name: Deploy App Service Infrastructure
 
 on:
-  # Automatic trigger on push to main (CI)
-  push:
-    branches:
-      - main
-    paths:
-      - "azure/app-service/bicep/**"
-      - ".github/workflows/deploy-app-service-infra.yml"
-
-  # Manual trigger (workflow_dispatch) - CD
+  # Manual trigger only — infrastructure is provisioned on demand, not on every push
   workflow_dispatch:
     inputs:
       environment:
-        description: "Environment to deploy"
+        description: "Environment"
         required: true
         type: choice
         options:
-          - development
-          - production
+          - dev
+          - prod
+        default: dev
+      suffix:
+        description: "Resource suffix (e.g. as01, 001) — leave blank to use org default"
+        required: false
+        default: ''
+      location:
+        description: "Azure region"
+        required: false
+        default: francecentral
 
 env:
-  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-  LOCATION: swedencentral
+  LOCATION: ${{ inputs.location || 'francecentral' }}
 
 jobs:
   deploy-infrastructure:
-    name: Deploy Infrastructure to ${{ inputs.environment || 'development' }}
+    name: Deploy infra (${{ inputs.environment }}) suffix=${{ inputs.suffix || vars.DEPLOY_SUFFIX_DEV }}
     runs-on: ubuntu-latest
 
-    # Use GitHub environment for production approval
+    # Production requires manual approval — configure reviewers in repo Environments settings
     environment:
-      name: ${{ inputs.environment || (github.event_name == 'push' && 'development') || 'development' }}
+      name: ${{ inputs.environment }}
 
     permissions:
       id-token: write
       contents: read
 
-    outputs:
-      keyVaultName: ${{ steps.outputs.outputs.keyVaultName }}
-      resourceGroupName: ${{ steps.outputs.outputs.resourceGroup }}
-      acrLoginServer: ${{ steps.outputs.outputs.acrLoginServer }}
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log deployment info
-        run: |
-          echo "🚀 Deploying infrastructure to: ${{ inputs.environment || 'development' }}"
-          echo "📍 Location: ${{ env.LOCATION }}"
-          echo "🔄 Trigger: ${{ github.event_name }}"
-
-      - name: Azure Login (Service Principal)
+      - name: Azure login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Set environment variables
-        id: env
+      - name: Resolve suffix
+        id: config
         run: |
-          ENV="${{ inputs.environment || 'development' }}"
-          SHORT_ENV="${ENV:0:3}"
+          INPUT_SUFFIX="${{ inputs.suffix }}"
+          ENV="${{ inputs.environment }}"
 
-          echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "shortEnv=$SHORT_ENV" >> $GITHUB_OUTPUT
-          echo "resourceGroup=rg-xshopai-gh-$ENV" >> $GITHUB_OUTPUT
-          echo "keyVaultName=kv-xshopai-gh-$SHORT_ENV" >> $GITHUB_OUTPUT
-
-          echo "✅ Environment: $ENV"
-          echo "✅ Resource Group: rg-xshopai-gh-$ENV"
-
-      # ========================================================================
-      # PHASE 1: CHECK DEPLOYMENT STATE
-      # Determine if this is a fresh deployment or an update
-      # ========================================================================
-
-      - name: Check Deployment State
-        id: state
-        run: |
-          echo "🔍 Checking if infrastructure already exists..."
-
-          RG_NAME="${{ steps.env.outputs.resourceGroup }}"
-          KV_NAME="${{ steps.env.outputs.keyVaultName }}"
-
-          # Check if Resource Group exists (indicates previous deployment)
-          if az group show --name "$RG_NAME" &> /dev/null; then
-            echo "✅ Resource Group exists: $RG_NAME"
-            echo "existingDeployment=true" >> $GITHUB_OUTPUT
-            
-            # Check if Key Vault exists
-            if az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &> /dev/null; then
-              echo "✅ Key Vault exists: $KV_NAME"
-              echo "keyVaultExists=true" >> $GITHUB_OUTPUT
-            else
-              echo "⚠️ Key Vault not found (will be created)"
-              echo "keyVaultExists=false" >> $GITHUB_OUTPUT
-            fi
+          if [ -n "$INPUT_SUFFIX" ]; then
+            SUFFIX="$INPUT_SUFFIX"
+          elif [ "$ENV" = "prod" ]; then
+            SUFFIX="${{ vars.DEPLOY_SUFFIX_PROD }}"
           else
-            echo "📦 Fresh deployment - Resource Group does not exist"
-            echo "existingDeployment=false" >> $GITHUB_OUTPUT
-            echo "keyVaultExists=false" >> $GITHUB_OUTPUT
+            SUFFIX="${{ vars.DEPLOY_SUFFIX_DEV }}"
           fi
 
-      # ========================================================================
-      # PHASE 2: SECRET MANAGEMENT
-      # Reuse existing secrets or generate new ones
-      # ========================================================================
-
-      - name: Get or Generate Database Password
-        id: dbpassword
-        run: |
-          KV_NAME="${{ steps.env.outputs.keyVaultName }}"
-          KV_EXISTS="${{ steps.state.outputs.keyVaultExists }}"
-
-          if [ "$KV_EXISTS" == "true" ]; then
-            echo "🔐 Retrieving existing database password from Key Vault..."
-            
-            EXISTING_PASSWORD=$(az keyvault secret show --vault-name "$KV_NAME" --name db-admin-password --query value -o tsv 2>/dev/null || echo "")
-            
-            if [ -n "$EXISTING_PASSWORD" ]; then
-              echo "✅ Using existing database password"
-              echo "password=$EXISTING_PASSWORD" >> $GITHUB_OUTPUT
-              echo "isNew=false" >> $GITHUB_OUTPUT
-            else
-              echo "⚠️ Secret not found in Key Vault, generating new password..."
-              NEW_PASSWORD="Xshop$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)@1"
-              echo "password=$NEW_PASSWORD" >> $GITHUB_OUTPUT
-              echo "isNew=true" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "🆕 First-time deployment - generating database password..."
-            NEW_PASSWORD="Xshop$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-16)@1"
-            echo "password=$NEW_PASSWORD" >> $GITHUB_OUTPUT
-            echo "isNew=true" >> $GITHUB_OUTPUT
+          if [ -z "$SUFFIX" ]; then
+            echo "❌ No suffix resolved — set DEPLOY_SUFFIX_DEV / DEPLOY_SUFFIX_PROD org variables or pass suffix input"
+            exit 1
           fi
 
-      # ========================================================================
-      # PHASE 3: DEPLOY INFRASTRUCTURE
-      # Bicep creates: RG, Key Vault, databases, App Services, etc.
-      # ========================================================================
+          echo "suffix=$SUFFIX"                              >> $GITHUB_OUTPUT
+          echo "resourceGroup=rg-xshopai-$ENV-$SUFFIX"      >> $GITHUB_OUTPUT
+          echo "keyVaultName=kv-xshopai-$ENV-$SUFFIX"       >> $GITHUB_OUTPUT
 
-      - name: Deploy Bicep template
-        id: deploy
+          echo "Environment : $ENV"
+          echo "Suffix      : $SUFFIX"
+          echo "Resource Group: rg-xshopai-$ENV-$SUFFIX"
+
+      - name: Deploy infrastructure
+        env:
+          CI: "true"   # suppresses interactive prompts in deploy.sh
         run: |
-          echo "🚀 Deploying infrastructure with Bicep..."
+          chmod +x ./azure/app-service/bash/deploy.sh
+          ./azure/app-service/bash/deploy.sh \
+            --infra \
+            --env "${{ inputs.environment }}" \
+            --suffix "${{ steps.config.outputs.suffix }}" \
+            --location "${{ env.LOCATION }}"
 
-          DEPLOYMENT_NAME="infra-${{ steps.env.outputs.environment }}-${{ github.run_number }}"
-
-          az deployment sub create \
-            --name "$DEPLOYMENT_NAME" \
-            --location "${{ env.LOCATION }}" \
-            --template-file ./azure/app-service/bicep/main.bicep \
-            --parameters \
-              environment=${{ steps.env.outputs.environment }} \
-              location=${{ env.LOCATION }} \
-              orgName=xshopai \
-              pipeline=gh \
-              dbAdminPassword='${{ steps.dbpassword.outputs.password }}' \
-            --verbose
-
-          echo "✅ Deployment completed: $DEPLOYMENT_NAME"
-
-      - name: Get Deployment Outputs
-        id: outputs
+      - name: Deployment summary
+        if: always()
         run: |
-          echo "📊 Getting deployment outputs..."
+          ENV="${{ inputs.environment }}"
+          SUFFIX="${{ steps.config.outputs.suffix }}"
+          RG="${{ steps.config.outputs.resourceGroup }}"
+          KV="${{ steps.config.outputs.keyVaultName }}"
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
 
-          DEPLOYMENT_NAME="infra-${{ steps.env.outputs.environment }}-${{ github.run_number }}"
-
-          RG_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.resourceGroupName.value -o tsv)
-          ACR_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.acrName.value -o tsv)
-          ACR_SERVER=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.acrLoginServer.value -o tsv)
-          KV_NAME=$(az deployment sub show --name $DEPLOYMENT_NAME --query properties.outputs.keyVaultName.value -o tsv)
-
-          echo "resourceGroup=$RG_NAME" >> $GITHUB_OUTPUT
-          echo "acrName=$ACR_NAME" >> $GITHUB_OUTPUT
-          echo "acrLoginServer=$ACR_SERVER" >> $GITHUB_OUTPUT
-          echo "keyVaultName=$KV_NAME" >> $GITHUB_OUTPUT
-
-          echo "✅ Resource Group: $RG_NAME"
-          echo "✅ ACR: $ACR_NAME ($ACR_SERVER)"
-          echo "✅ Key Vault: $KV_NAME"
-
-      # ========================================================================
-      # PHASE 3.5: CONFIGURE KEY VAULT RBAC
-      # Grant Service Principal and users access to Key Vault secrets
-      # ========================================================================
-
-      - name: Configure Key Vault RBAC Access
-        run: |
-          echo "🔐 Configuring Key Vault RBAC access..."
-
-          KV_NAME="${{ steps.outputs.outputs.keyVaultName }}"
-          RG_NAME="${{ steps.outputs.outputs.resourceGroup }}"
-          SUB_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-
-          KV_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
-
-          # Get Service Principal Object ID from AZURE_CREDENTIALS
-          SP_APP_ID="${{ secrets.AZURE_CLIENT_ID }}"
-          SP_OBJECT_ID=$(az ad sp show --id "$SP_APP_ID" --query id -o tsv 2>/dev/null || echo "")
-
-          if [ -n "$SP_OBJECT_ID" ]; then
-            echo "📌 Service Principal Object ID: $SP_OBJECT_ID"
-            
-            # Grant Service Principal "Key Vault Secrets Officer" role (can read + write secrets)
-            echo "Granting Key Vault Secrets Officer role to Service Principal..."
-            az role assignment create \
-              --assignee-object-id "$SP_OBJECT_ID" \
-              --assignee-principal-type ServicePrincipal \
-              --role "Key Vault Secrets Officer" \
-              --scope "$KV_SCOPE" \
-              --output none 2>/dev/null || echo "Role may already exist"
-            
-            echo "✅ Service Principal granted Key Vault Secrets Officer"
-          else
-            echo "⚠️ Could not get Service Principal Object ID"
-          fi
-
-          # Wait for RBAC propagation (Azure AD can take up to 10 mins, but usually 30s)
-          echo "⏳ Waiting 30s for RBAC propagation..."
-          sleep 30
-
-          echo "✅ Key Vault RBAC configured"
-
-      # ========================================================================
-      # PHASE 4: STORE SECRETS IN KEY VAULT
-      # Now that Key Vault exists (from Bicep), store generated secrets
-      # ========================================================================
-
-      - name: Store Database Password in Key Vault
-        if: steps.dbpassword.outputs.isNew == 'true'
-        run: |
-          echo "🔐 Storing new database password in Key Vault..."
-
-          KV_NAME="${{ steps.outputs.outputs.keyVaultName }}"
-
-          az keyvault secret set \
-            --vault-name "$KV_NAME" \
-            --name db-admin-password \
-            --value "${{ steps.dbpassword.outputs.password }}" \
-            --output none
-
-          # Also store as individual database passwords (same password for simplicity)
-          az keyvault secret set --vault-name "$KV_NAME" --name postgres-password --value "${{ steps.dbpassword.outputs.password }}" --output none
-          az keyvault secret set --vault-name "$KV_NAME" --name mysql-password --value "${{ steps.dbpassword.outputs.password }}" --output none
-          az keyvault secret set --vault-name "$KV_NAME" --name sqlserver-password --value "${{ steps.dbpassword.outputs.password }}" --output none
-
-          echo "✅ Database passwords stored"
-
-      - name: Generate and Store JWT Keys (if not exist)
-        run: |
-          echo "🔐 Checking JWT keys..."
-
-          KV_NAME="${{ steps.outputs.outputs.keyVaultName }}"
-
-          # Check if JWT keys already exist
-          EXISTING_JWT=$(az keyvault secret show --vault-name "$KV_NAME" --name jwt-private-key --query value -o tsv 2>/dev/null || echo "")
-
-          if [ -n "$EXISTING_JWT" ]; then
-            echo "✅ JWT keys already exist in Key Vault, skipping generation"
-          else
-            echo "⚠️ JWT keys not found, generating new RS256 key pair..."
-            
-            # Generate private key
-            openssl genrsa -out private.pem 2048 2>/dev/null
-            
-            # Generate public key
-            openssl rsa -in private.pem -outform PEM -pubout -out public.pem 2>/dev/null
-            
-            # Store in Key Vault
-            az keyvault secret set \
-              --vault-name "$KV_NAME" \
-              --name jwt-private-key \
-              --file private.pem \
-              --output none
-            
-            az keyvault secret set \
-              --vault-name "$KV_NAME" \
-              --name jwt-public-key \
-              --file public.pem \
-              --output none
-            
-            # Cleanup
-            rm -f private.pem public.pem
-            
-            echo "✅ JWT keys generated and stored"
-          fi
-
-      - name: Generate and Store Admin Password (if not exist)
-        run: |
-          echo "🔐 Checking admin password..."
-
-          KV_NAME="${{ steps.outputs.outputs.keyVaultName }}"
-
-          EXISTING=$(az keyvault secret show --vault-name "$KV_NAME" --name admin-password --query value -o tsv 2>/dev/null || echo "")
-
-          if [ -n "$EXISTING" ]; then
-            echo "✅ Admin password already exists, skipping"
-          else
-            echo "⚠️ Admin password not found, generating..."
-            ADMIN_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
-            az keyvault secret set --vault-name "$KV_NAME" --name admin-password --value "$ADMIN_PASSWORD" --output none
-            echo "✅ Admin password generated and stored"
-          fi
-
-      # ========================================================================
-      # PHASE 5: DEPLOYMENT SUMMARY
-      # ========================================================================
-
-      - name: Deployment Summary
-        run: |
-          echo "## 🎉 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## Infrastructure Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ steps.env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Resource Group:** ${{ steps.outputs.outputs.resourceGroup }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Location:** ${{ env.LOCATION }}" >> $GITHUB_STEP_SUMMARY
-          echo "**ACR:** ${{ steps.outputs.outputs.acrLoginServer }}" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | \`$ENV\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Suffix | \`$SUFFIX\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource Group | \`$RG\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Key Vault | \`$KV\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Location | \`${{ env.LOCATION }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔒 Idempotency Status" >> $GITHUB_STEP_SUMMARY
-          echo "- Database Password: ${{ steps.dbpassword.outputs.isNew == 'true' && '🆕 Generated new' || '✅ Reused existing' }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Resources provisioned by bash scripts" >> $GITHUB_STEP_SUMMARY
+          echo "- Resource Group" >> $GITHUB_STEP_SUMMARY
+          echo "- Log Analytics + Application Insights" >> $GITHUB_STEP_SUMMARY
+          echo "- App Service Plan" >> $GITHUB_STEP_SUMMARY
+          echo "- Redis Cache" >> $GITHUB_STEP_SUMMARY
+          echo "- Cosmos DB" >> $GITHUB_STEP_SUMMARY
+          echo "- PostgreSQL Flexible Server" >> $GITHUB_STEP_SUMMARY
+          echo "- MySQL Flexible Server" >> $GITHUB_STEP_SUMMARY
+          echo "- SQL Server" >> $GITHUB_STEP_SUMMARY
+          echo "- RabbitMQ (ACI)" >> $GITHUB_STEP_SUMMARY
+          echo "- Azure OpenAI" >> $GITHUB_STEP_SUMMARY
+          echo "- Key Vault + all secrets" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Resources Deployed:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Azure Container Registry" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ RabbitMQ Container Instance" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Cosmos DB (MongoDB API)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ PostgreSQL Flexible Server" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ MySQL Flexible Server" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ SQL Server + Databases" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Redis Cache" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Key Vault (with all secrets)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Application Insights" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Log Analytics Workspace" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ App Service Plan" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ 16 App Services (with environment variables configured)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Secrets in Key Vault:" >> $GITHUB_STEP_SUMMARY
-          echo "- jwt-private-key" >> $GITHUB_STEP_SUMMARY
-          echo "- jwt-public-key" >> $GITHUB_STEP_SUMMARY
-          echo "- admin-password" >> $GITHUB_STEP_SUMMARY
-          echo "- db-admin-password" >> $GITHUB_STEP_SUMMARY
-          echo "- postgres-password" >> $GITHUB_STEP_SUMMARY
-          echo "- mysql-password" >> $GITHUB_STEP_SUMMARY
-          echo "- sqlserver-password" >> $GITHUB_STEP_SUMMARY
-          echo "- cosmos-connection-string (auto-generated by Bicep)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Verify resources in [Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ steps.outputs.outputs.resourceGroup }})" >> $GITHUB_STEP_SUMMARY
-          echo "2. Deploy services using their respective workflows" >> $GITHUB_STEP_SUMMARY
-          echo "3. Monitor deployments in Application Insights" >> $GITHUB_STEP_SUMMARY
+          echo "### Next steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Set org variable \`DEPLOY_SUFFIX_DEV=$SUFFIX\` if this is your active dev environment" >> $GITHUB_STEP_SUMMARY
+          echo "2. Trigger service deploy workflows — they will target this suffix automatically" >> $GITHUB_STEP_SUMMARY
+          echo "3. [View in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${SUB}/resourceGroups/${RG})" >> $GITHUB_STEP_SUMMARY
