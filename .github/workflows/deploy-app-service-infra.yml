@@ -880,22 +880,22 @@ jobs:
       - name: Create App Service shells
         run: |
           SERVICES=(
-            "admin-service NODE|18-lts /health/live"
-            "admin-ui NODE|18-lts /health"
-            "audit-service NODE|18-lts /health/live"
-            "auth-service NODE|18-lts /health/live"
-            "cart-service JAVA|17-java17 /health/live"
-            "chat-service NODE|18-lts /health/live"
-            "customer-ui NODE|18-lts /health"
-            "inventory-service PYTHON|3.11 /health/live"
-            "notification-service NODE|18-lts /health/live"
-            "order-processor-service JAVA|17-java17 /health/live"
-            "order-service DOTNETCORE|8.0 /health/live"
-            "payment-service DOTNETCORE|8.0 /health/live"
-            "product-service PYTHON|3.11 /health/live"
-            "review-service NODE|18-lts /health/live"
-            "user-service NODE|18-lts /health/live"
-            "web-bff NODE|20-lts /health/live"
+            "admin-service NODE:18-lts /health/live"
+            "admin-ui NODE:18-lts /health"
+            "audit-service NODE:18-lts /health/live"
+            "auth-service NODE:18-lts /health/live"
+            "cart-service JAVA:17-java17 /health/live"
+            "chat-service NODE:18-lts /health/live"
+            "customer-ui NODE:18-lts /health"
+            "inventory-service PYTHON:3.11 /health/live"
+            "notification-service NODE:18-lts /health/live"
+            "order-processor-service JAVA:17-java17 /health/live"
+            "order-service DOTNETCORE:8.0 /health/live"
+            "payment-service DOTNETCORE:8.0 /health/live"
+            "product-service PYTHON:3.11 /health/live"
+            "review-service NODE:18-lts /health/live"
+            "user-service NODE:18-lts /health/live"
+            "web-bff NODE:20-lts /health/live"
           )
 
           for entry in "${SERVICES[@]}"; do
