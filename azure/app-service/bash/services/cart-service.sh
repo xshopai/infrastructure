@@ -27,7 +27,8 @@ deploy_cart_service() {
     local settings=(
         # Quarkus HTTP port (overrides quarkus.http.port in application.properties)
         "QUARKUS_HTTP_PORT=$port"
-        # Redis: Quarkus reads these via quarkus.redis.hosts=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}
+        # Redis: Override quarkus.redis.hosts directly to use rediss:// (SSL) for Azure Cache for Redis on port 6380
+        "QUARKUS_REDIS_HOSTS=rediss://:${REDIS_KEY}@${REDIS_HOST}:6380"
         "REDIS_HOST=$REDIS_HOST"
         "REDIS_PORT=6380"
         "REDIS_PASSWORD=$REDIS_KEY"
@@ -45,7 +46,8 @@ deploy_cart_service() {
         # Downstream service URLs
         "PRODUCT_SERVICE_URL=https://app-product-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
         "INVENTORY_SERVICE_URL=https://app-inventory-service-${PROJECT_NAME}-${SHORT_ENV}-${SUFFIX}.azurewebsites.net"
-
+        # OpenTelemetry
+        "OTEL_SERVICE_NAME=cart-service"
     )
 
     deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"

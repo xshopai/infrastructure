@@ -4,14 +4,14 @@
 # =============================================================================
 # Runtime: Python 3.11 (Flask)
 # Database: MySQL (Azure Flexible Server)
-# Port: 8004
+# Port: 8005
 # Code reads MYSQL_SERVER_CONNECTION (server URL without DB) + DB_NAME separately
 # =============================================================================
 
 deploy_inventory_service() {
     local service_name="inventory-service"
     local runtime="PYTHON|3.11"
-    local port="8004"
+    local port="8005"
 
     # Load secrets from Key Vault
     local mysql_server=$(load_secret "inventory-service-mysql-server")

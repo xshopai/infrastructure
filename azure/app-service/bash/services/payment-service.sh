@@ -40,7 +40,7 @@ deploy_payment_service() {
         "ServiceTokens__UserService=$token_user"
         # Telemetry (App Insights via OTEL)
         "OTEL_TRACES_EXPORTER=azure"
-
+        "OTEL_SERVICE_NAME=payment-service"
     )
 
     deploy_service_full "$service_name" "$runtime" "$port" "${settings[@]}"

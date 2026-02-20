@@ -17,19 +17,23 @@ get_health_check_path() {
     local service_name="$1"
     case "$service_name" in
         # Node.js services use /health/live
-        admin-service|admin-ui|auth-service|audit-service|chat-service|notification-service|review-service|user-service|web-bff)
+        admin-service|auth-service|audit-service|chat-service|notification-service|review-service|user-service|web-bff)
             echo "/health/live"
+            ;;
+        # UI containers (nginx) expose /health
+        admin-ui)
+            echo "/health"
             ;;
         # Python FastAPI services use /health
         inventory-service|product-service)
-            echo "/health"
+            echo "/health/live"
             ;;
         # .NET services — order-service exposes /health/live, payment-service /health
         order-service)
             echo "/health/live"
             ;;
         payment-service)
-            echo "/health"
+            echo "/health/live"
             ;;
         # Java Spring Boot services use /actuator/health
         cart-service|order-processor-service)

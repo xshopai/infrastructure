@@ -94,7 +94,7 @@ deploy_mysql() {
     fi
     
     # Create service databases
-    for db_name in "inventory_service_db" "cart_service_db" "chat_service_db"; do
+    for db_name in "inventory_service_db"; do
         if ! az mysql flexible-server db show \
             --resource-group "$RESOURCE_GROUP" \
             --server-name "$MYSQL_SERVER" \
