@@ -19,7 +19,7 @@ on:
       suffix:
         description: "Resource suffix (e.g. as01, 001) — leave blank to use org default"
         required: false
-        default: ''
+        default: ""
       location:
         description: "Azure region"
         required: false
@@ -533,12 +533,39 @@ jobs:
           if az cognitiveservices account show \
               --name "$AZURE_OPENAI_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
             echo "Already exists: $AZURE_OPENAI_NAME"
-            # Update existing account to allow key-based auth
-            az cognitiveservices account update \
+            
+            # Check if disableLocalAuth needs to be updated
+            CURRENT_DISABLE_AUTH=$(az cognitiveservices account show \
               --name "$AZURE_OPENAI_NAME" \
               --resource-group "$RESOURCE_GROUP" \
-              --set properties.disableLocalAuth=false \
-              --output none 2>/dev/null || true
+              --query "properties.disableLocalAuth" -o tsv 2>/dev/null || echo "true")
+            
+            if [ "$CURRENT_DISABLE_AUTH" = "true" ]; then
+              echo "Enabling key-based authentication..."
+              az cognitiveservices account update \
+                --name "$AZURE_OPENAI_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --set properties.disableLocalAuth=false \
+                --output none
+              
+              # Wait for the update to propagate
+              echo "Waiting for authentication mode update to propagate..."
+              sleep 15
+              
+              # Verify the update succeeded
+              UPDATED_DISABLE_AUTH=$(az cognitiveservices account show \
+                --name "$AZURE_OPENAI_NAME" \
+                --resource-group "$RESOURCE_GROUP" \
+                --query "properties.disableLocalAuth" -o tsv)
+              
+              if [ "$UPDATED_DISABLE_AUTH" = "false" ]; then
+                echo "✓ Key-based authentication enabled"
+              else
+                echo "⚠ Warning: Failed to enable key-based authentication"
+              fi
+            else
+              echo "Key-based authentication already enabled"
+            fi
           else
             az cognitiveservices account create \
               --name "$AZURE_OPENAI_NAME" \
