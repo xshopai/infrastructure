@@ -5,6 +5,14 @@ name: Deploy App Service Infrastructure
 # Deploying in the same sequence as deploy.sh: resource-group → monitoring →
 # app-service-plan → redis → cosmos → postgresql → mysql → sql → rabbitmq →
 # openai → keyvault+secrets
+#
+# PREREQUISITES:
+# 1. AZURE_CREDENTIALS secret configured with service principal credentials
+# 2. Service principal must have "User Access Administrator" role at 
+#    subscription level (for RBAC assignments to managed identities)
+#    - Grant manually using Azure REST API (one-time per subscription)
+#    - TODO: automate via IaC (Terraform/Bicep) in future iterations
+# 3. Organization variables: DEPLOY_SUFFIX_DEV (optional default suffix)
 # =============================================================================
 
 on:
@@ -1092,7 +1100,23 @@ jobs:
             "OTEL_TRACES_EXPORTER=azure" \
             "OTEL_SERVICE_NAME=chat-service"
           
-          # Grant chat-service Managed Identity access to Azure OpenAI
+          # -------------------------------------------------------------------
+          # RBAC: Grant chat-service Managed Identity access to Azure OpenAI
+          # 
+          # PREREQUISITE: The GitHub Actions service principal must have 
+          # "User Access Administrator" role at subscription level to perform
+          # role assignments. This is a one-time manual setup per subscription.
+          # 
+          # Grant permission using Azure REST API (works with service principals):
+          # az rest --method put \
+          #   --url "https://management.azure.com/subscriptions/{SUBSCRIPTION_ID}/providers/Microsoft.Authorization/roleAssignments/{NEW_GUID}?api-version=2022-04-01" \
+          #   --body '{"properties":{"roleDefinitionId":"/subscriptions/{SUBSCRIPTION_ID}/providers/Microsoft.Authorization/roleDefinitions/18d7d88d-d35e-4fb5-a5c3-7773c20a72d9","principalId":"{SERVICE_PRINCIPAL_OBJECT_ID}"}}'
+          #
+          # Role ID: 18d7d88d-d35e-4fb5-a5c3-7773c20a72d9 = User Access Administrator
+          #
+          # TODO: In IaC approach (Terraform/Bicep), declare this as azurerm_role_assignment
+          # or Microsoft.Authorization/roleAssignments resource to make it reproducible.
+          # -------------------------------------------------------------------
           CHAT_PRINCIPAL_ID=$(az webapp identity show \
             --name "app-chat-service-xshopai-${ENV}-${SUFFIX}" \
             --resource-group "$RESOURCE_GROUP" \
