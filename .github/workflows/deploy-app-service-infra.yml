@@ -533,6 +533,12 @@ jobs:
           if az cognitiveservices account show \
               --name "$AZURE_OPENAI_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
             echo "Already exists: $AZURE_OPENAI_NAME"
+            # Update existing account to allow key-based auth
+            az cognitiveservices account update \
+              --name "$AZURE_OPENAI_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --set properties.disableLocalAuth=false \
+              --output none 2>/dev/null || true
           else
             az cognitiveservices account create \
               --name "$AZURE_OPENAI_NAME" \
