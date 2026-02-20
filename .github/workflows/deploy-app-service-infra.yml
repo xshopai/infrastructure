@@ -473,6 +473,7 @@ jobs:
               --name "$RABBITMQ_INSTANCE" \
               --resource-group "$RESOURCE_GROUP" \
               --location "$LOCATION" \
+              --os-type Linux \
               --image "mcr.microsoft.com/mirror/docker/library/rabbitmq:3-management" \
               --cpu 1 --memory 1.5 \
               --ports 5672 15672 \
