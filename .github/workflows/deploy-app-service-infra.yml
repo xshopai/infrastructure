@@ -10,6 +10,12 @@ name: Deploy App Service Infrastructure
 on:
   workflow_dispatch:
     inputs:
+      deploy_scope:
+        description: "Deployment scope"
+        required: true
+        type: choice
+        options: [both, infra-only, services-only]
+        default: both
       environment:
         description: "Environment"
         required: true
@@ -29,6 +35,8 @@ jobs:
   deploy-infrastructure:
     name: Deploy infra (${{ inputs.environment }}) suffix=${{ inputs.suffix || vars.DEPLOY_SUFFIX_DEV }}
     runs-on: ubuntu-latest
+    # Run if deploying both or infra-only
+    if: inputs.deploy_scope == 'both' || inputs.deploy_scope == 'infra-only'
 
     # Production requires manual approval — configure reviewers in repo Environments settings
     environment:
@@ -736,11 +744,21 @@ jobs:
   # Pre-configured with environment settings, secrets from Key Vault,
   # diagnostics, managed identity, and health checks. Service CI workflows
   # only need to zip-deploy code.
+  # 
+  # Can run independently if infrastructure already exists (services-only mode)
   # =========================================================================
   deploy-service-shells:
     name: Create service shells (${{ inputs.environment }})
     needs: deploy-infrastructure
     runs-on: ubuntu-latest
+    # Run if:
+    # - deploying both (waits for infra to complete)
+    # - deploying services-only (infra job skipped, but we use always() to run anyway)
+    if: |
+      always() && 
+      !cancelled() &&
+      (inputs.deploy_scope == 'both' || inputs.deploy_scope == 'services-only') &&
+      (inputs.deploy_scope == 'services-only' || needs.deploy-infrastructure.result == 'success')
     environment:
       name: ${{ inputs.environment }}
     permissions:
