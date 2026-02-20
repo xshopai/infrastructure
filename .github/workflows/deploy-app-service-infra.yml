@@ -542,29 +542,49 @@ jobs:
             
             if [ "$CURRENT_DISABLE_AUTH" = "true" ]; then
               echo "Enabling key-based authentication..."
-              # Use az rest API to update the property (--set syntax not supported for this property)
-              az rest \
-                --method PATCH \
-                --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/${AZURE_OPENAI_NAME}?api-version=2023-05-01" \
-                --body '{"properties":{"disableLocalAuth":false}}' \
-                --output none 2>/dev/null || {
-                  echo "⚠ Warning: Could not update authentication mode via API, continuing..."
-                }
               
-              # Wait for the update to propagate
-              echo "Waiting for authentication mode update to propagate..."
-              sleep 15
-              
-              # Verify the update succeeded
-              UPDATED_DISABLE_AUTH=$(az cognitiveservices account show \
+              # Get current resource properties
+              CURRENT_RESOURCE=$(az cognitiveservices account show \
                 --name "$AZURE_OPENAI_NAME" \
                 --resource-group "$RESOURCE_GROUP" \
-                --query "properties.disableLocalAuth" -o tsv)
+                --output json)
               
-              if [ "$UPDATED_DISABLE_AUTH" = "false" ]; then
-                echo "✓ Key-based authentication enabled"
+              CURRENT_LOCATION=$(echo "$CURRENT_RESOURCE" | jq -r '.location')
+              CURRENT_SKU=$(echo "$CURRENT_RESOURCE" | jq -r '.sku.name')
+              
+              # Update using PUT with full resource definition
+              echo "Updating authentication settings..."
+              az rest \
+                --method PUT \
+                --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/${AZURE_OPENAI_NAME}?api-version=2023-05-01" \
+                --body "{
+                  \"location\": \"$CURRENT_LOCATION\",
+                  \"sku\": {
+                    \"name\": \"$CURRENT_SKU\"
+                  },
+                  \"kind\": \"OpenAI\",
+                  \"properties\": {
+                    \"customSubDomainName\": \"$AZURE_OPENAI_NAME\",
+                    \"disableLocalAuth\": false,
+                    \"publicNetworkAccess\": \"Enabled\"
+                  }
+                }" \
+                --output none
+              
+              # Wait for the update to propagate
+              echo "Waiting for authentication mode update (15s)..."
+              sleep 15
+              
+              # Verify by testing actual key retrieval (property may show stale value due to eventual consistency)
+              echo "Testing key retrieval..."
+              if az cognitiveservices account keys list \
+                  --name "$AZURE_OPENAI_NAME" \
+                  --resource-group "$RESOURCE_GROUP" \
+                  --query key1 -o tsv &>/dev/null; then
+                echo "✓ Key-based authentication enabled and working"
               else
-                echo "⚠ Warning: Authentication mode may not be updated, but account is functional"
+                echo "::error::Failed to retrieve keys after enabling authentication"
+                exit 1
               fi
             else
               echo "Key-based authentication already enabled"
