@@ -1448,6 +1448,14 @@ jobs:
       # -------------------------------------------------------------------
       # Firewall rules — allow App Service outbound IPs to access
       # MySQL (inventory-service) and PostgreSQL (order-processor-service).
+      #
+      # NOTE: This can be slow (5-10+ IPs per service × 2 services = 20+ API calls).
+      # Idempotency check skips existing rules on re-runs.
+      # 
+      # TODO: Consider VNet integration for better performance and security:
+      # - Enable VNet integration on App Services
+      # - Configure database private endpoints
+      # - Remove IP-based firewall rules
       # -------------------------------------------------------------------
       - name: Configure firewall rules
         run: |
@@ -1460,18 +1468,28 @@ jobs:
             [ -z "$outbound_ips" ] && return
             for ip in $(echo "$outbound_ips" | tr ',' ' '); do
               i=$((i + 1))
+              rule_name="${rule_prefix}-${i}"
+              # Skip if rule already exists (idempotent)
               if [ "$db_type" = "mysql" ]; then
-                az mysql flexible-server firewall-rule create \
+                if ! az mysql flexible-server firewall-rule show \
                   --name "$server" --resource-group "$RESOURCE_GROUP" \
-                  --rule-name "${rule_prefix}-${i}" \
-                  --start-ip-address "$ip" --end-ip-address "$ip" \
-                  --output none 2>/dev/null || true
+                  --rule-name "$rule_name" &>/dev/null; then
+                  az mysql flexible-server firewall-rule create \
+                    --name "$server" --resource-group "$RESOURCE_GROUP" \
+                    --rule-name "$rule_name" \
+                    --start-ip-address "$ip" --end-ip-address "$ip" \
+                    --output none 2>/dev/null || true
+                fi
               else
-                az postgres flexible-server firewall-rule create \
+                if ! az postgres flexible-server firewall-rule show \
                   --name "$server" --resource-group "$RESOURCE_GROUP" \
-                  --rule-name "${rule_prefix}-${i}" \
-                  --start-ip-address "$ip" --end-ip-address "$ip" \
-                  --output none 2>/dev/null || true
+                  --rule-name "$rule_name" &>/dev/null; then
+                  az postgres flexible-server firewall-rule create \
+                    --name "$server" --resource-group "$RESOURCE_GROUP" \
+                    --rule-name "$rule_name" \
+                    --start-ip-address "$ip" --end-ip-address "$ip" \
+                    --output none 2>/dev/null || true
+                fi
               fi
             done
             echo "  ✓ $db_type firewall: $i rules for $app_name"
