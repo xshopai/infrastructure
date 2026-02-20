@@ -530,76 +530,20 @@ jobs:
           [ "$OPENAI_LOCATION" != "$LOCATION" ] && \
             echo "Note: Deploying to $OPENAI_LOCATION (not available in $LOCATION)"
 
-          if az cognitiveservices account show \
+          # Create or verify Azure OpenAI account exists (uses Managed Identity auth - no keys needed)
+          if ! az cognitiveservices account show \
               --name "$AZURE_OPENAI_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
-            echo "Already exists: $AZURE_OPENAI_NAME"
-            
-            # Check if disableLocalAuth needs to be updated
-            CURRENT_DISABLE_AUTH=$(az cognitiveservices account show \
-              --name "$AZURE_OPENAI_NAME" \
-              --resource-group "$RESOURCE_GROUP" \
-              --query "properties.disableLocalAuth" -o tsv 2>/dev/null || echo "true")
-            
-            if [ "$CURRENT_DISABLE_AUTH" = "true" ]; then
-              echo "Enabling key-based authentication..."
-              
-              # Get current resource properties
-              CURRENT_RESOURCE=$(az cognitiveservices account show \
-                --name "$AZURE_OPENAI_NAME" \
-                --resource-group "$RESOURCE_GROUP" \
-                --output json)
-              
-              CURRENT_LOCATION=$(echo "$CURRENT_RESOURCE" | jq -r '.location')
-              CURRENT_SKU=$(echo "$CURRENT_RESOURCE" | jq -r '.sku.name')
-              
-              # Update using PUT with full resource definition
-              echo "Updating authentication settings..."
-              az rest \
-                --method PUT \
-                --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/${AZURE_OPENAI_NAME}?api-version=2023-05-01" \
-                --body "{
-                  \"location\": \"$CURRENT_LOCATION\",
-                  \"sku\": {
-                    \"name\": \"$CURRENT_SKU\"
-                  },
-                  \"kind\": \"OpenAI\",
-                  \"properties\": {
-                    \"customSubDomainName\": \"$AZURE_OPENAI_NAME\",
-                    \"disableLocalAuth\": false,
-                    \"publicNetworkAccess\": \"Enabled\"
-                  }
-                }" \
-                --output none
-              
-              # Wait for the update to propagate
-              echo "Waiting for authentication mode update (15s)..."
-              sleep 15
-              
-              # Verify by testing actual key retrieval (property may show stale value due to eventual consistency)
-              echo "Testing key retrieval..."
-              if az cognitiveservices account keys list \
-                  --name "$AZURE_OPENAI_NAME" \
-                  --resource-group "$RESOURCE_GROUP" \
-                  --query key1 -o tsv &>/dev/null; then
-                echo "✓ Key-based authentication enabled and working"
-              else
-                echo "::error::Failed to retrieve keys after enabling authentication"
-                exit 1
-              fi
-            else
-              echo "Key-based authentication already enabled"
-            fi
-          else
             az cognitiveservices account create \
               --name "$AZURE_OPENAI_NAME" \
               --resource-group "$RESOURCE_GROUP" \
               --location "$OPENAI_LOCATION" \
               --kind OpenAI \
               --sku S0 \
-              --disable-local-auth false \
               --custom-domain "$AZURE_OPENAI_NAME" \
               --output none
-            echo "✓ Created: $AZURE_OPENAI_NAME"
+            echo "✓ Created: $AZURE_OPENAI_NAME (Managed Identity auth)"
+          else
+            echo "Already exists: $AZURE_OPENAI_NAME"
           fi
 
           if ! az cognitiveservices account deployment show \
@@ -619,15 +563,13 @@ jobs:
           fi
 
           AZURE_OPENAI_ENDPOINT="https://${AZURE_OPENAI_NAME}.openai.azure.com/"
-          AZURE_OPENAI_API_KEY=$(az cognitiveservices account keys list \
-            --name "$AZURE_OPENAI_NAME" --resource-group "$RESOURCE_GROUP" \
-            --query key1 -o tsv)
-
-          echo "::add-mask::$AZURE_OPENAI_API_KEY"
+          
+          # Store endpoint only (services will use Managed Identity for auth)
           {
             echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT"
-            echo "AZURE_OPENAI_API_KEY=$AZURE_OPENAI_API_KEY"
           } >> "$GITHUB_ENV"
+          
+          echo "✓ Azure OpenAI configured for Managed Identity authentication"
 
       # -----------------------------------------------------------------------
       # 11 — Key Vault + all secrets
@@ -837,9 +779,12 @@ jobs:
             NODE_ENV="development"; ASPNET_ENV="Development"
           fi
 
+          SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
           {
             echo "ENV=$ENV"
             echo "SUFFIX=$SUFFIX"
+            echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID"
             echo "RESOURCE_GROUP=rg-xshopai-${ENV}-${SUFFIX}"
             echo "APP_SERVICE_PLAN=asp-xshopai-${ENV}-${SUFFIX}"
             echo "KEY_VAULT=kv-xshopai-${ENV}-${SUFFIX}"
@@ -847,6 +792,7 @@ jobs:
             echo "APP_INSIGHTS=appi-xshopai-${ENV}-${SUFFIX}"
             echo "POSTGRES_SERVER=psql-xshopai-${ENV}-${SUFFIX}"
             echo "MYSQL_SERVER=mysql-xshopai-${ENV}-${SUFFIX}"
+            echo "AZURE_OPENAI_NAME=oai-xshopai-${ENV}-${SUFFIX}"
             echo "NODE_ENV=$NODE_ENV"
             echo "ASPNET_ENV=$ASPNET_ENV"
           } >> "$GITHUB_ENV"
@@ -921,9 +867,8 @@ jobs:
           kv_export PRODUCT_SERVICE_TOKEN product-service-token
           kv_export WEB_BFF_TOKEN web-bff-token
 
-          # Azure OpenAI
+          # Azure OpenAI (endpoint and deployment only - services use Managed Identity)
           kv_export OPENAI_ENDPOINT chat-service-openai-endpoint
-          kv_export OPENAI_API_KEY chat-service-openai-api-key
           kv_export OPENAI_DEPLOYMENT chat-service-openai-deployment
 
           echo "✓ All secrets loaded from Key Vault"
@@ -1118,9 +1063,9 @@ jobs:
             "JWT_ISSUER=$JWT_ISSUER" \
             "JWT_AUDIENCE=$JWT_AUDIENCE" \
             "AZURE_OPENAI_ENDPOINT=$OPENAI_ENDPOINT" \
-            "AZURE_OPENAI_API_KEY=$OPENAI_API_KEY" \
             "AZURE_OPENAI_DEPLOYMENT_NAME=$OPENAI_DEPLOYMENT" \
             "AZURE_OPENAI_API_VERSION=2024-10-21" \
+            "AZURE_USE_MANAGED_IDENTITY=true" \
             "MESSAGING_PROVIDER=rabbitmq" \
             "PRODUCT_SERVICE_URL=$(svc_url product-service)" \
             "ORDER_SERVICE_URL=$(svc_url order-service)" \
@@ -1128,6 +1073,27 @@ jobs:
             "INVENTORY_SERVICE_URL=$(svc_url inventory-service)" \
             "OTEL_TRACES_EXPORTER=azure" \
             "OTEL_SERVICE_NAME=chat-service"
+          
+          # Grant chat-service Managed Identity access to Azure OpenAI
+          CHAT_PRINCIPAL_ID=$(az webapp identity show \
+            --name "app-chat-service-xshopai-${ENV}-${SUFFIX}" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query principalId -o tsv 2>/dev/null)
+          
+          if [ -n "$CHAT_PRINCIPAL_ID" ]; then
+            OPENAI_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.CognitiveServices/accounts/${AZURE_OPENAI_NAME}"
+            if ! az role assignment list --assignee "$CHAT_PRINCIPAL_ID" --scope "$OPENAI_RESOURCE_ID" \
+                --query "[?roleDefinitionName=='Cognitive Services OpenAI User']" -o tsv | grep -q .; then
+              az role assignment create \
+                --assignee "$CHAT_PRINCIPAL_ID" \
+                --role "Cognitive Services OpenAI User" \
+                --scope "$OPENAI_RESOURCE_ID" \
+                --output none
+              echo "  ✓ Granted chat-service Managed Identity access to Azure OpenAI"
+            else
+              echo "  ✓ chat-service already has OpenAI access"
+            fi
+          fi
 
           # ---- 7. customer-ui ----
           configure "app-customer-ui-xshopai-${ENV}-${SUFFIX}" \
