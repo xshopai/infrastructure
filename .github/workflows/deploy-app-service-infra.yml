@@ -1,16 +1,20 @@
 name: Deploy App Service Infrastructure
+# =============================================================================
+# Self-contained infrastructure deployment — no bash scripts required.
+# All az CLI commands are inlined directly from the bash infra modules.
+# Deploying in the same sequence as deploy.sh: resource-group → monitoring →
+# app-service-plan → redis → cosmos → postgresql → mysql → sql → rabbitmq →
+# openai → keyvault+secrets
+# =============================================================================
 
 on:
-  # Manual trigger only — infrastructure is provisioned on demand, not on every push
   workflow_dispatch:
     inputs:
       environment:
         description: "Environment"
         required: true
         type: choice
-        options:
-          - dev
-          - prod
+        options: [dev, prod]
         default: dev
       suffix:
         description: "Resource suffix (e.g. as01, 001) — leave blank to use org default"
@@ -20,9 +24,6 @@ on:
         description: "Azure region"
         required: false
         default: francecentral
-
-env:
-  LOCATION: ${{ inputs.location || 'francecentral' }}
 
 jobs:
   deploy-infrastructure:
@@ -38,19 +39,20 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      # No checkout needed — all az commands are inlined, no source files required
       - name: Azure login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Resolve suffix
-        id: config
+      # -----------------------------------------------------------------------
+      # Derive all resource names from env + suffix and export to GITHUB_ENV
+      # so every subsequent step can use them as plain shell variables.
+      # -----------------------------------------------------------------------
+      - name: Resolve configuration
         run: |
-          INPUT_SUFFIX="${{ inputs.suffix }}"
           ENV="${{ inputs.environment }}"
+          INPUT_SUFFIX="${{ inputs.suffix }}"
 
           if [ -n "$INPUT_SUFFIX" ]; then
             SUFFIX="$INPUT_SUFFIX"
@@ -61,62 +63,664 @@ jobs:
           fi
 
           if [ -z "$SUFFIX" ]; then
-            echo "❌ No suffix resolved — set DEPLOY_SUFFIX_DEV / DEPLOY_SUFFIX_PROD org variables or pass suffix input"
+            echo "❌ No suffix resolved — set DEPLOY_SUFFIX_DEV / DEPLOY_SUFFIX_PROD org variables or pass the suffix input"
             exit 1
           fi
 
-          echo "suffix=$SUFFIX"                              >> $GITHUB_OUTPUT
-          echo "resourceGroup=rg-xshopai-$ENV-$SUFFIX"      >> $GITHUB_OUTPUT
-          echo "keyVaultName=kv-xshopai-$ENV-$SUFFIX"       >> $GITHUB_OUTPUT
+          SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
-          echo "Environment : $ENV"
-          echo "Suffix      : $SUFFIX"
-          echo "Resource Group: rg-xshopai-$ENV-$SUFFIX"
+          {
+            echo "ENV=$ENV"
+            echo "SUFFIX=$SUFFIX"
+            echo "LOCATION=${{ inputs.location || 'francecentral' }}"
+            echo "SUBSCRIPTION_ID=$SUBSCRIPTION_ID"
+            echo "RESOURCE_GROUP=rg-xshopai-${ENV}-${SUFFIX}"
+            echo "APP_SERVICE_PLAN=asp-xshopai-${ENV}-${SUFFIX}"
+            echo "KEY_VAULT=kv-xshopai-${ENV}-${SUFFIX}"
+            echo "LOG_ANALYTICS=log-xshopai-${ENV}-${SUFFIX}"
+            echo "APP_INSIGHTS=appi-xshopai-${ENV}-${SUFFIX}"
+            echo "COSMOS_ACCOUNT=cosmos-xshopai-${ENV}-${SUFFIX}"
+            echo "POSTGRES_SERVER=psql-xshopai-${ENV}-${SUFFIX}"
+            echo "MYSQL_SERVER=mysql-xshopai-${ENV}-${SUFFIX}"
+            echo "SQL_SERVER=sql-xshopai-${ENV}-${SUFFIX}"
+            echo "REDIS_NAME=redis-xshopai-${ENV}-${SUFFIX}"
+            echo "RABBITMQ_INSTANCE=aci-rabbitmq-${ENV}-${SUFFIX}"
+            echo "AZURE_OPENAI_NAME=oai-xshopai-${ENV}-${SUFFIX}"
+          } >> "$GITHUB_ENV"
 
-      - name: Deploy infrastructure
-        env:
-          CI: "true"   # suppresses interactive prompts in deploy.sh
+          echo "Environment  : $ENV"
+          echo "Suffix       : $SUFFIX"
+          echo "Resource Group: rg-xshopai-${ENV}-${SUFFIX}"
+
+      # -----------------------------------------------------------------------
+      # Generate passwords (first run) or retrieve them from Key Vault (re-run).
+      # All passwords are masked immediately so they never appear in logs.
+      # Stored individually in KV (Key Vault step) so re-runs are always consistent.
+      # -----------------------------------------------------------------------
+      - name: Generate or retrieve credentials
         run: |
-          chmod +x ./azure/app-service/bash/deploy.sh
-          ./azure/app-service/bash/deploy.sh \
-            --infra \
-            --env "${{ inputs.environment }}" \
-            --suffix "${{ steps.config.outputs.suffix }}" \
-            --location "${{ env.LOCATION }}"
+          gen_password() {
+            local prefix="${1:-Xshop}" len="${2:-16}"
+            echo "${prefix}$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9!@#' | head -c "$len")!"
+          }
 
+          # Try KV first (idempotent on re-runs); fall back to generating a new value
+          get_or_gen() {
+            local secret_name="$1" fallback="$2"
+            if az keyvault show --name "$KEY_VAULT" --resource-group "$RESOURCE_GROUP" &>/dev/null 2>&1; then
+              local val
+              val=$(az keyvault secret show --vault-name "$KEY_VAULT" --name "$secret_name" \
+                --query value -o tsv 2>/dev/null || echo "")
+              [ -n "$val" ] && { echo "$val"; return; }
+            fi
+            echo "$fallback"
+          }
+
+          POSTGRES_ADMIN_USER="pgadmin"
+          POSTGRES_ADMIN_PASSWORD=$(get_or_gen "postgres-admin-password" "$(gen_password 'Pg' 16)")
+
+          MYSQL_ADMIN_USER="mysqladmin"
+          MYSQL_ADMIN_PASSWORD=$(get_or_gen "mysql-admin-password" "$(gen_password 'Mysql' 16)")
+
+          SQL_ADMIN_USER="sqladmin"
+          SQL_ADMIN_PASSWORD=$(get_or_gen "sql-admin-password" "$(gen_password 'Sql' 16)")
+
+          RABBITMQ_USER="admin"
+          RABBITMQ_PASSWORD=$(get_or_gen "rabbitmq-password" "$(gen_password 'Rmq' 16)")
+
+          # Mask before writing to GITHUB_ENV — prevents values appearing in logs
+          echo "::add-mask::$POSTGRES_ADMIN_PASSWORD"
+          echo "::add-mask::$MYSQL_ADMIN_PASSWORD"
+          echo "::add-mask::$SQL_ADMIN_PASSWORD"
+          echo "::add-mask::$RABBITMQ_PASSWORD"
+
+          {
+            echo "POSTGRES_ADMIN_USER=$POSTGRES_ADMIN_USER"
+            echo "POSTGRES_ADMIN_PASSWORD=$POSTGRES_ADMIN_PASSWORD"
+            echo "MYSQL_ADMIN_USER=$MYSQL_ADMIN_USER"
+            echo "MYSQL_ADMIN_PASSWORD=$MYSQL_ADMIN_PASSWORD"
+            echo "SQL_ADMIN_USER=$SQL_ADMIN_USER"
+            echo "SQL_ADMIN_PASSWORD=$SQL_ADMIN_PASSWORD"
+            echo "RABBITMQ_USER=$RABBITMQ_USER"
+            echo "RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 01 — Resource Group
+      # -----------------------------------------------------------------------
+      - name: Resource Group
+        run: |
+          if az group show --name "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $RESOURCE_GROUP"
+          else
+            az group create \
+              --name "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --tags project=xshopai environment="$ENV" suffix="$SUFFIX" \
+              --output none
+            echo "✓ Created: $RESOURCE_GROUP"
+          fi
+
+      # -----------------------------------------------------------------------
+      # 02 — Log Analytics Workspace + Application Insights
+      # -----------------------------------------------------------------------
+      - name: Monitoring — Log Analytics & Application Insights
+        run: |
+          WORKSPACE_RESOURCE_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.OperationalInsights/workspaces/${LOG_ANALYTICS}"
+
+          # Log Analytics Workspace
+          if az monitor log-analytics workspace show \
+              --workspace-name "$LOG_ANALYTICS" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $LOG_ANALYTICS"
+          else
+            az monitor log-analytics workspace create \
+              --workspace-name "$LOG_ANALYTICS" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --retention-time 30 \
+              --output none
+            echo "✓ Created: $LOG_ANALYTICS"
+          fi
+
+          # Application Insights (workspace-based, shared across all services)
+          if az monitor app-insights component show \
+              --app "$APP_INSIGHTS" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $APP_INSIGHTS"
+          else
+            az monitor app-insights component create \
+              --app "$APP_INSIGHTS" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --workspace "$WORKSPACE_RESOURCE_ID" \
+              --kind web \
+              --application-type web \
+              --output none
+            echo "✓ Created: $APP_INSIGHTS"
+          fi
+
+          APP_INSIGHTS_CONNECTION=$(az monitor app-insights component show \
+            --app "$APP_INSIGHTS" --resource-group "$RESOURCE_GROUP" \
+            --query connectionString -o tsv)
+          APP_INSIGHTS_KEY=$(az monitor app-insights component show \
+            --app "$APP_INSIGHTS" --resource-group "$RESOURCE_GROUP" \
+            --query instrumentationKey -o tsv)
+
+          echo "::add-mask::$APP_INSIGHTS_KEY"
+          {
+            echo "APP_INSIGHTS_CONNECTION=$APP_INSIGHTS_CONNECTION"
+            echo "APP_INSIGHTS_KEY=$APP_INSIGHTS_KEY"
+          } >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 03 — App Service Plan (P3V3 Linux — same SKU for dev and prod)
+      # -----------------------------------------------------------------------
+      - name: App Service Plan
+        run: |
+          if az appservice plan show \
+              --name "$APP_SERVICE_PLAN" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $APP_SERVICE_PLAN"
+          else
+            az appservice plan create \
+              --name "$APP_SERVICE_PLAN" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --sku P3V3 \
+              --is-linux \
+              --output none
+            echo "✓ Created: $APP_SERVICE_PLAN (P3V3 Linux)"
+          fi
+
+      # -----------------------------------------------------------------------
+      # 04 — Redis Cache (Basic C0 — can be updated to Standard for prod)
+      # -----------------------------------------------------------------------
+      - name: Redis Cache
+        run: |
+          if az redis show \
+              --name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $REDIS_NAME"
+          else
+            echo "Creating Redis Cache — takes 5-10 minutes..."
+            az redis create \
+              --name "$REDIS_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --sku Basic \
+              --vm-size c0 \
+              --output none
+            echo "✓ Created: $REDIS_NAME"
+          fi
+
+          REDIS_HOST=$(az redis show \
+            --name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" \
+            --query hostName -o tsv)
+          REDIS_KEY=$(az redis list-keys \
+            --name "$REDIS_NAME" --resource-group "$RESOURCE_GROUP" \
+            --query primaryKey -o tsv)
+
+          echo "::add-mask::$REDIS_KEY"
+          {
+            echo "REDIS_HOST=$REDIS_HOST"
+            echo "REDIS_KEY=$REDIS_KEY"
+          } >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 05 — Cosmos DB (MongoDB API 4.2)
+      # -----------------------------------------------------------------------
+      - name: Cosmos DB — MongoDB API
+        run: |
+          if az cosmosdb show \
+              --name "$COSMOS_ACCOUNT" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $COSMOS_ACCOUNT"
+          else
+            echo "Creating Cosmos DB — takes 5-10 minutes..."
+            az cosmosdb create \
+              --name "$COSMOS_ACCOUNT" \
+              --resource-group "$RESOURCE_GROUP" \
+              --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=false \
+              --kind MongoDB \
+              --server-version "4.2" \
+              --default-consistency-level Session \
+              --enable-automatic-failover true \
+              --disable-key-based-metadata-write-access false \
+              --public-network-access Enabled \
+              --output none
+            echo "✓ Created: $COSMOS_ACCOUNT"
+          fi
+
+          COSMOS_CONNECTION=$(az cosmosdb keys list \
+            --name "$COSMOS_ACCOUNT" --resource-group "$RESOURCE_GROUP" \
+            --type connection-strings \
+            --query "connectionStrings[?keyKind=='Primary' && type=='MongoDB'].connectionString | [0]" \
+            -o tsv)
+
+          echo "::add-mask::$COSMOS_CONNECTION"
+          echo "COSMOS_CONNECTION=$COSMOS_CONNECTION" >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 06 — PostgreSQL Flexible Server v15
+      #        Databases: audit_service_db, order_processor_db
+      # -----------------------------------------------------------------------
+      - name: PostgreSQL Flexible Server
+        run: |
+          if az postgres flexible-server show \
+              --name "$POSTGRES_SERVER" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $POSTGRES_SERVER"
+          else
+            echo "Creating PostgreSQL Server — takes 5-15 minutes..."
+            az postgres flexible-server create \
+              --name "$POSTGRES_SERVER" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --admin-user "$POSTGRES_ADMIN_USER" \
+              --admin-password "$POSTGRES_ADMIN_PASSWORD" \
+              --sku-name Standard_B1ms \
+              --tier Burstable \
+              --storage-size 32 \
+              --version "15" \
+              --public-access 0.0.0.0 \
+              --yes \
+              --output none
+            echo "✓ Created: $POSTGRES_SERVER"
+          fi
+
+          az postgres flexible-server firewall-rule create \
+            --name "$POSTGRES_SERVER" --resource-group "$RESOURCE_GROUP" \
+            --rule-name AllowAzureServices \
+            --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0 \
+            --output none 2>/dev/null || true
+
+          POSTGRES_HOST=$(az postgres flexible-server show \
+            --name "$POSTGRES_SERVER" --resource-group "$RESOURCE_GROUP" \
+            --query fullyQualifiedDomainName -o tsv)
+
+          for db_name in audit_service_db order_processor_db; do
+            if ! az postgres flexible-server db show \
+                --database-name "$db_name" \
+                --server-name "$POSTGRES_SERVER" \
+                --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+              az postgres flexible-server db create \
+                --database-name "$db_name" \
+                --server-name "$POSTGRES_SERVER" \
+                --resource-group "$RESOURCE_GROUP" \
+                --output none
+              echo "✓ Database created: $db_name"
+            fi
+          done
+
+          echo "POSTGRES_HOST=$POSTGRES_HOST" >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 07 — MySQL Flexible Server 8.0
+      #        Database: inventory_service_db
+      # -----------------------------------------------------------------------
+      - name: MySQL Flexible Server
+        run: |
+          if az mysql flexible-server show \
+              --name "$MYSQL_SERVER" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $MYSQL_SERVER"
+          else
+            echo "Creating MySQL Server — takes 5-15 minutes..."
+            az mysql flexible-server create \
+              --name "$MYSQL_SERVER" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --admin-user "$MYSQL_ADMIN_USER" \
+              --admin-password "$MYSQL_ADMIN_PASSWORD" \
+              --sku-name Standard_B1ms \
+              --tier Burstable \
+              --storage-size 32 \
+              --version "8.0.21" \
+              --public-access 0.0.0.0 \
+              --output none
+            echo "✓ Created: $MYSQL_SERVER"
+          fi
+
+          az mysql flexible-server firewall-rule create \
+            --name "$MYSQL_SERVER" --resource-group "$RESOURCE_GROUP" \
+            --rule-name AllowAzureServices \
+            --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0 \
+            --output none 2>/dev/null || true
+
+          MYSQL_HOST=$(az mysql flexible-server show \
+            --name "$MYSQL_SERVER" --resource-group "$RESOURCE_GROUP" \
+            --query fullyQualifiedDomainName -o tsv)
+
+          if ! az mysql flexible-server db show \
+              --resource-group "$RESOURCE_GROUP" \
+              --server-name "$MYSQL_SERVER" \
+              --database-name inventory_service_db &>/dev/null; then
+            az mysql flexible-server db create \
+              --resource-group "$RESOURCE_GROUP" \
+              --server-name "$MYSQL_SERVER" \
+              --database-name inventory_service_db \
+              --output none 2>/dev/null || true
+            echo "✓ Database created: inventory_service_db"
+          fi
+
+          echo "MYSQL_HOST=$MYSQL_HOST" >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 08 — SQL Server
+      #        Created via REST API to include SecurityControl=Ignore tag
+      #        (required on MS internal subscriptions with MCAPS governance).
+      #        Databases: order_service_db, payment_service_db (Serverless GP Gen5)
+      # -----------------------------------------------------------------------
+      - name: SQL Server
+        run: |
+          if az sql server show \
+              --name "$SQL_SERVER" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $SQL_SERVER"
+          else
+            echo "Creating SQL Server — takes 2-5 minutes..."
+            az rest \
+              --method put \
+              --uri "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Sql/servers/${SQL_SERVER}?api-version=2021-11-01" \
+              --body "{\"location\":\"${LOCATION}\",\"tags\":{\"SecurityControl\":\"Ignore\"},\"properties\":{\"administratorLogin\":\"${SQL_ADMIN_USER}\",\"administratorLoginPassword\":\"${SQL_ADMIN_PASSWORD}\",\"publicNetworkAccess\":\"Enabled\"}}"
+
+            # Poll until the server FQDN becomes available
+            for i in $(seq 1 60); do
+              FQDN=$(az sql server show \
+                --name "$SQL_SERVER" --resource-group "$RESOURCE_GROUP" \
+                --query fullyQualifiedDomainName -o tsv 2>/dev/null || echo "")
+              [ -n "$FQDN" ] && { echo "✓ Created: $SQL_SERVER"; break; }
+              echo "  Provisioning... (${i}/60, ~${i}0s elapsed)"
+              sleep 10
+            done
+          fi
+
+          az sql server firewall-rule create \
+            --name AllowAzureServices \
+            --server "$SQL_SERVER" --resource-group "$RESOURCE_GROUP" \
+            --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0 \
+            --output none 2>/dev/null || true
+
+          SQL_HOST=$(az sql server show \
+            --name "$SQL_SERVER" --resource-group "$RESOURCE_GROUP" \
+            --query fullyQualifiedDomainName -o tsv)
+
+          for db_name in order_service_db payment_service_db; do
+            if ! az sql db show \
+                --name "$db_name" \
+                --server "$SQL_SERVER" \
+                --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+              az sql db create \
+                --name "$db_name" \
+                --server "$SQL_SERVER" \
+                --resource-group "$RESOURCE_GROUP" \
+                --edition GeneralPurpose \
+                --family Gen5 \
+                --capacity 2 \
+                --compute-model Serverless \
+                --auto-pause-delay 60 \
+                --output none
+              echo "✓ Database created: $db_name"
+            fi
+          done
+
+          echo "SQL_HOST=$SQL_HOST" >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 09 — RabbitMQ via Azure Container Instance
+      #        MCR mirror used to avoid Docker Hub rate limits from Azure runners
+      # -----------------------------------------------------------------------
+      - name: RabbitMQ — Azure Container Instance
+        run: |
+          if az container show \
+              --name "$RABBITMQ_INSTANCE" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $RABBITMQ_INSTANCE"
+          else
+            az container create \
+              --name "$RABBITMQ_INSTANCE" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --image "mcr.microsoft.com/mirror/docker/library/rabbitmq:3-management" \
+              --cpu 1 --memory 1.5 \
+              --ports 5672 15672 \
+              --ip-address Public \
+              --dns-name-label "$RABBITMQ_INSTANCE" \
+              --environment-variables \
+                RABBITMQ_DEFAULT_USER="$RABBITMQ_USER" \
+                RABBITMQ_DEFAULT_PASS="$RABBITMQ_PASSWORD" \
+              --output none
+
+            # Poll until the container is Running
+            for i in $(seq 1 30); do
+              STATE=$(az container show \
+                --name "$RABBITMQ_INSTANCE" --resource-group "$RESOURCE_GROUP" \
+                --query "instanceView.state" -o tsv 2>/dev/null || echo "")
+              [ "$STATE" = "Running" ] && { echo "✓ Created and running: $RABBITMQ_INSTANCE"; break; }
+              echo "  Waiting for container... (${i}/30)"
+              sleep 10
+            done
+          fi
+
+          RABBITMQ_HOST=$(az container show \
+            --name "$RABBITMQ_INSTANCE" --resource-group "$RESOURCE_GROUP" \
+            --query "ipAddress.fqdn" -o tsv)
+
+          echo "RABBITMQ_HOST=$RABBITMQ_HOST" >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 10 — Azure OpenAI + gpt-4o deployment
+      #        Probes francecentral first, falls back through European/US regions
+      #        if S0 SKU quota is unavailable.
+      # -----------------------------------------------------------------------
+      - name: Azure OpenAI
+        run: |
+          DEPLOYMENT_NAME="gpt-4o"
+          MODEL_VERSION="2024-11-20"
+
+          # Find the first region where OpenAI S0 SKU is available
+          OPENAI_LOCATION=""
+          for region in "$LOCATION" swedencentral westeurope germanywestcentral uksouth eastus2; do
+            COUNT=$(az cognitiveservices account list-skus \
+              --kind OpenAI --location "$region" \
+              --query "[?name=='S0'] | length(@)" --output tsv 2>/dev/null || echo "0")
+            if [ "${COUNT:-0}" -gt 0 ]; then
+              OPENAI_LOCATION="$region"; break
+            fi
+          done
+
+          if [ -z "$OPENAI_LOCATION" ]; then
+            echo "⚠ Azure OpenAI (S0 SKU) not available in any candidate region — skipping"
+            { echo "AZURE_OPENAI_ENDPOINT="; echo "AZURE_OPENAI_API_KEY="; } >> "$GITHUB_ENV"
+            exit 0
+          fi
+          [ "$OPENAI_LOCATION" != "$LOCATION" ] && \
+            echo "Note: Deploying to $OPENAI_LOCATION (not available in $LOCATION)"
+
+          if az cognitiveservices account show \
+              --name "$AZURE_OPENAI_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $AZURE_OPENAI_NAME"
+          else
+            az cognitiveservices account create \
+              --name "$AZURE_OPENAI_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$OPENAI_LOCATION" \
+              --kind OpenAI \
+              --sku S0 \
+              --custom-domain "$AZURE_OPENAI_NAME" \
+              --output none
+            echo "✓ Created: $AZURE_OPENAI_NAME"
+          fi
+
+          if ! az cognitiveservices account deployment show \
+              --name "$AZURE_OPENAI_NAME" --resource-group "$RESOURCE_GROUP" \
+              --deployment-name "$DEPLOYMENT_NAME" &>/dev/null; then
+            az cognitiveservices account deployment create \
+              --name "$AZURE_OPENAI_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --deployment-name "$DEPLOYMENT_NAME" \
+              --model-name "gpt-4o" \
+              --model-version "$MODEL_VERSION" \
+              --model-format OpenAI \
+              --sku-name "Standard" \
+              --sku-capacity 10 \
+              --output none
+            echo "✓ Model deployed: $DEPLOYMENT_NAME ($MODEL_VERSION)"
+          fi
+
+          AZURE_OPENAI_ENDPOINT="https://${AZURE_OPENAI_NAME}.openai.azure.com/"
+          AZURE_OPENAI_API_KEY=$(az cognitiveservices account keys list \
+            --name "$AZURE_OPENAI_NAME" --resource-group "$RESOURCE_GROUP" \
+            --query key1 -o tsv)
+
+          echo "::add-mask::$AZURE_OPENAI_API_KEY"
+          {
+            echo "AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT"
+            echo "AZURE_OPENAI_API_KEY=$AZURE_OPENAI_API_KEY"
+          } >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # 11 — Key Vault + all secrets
+      #        Uses access policies (not RBAC) — matches the bash infra scripts.
+      #        Secrets: JWT, RabbitMQ, AppInsights, per-service DB connection
+      #        strings, service-to-service tokens, Azure OpenAI.
+      #        All generated secrets are idempotent: existing values are reused.
+      # -----------------------------------------------------------------------
+      - name: Key Vault & Secrets
+        run: |
+          # ---- Create Key Vault (access policy mode) ----
+          if az keyvault show --name "$KEY_VAULT" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+            echo "Already exists: $KEY_VAULT"
+          else
+            az keyvault create \
+              --name "$KEY_VAULT" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --enable-rbac-authorization false \
+              --public-network-access Enabled \
+              --output none
+            echo "✓ Created: $KEY_VAULT"
+          fi
+
+          # ---- Grant set/get/list/delete to the running principal (SP in CI) ----
+          PRINCIPAL_OID=$(az ad sp show \
+            --id "$(az account show --query user.name -o tsv)" \
+            --query id -o tsv 2>/dev/null || \
+            az ad signed-in-user show --query id -o tsv 2>/dev/null || echo "")
+
+          if [ -n "$PRINCIPAL_OID" ]; then
+            az keyvault set-policy \
+              --name "$KEY_VAULT" \
+              --object-id "$PRINCIPAL_OID" \
+              --secret-permissions get list set delete purge \
+              --output none 2>/dev/null || true
+          fi
+          sleep 5   # allow access policy to propagate
+
+          # ---- Helper: write a secret (always overwrites — idempotent) ----
+          kv_set() {
+            local name="$1" value="$2"
+            [ -z "$value" ] && return
+            az keyvault secret set \
+              --vault-name "$KEY_VAULT" --name "$name" --value "$value" \
+              --output none 2>/dev/null && echo "  ✓ $name" || echo "  ⚠ failed: $name"
+          }
+
+          # ---- JWT (reuse existing to keep tokens valid across re-runs) ----
+          JWT_SECRET=$(az keyvault secret show \
+            --vault-name "$KEY_VAULT" --name "jwt-secret" \
+            --query value -o tsv 2>/dev/null || openssl rand -base64 32)
+          kv_set "jwt-secret"     "$JWT_SECRET"
+          kv_set "jwt-issuer"     "auth-service"
+          kv_set "jwt-audience"   "xshopai-platform"
+          kv_set "jwt-algorithm"  "HS256"
+          kv_set "jwt-expires-in" "24h"
+
+          # ---- RabbitMQ ----
+          kv_set "rabbitmq-url"      "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:5672/"
+          kv_set "rabbitmq-user"     "$RABBITMQ_USER"
+          kv_set "rabbitmq-password" "$RABBITMQ_PASSWORD"
+
+          # ---- Application Insights ----
+          kv_set "appinsights-connection-string" "$APP_INSIGHTS_CONNECTION"
+
+          # ---- DB credentials (stored so re-runs retrieve the same passwords) ----
+          kv_set "postgres-admin-user"     "$POSTGRES_ADMIN_USER"
+          kv_set "postgres-admin-password" "$POSTGRES_ADMIN_PASSWORD"
+          kv_set "mysql-admin-password"    "$MYSQL_ADMIN_PASSWORD"
+          kv_set "sql-admin-password"      "$SQL_ADMIN_PASSWORD"
+
+          # ---- Service-specific connection strings ----
+
+          # MongoDB: inject database name into the Cosmos connection string path
+          # e.g. ...azure.com:10255/?ssl=true → ...azure.com:10255/user_service_db?ssl=true
+          kv_set "user-service-mongodb-uri" \
+            "$(echo "$COSMOS_CONNECTION" | sed 's|/[?]|/user_service_db?|')"
+          kv_set "product-service-mongodb-uri" \
+            "$(echo "$COSMOS_CONNECTION" | sed 's|/[?]|/product_service_db?|')"
+          kv_set "review-service-mongodb-uri" \
+            "$(echo "$COSMOS_CONNECTION" | sed 's|/[?]|/review_service_db?|')"
+
+          # PostgreSQL
+          kv_set "audit-service-postgres-url" \
+            "postgresql://${POSTGRES_ADMIN_USER}:${POSTGRES_ADMIN_PASSWORD}@${POSTGRES_HOST}:5432/audit_service_db?sslmode=require"
+          kv_set "order-processor-service-postgres-url" \
+            "jdbc:postgresql://${POSTGRES_HOST}:5432/order_processor_db?user=${POSTGRES_ADMIN_USER}&password=${POSTGRES_ADMIN_PASSWORD}&ssl=true"
+
+          # MySQL
+          kv_set "inventory-service-mysql-server" \
+            "mysql+pymysql://${MYSQL_ADMIN_USER}:${MYSQL_ADMIN_PASSWORD}@${MYSQL_HOST}:3306"
+
+          # SQL Server
+          kv_set "order-service-sql-connection" \
+            "Server=${SQL_HOST};Database=order_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
+          kv_set "payment-service-sql-connection" \
+            "Server=${SQL_HOST};Database=payment_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
+
+          # ---- Service-to-service tokens (reuse if already exist) ----
+          gen_token() {
+            local name="$1"
+            az keyvault secret show \
+              --vault-name "$KEY_VAULT" --name "$name" \
+              --query value -o tsv 2>/dev/null || \
+            echo "svc-${name%-token}-$(openssl rand -hex 12)"
+          }
+          for t in admin-service-token auth-service-token user-service-token \
+                    cart-service-token order-service-token product-service-token web-bff-token; do
+            kv_set "$t" "$(gen_token "$t")"
+          done
+
+          # ---- Azure OpenAI (only if provisioned above) ----
+          [ -n "$AZURE_OPENAI_ENDPOINT" ] && kv_set "chat-service-openai-endpoint" "$AZURE_OPENAI_ENDPOINT"
+          [ -n "$AZURE_OPENAI_API_KEY"  ] && kv_set "chat-service-openai-api-key"  "$AZURE_OPENAI_API_KEY"
+          kv_set "chat-service-openai-deployment" "gpt-4o"
+
+          echo "✓ All secrets stored in Key Vault: $KEY_VAULT"
+
+      # -----------------------------------------------------------------------
+      # Summary
+      # -----------------------------------------------------------------------
       - name: Deployment summary
         if: always()
         run: |
-          ENV="${{ inputs.environment }}"
-          SUFFIX="${{ steps.config.outputs.suffix }}"
-          RG="${{ steps.config.outputs.resourceGroup }}"
-          KV="${{ steps.config.outputs.keyVaultName }}"
-          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-
-          echo "## Infrastructure Deployment" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| | |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| Environment | \`$ENV\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Suffix | \`$SUFFIX\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Resource Group | \`$RG\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Key Vault | \`$KV\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Location | \`${{ env.LOCATION }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Resources provisioned by bash scripts" >> $GITHUB_STEP_SUMMARY
-          echo "- Resource Group" >> $GITHUB_STEP_SUMMARY
-          echo "- Log Analytics + Application Insights" >> $GITHUB_STEP_SUMMARY
-          echo "- App Service Plan" >> $GITHUB_STEP_SUMMARY
-          echo "- Redis Cache" >> $GITHUB_STEP_SUMMARY
-          echo "- Cosmos DB" >> $GITHUB_STEP_SUMMARY
-          echo "- PostgreSQL Flexible Server" >> $GITHUB_STEP_SUMMARY
-          echo "- MySQL Flexible Server" >> $GITHUB_STEP_SUMMARY
-          echo "- SQL Server" >> $GITHUB_STEP_SUMMARY
-          echo "- RabbitMQ (ACI)" >> $GITHUB_STEP_SUMMARY
-          echo "- Azure OpenAI" >> $GITHUB_STEP_SUMMARY
-          echo "- Key Vault + all secrets" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Next steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Set org variable \`DEPLOY_SUFFIX_DEV=$SUFFIX\` if this is your active dev environment" >> $GITHUB_STEP_SUMMARY
-          echo "2. Trigger service deploy workflows — they will target this suffix automatically" >> $GITHUB_STEP_SUMMARY
-          echo "3. [View in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${SUB}/resourceGroups/${RG})" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Infrastructure Deployment"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Environment | \`${ENV}\` |"
+            echo "| Suffix | \`${SUFFIX}\` |"
+            echo "| Resource Group | \`${RESOURCE_GROUP}\` |"
+            echo "| Key Vault | \`${KEY_VAULT}\` |"
+            echo "| Location | \`${LOCATION}\` |"
+            echo ""
+            echo "| Resource | Name |"
+            echo "|---|---|"
+            echo "| Log Analytics | \`${LOG_ANALYTICS}\` |"
+            echo "| Application Insights | \`${APP_INSIGHTS}\` |"
+            echo "| App Service Plan | \`${APP_SERVICE_PLAN}\` (P3V3) |"
+            echo "| Redis Cache | \`${REDIS_NAME}\` |"
+            echo "| Cosmos DB | \`${COSMOS_ACCOUNT}\` |"
+            echo "| PostgreSQL | \`${POSTGRES_SERVER}\` |"
+            echo "| MySQL | \`${MYSQL_SERVER}\` |"
+            echo "| SQL Server | \`${SQL_SERVER}\` |"
+            echo "| RabbitMQ (ACI) | \`${RABBITMQ_INSTANCE}\` |"
+            echo "| Azure OpenAI | \`${AZURE_OPENAI_NAME}\` |"
+            echo ""
+            echo "### Next steps"
+            echo "1. Set org variable \`DEPLOY_SUFFIX_DEV=${SUFFIX}\` if this is your active dev environment"
+            echo "2. Trigger service deploy workflows — they will target this suffix automatically"
+            echo "3. [View in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP})"
+          } >> "$GITHUB_STEP_SUMMARY"
