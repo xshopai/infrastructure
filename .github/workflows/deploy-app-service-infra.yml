@@ -540,6 +540,7 @@ jobs:
               --location "$OPENAI_LOCATION" \
               --kind OpenAI \
               --sku S0 \
+              --disable-local-auth false \
               --custom-domain "$AZURE_OPENAI_NAME" \
               --output none
             echo "✓ Created: $AZURE_OPENAI_NAME"
@@ -633,6 +634,11 @@ jobs:
           kv_set "rabbitmq-url"      "amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:5672/"
           kv_set "rabbitmq-user"     "$RABBITMQ_USER"
           kv_set "rabbitmq-password" "$RABBITMQ_PASSWORD"
+          kv_set "rabbitmq-host"     "$RABBITMQ_HOST"
+
+          # ---- Redis (host + key for cart-service) ----
+          kv_set "redis-host" "$REDIS_HOST"
+          kv_set "redis-key"  "$REDIS_KEY"
 
           # ---- Application Insights ----
           kv_set "appinsights-connection-string" "$APP_INSIGHTS_CONNECTION"
@@ -722,6 +728,726 @@ jobs:
             echo ""
             echo "### Next steps"
             echo "1. Set org variable \`DEPLOY_SUFFIX_DEV=${SUFFIX}\` if this is your active dev environment"
-            echo "2. Trigger service deploy workflows — they will target this suffix automatically"
-            echo "3. [View in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP})"
+            echo "2. ✅ Service Shells job creates all 16 App Service instances (runs next)"
+            echo "3. Trigger service CI workflows to deploy code to the shells"
+            echo "4. [View in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP})"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # =========================================================================
+  # Job 2: Create App Service shells for all 16 services
+  # Pre-configured with environment settings, secrets from Key Vault,
+  # diagnostics, managed identity, and health checks. Service CI workflows
+  # only need to zip-deploy code.
+  # =========================================================================
+  deploy-service-shells:
+    name: Create service shells (${{ inputs.environment }})
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # -------------------------------------------------------------------
+      # Derive resource names from the same inputs as the infra job.
+      # No outputs needed — everything is re-derived or read from KV.
+      # -------------------------------------------------------------------
+      - name: Resolve configuration
+        run: |
+          ENV="${{ inputs.environment }}"
+          INPUT_SUFFIX="${{ inputs.suffix }}"
+          if [ -n "$INPUT_SUFFIX" ]; then
+            SUFFIX="$INPUT_SUFFIX"
+          elif [ "$ENV" = "prod" ]; then
+            SUFFIX="${{ vars.DEPLOY_SUFFIX_PROD }}"
+          else
+            SUFFIX="${{ vars.DEPLOY_SUFFIX_DEV }}"
+          fi
+          if [ -z "$SUFFIX" ]; then
+            echo "❌ No suffix resolved"
+            exit 1
+          fi
+
+          # Runtime-specific env mappings
+          if [ "$ENV" = "prod" ]; then
+            NODE_ENV="production"; ASPNET_ENV="Production"
+          else
+            NODE_ENV="development"; ASPNET_ENV="Development"
+          fi
+
+          {
+            echo "ENV=$ENV"
+            echo "SUFFIX=$SUFFIX"
+            echo "RESOURCE_GROUP=rg-xshopai-${ENV}-${SUFFIX}"
+            echo "APP_SERVICE_PLAN=asp-xshopai-${ENV}-${SUFFIX}"
+            echo "KEY_VAULT=kv-xshopai-${ENV}-${SUFFIX}"
+            echo "LOG_ANALYTICS=log-xshopai-${ENV}-${SUFFIX}"
+            echo "APP_INSIGHTS=appi-xshopai-${ENV}-${SUFFIX}"
+            echo "POSTGRES_SERVER=psql-xshopai-${ENV}-${SUFFIX}"
+            echo "MYSQL_SERVER=mysql-xshopai-${ENV}-${SUFFIX}"
+            echo "NODE_ENV=$NODE_ENV"
+            echo "ASPNET_ENV=$ASPNET_ENV"
+          } >> "$GITHUB_ENV"
+
+          echo "Configuration: env=$ENV suffix=$SUFFIX rg=rg-xshopai-${ENV}-${SUFFIX}"
+
+      # -------------------------------------------------------------------
+      # Pull every secret the 16 services need from Key Vault.
+      # All values were stored by the infra job's KV step.
+      # -------------------------------------------------------------------
+      - name: Load secrets from Key Vault
+        run: |
+          kv_get() {
+            az keyvault secret show --vault-name "$KEY_VAULT" --name "$1" --query value -o tsv 2>/dev/null || echo ""
+          }
+          kv_export() {
+            local env_name="$1" kv_name="$2" val
+            val=$(kv_get "$kv_name")
+            [ -n "$val" ] && echo "::add-mask::$val"
+            echo "${env_name}=${val}" >> "$GITHUB_ENV"
+          }
+
+          # JWT
+          kv_export JWT_SECRET jwt-secret
+          kv_export JWT_ALGORITHM jwt-algorithm
+          kv_export JWT_ISSUER jwt-issuer
+          kv_export JWT_AUDIENCE jwt-audience
+          kv_export JWT_EXPIRES_IN jwt-expires-in
+
+          # RabbitMQ
+          kv_export RABBITMQ_URL rabbitmq-url
+          kv_export RABBITMQ_USER rabbitmq-user
+          kv_export RABBITMQ_PASSWORD rabbitmq-password
+          kv_export RABBITMQ_HOST rabbitmq-host
+
+          # Redis
+          kv_export REDIS_HOST redis-host
+          kv_export REDIS_KEY redis-key
+
+          # Application Insights (connection string from KV, key from resource)
+          kv_export APPINSIGHTS_CONN appinsights-connection-string
+          APPINSIGHTS_KEY=$(az monitor app-insights component show \
+            --app "$APP_INSIGHTS" --resource-group "$RESOURCE_GROUP" \
+            --query instrumentationKey -o tsv 2>/dev/null || echo "")
+          [ -n "$APPINSIGHTS_KEY" ] && echo "::add-mask::$APPINSIGHTS_KEY"
+          echo "APPINSIGHTS_KEY=$APPINSIGHTS_KEY" >> "$GITHUB_ENV"
+
+          # MongoDB
+          kv_export USER_MONGODB_URI user-service-mongodb-uri
+          kv_export PRODUCT_MONGODB_URI product-service-mongodb-uri
+          kv_export REVIEW_MONGODB_URI review-service-mongodb-uri
+
+          # PostgreSQL
+          kv_export AUDIT_POSTGRES_URL audit-service-postgres-url
+          kv_export ORDER_PROC_POSTGRES_URL order-processor-service-postgres-url
+          kv_export POSTGRES_ADMIN_USER postgres-admin-user
+          kv_export POSTGRES_ADMIN_PASSWORD postgres-admin-password
+
+          # MySQL
+          kv_export INVENTORY_MYSQL inventory-service-mysql-server
+
+          # SQL Server
+          kv_export ORDER_SQL_CONN order-service-sql-connection
+          kv_export PAYMENT_SQL_CONN payment-service-sql-connection
+
+          # Service tokens
+          kv_export ADMIN_SERVICE_TOKEN admin-service-token
+          kv_export AUTH_SERVICE_TOKEN auth-service-token
+          kv_export USER_SERVICE_TOKEN user-service-token
+          kv_export CART_SERVICE_TOKEN cart-service-token
+          kv_export ORDER_SERVICE_TOKEN order-service-token
+          kv_export PRODUCT_SERVICE_TOKEN product-service-token
+          kv_export WEB_BFF_TOKEN web-bff-token
+
+          # Azure OpenAI
+          kv_export OPENAI_ENDPOINT chat-service-openai-endpoint
+          kv_export OPENAI_API_KEY chat-service-openai-api-key
+          kv_export OPENAI_DEPLOYMENT chat-service-openai-deployment
+
+          echo "✓ All secrets loaded from Key Vault"
+
+      # -------------------------------------------------------------------
+      # Create all 16 App Service shells with managed identity,
+      # Always On, and health checks. Idempotent — skips existing apps.
+      # -------------------------------------------------------------------
+      - name: Create App Service shells
+        run: |
+          SERVICES=(
+            "admin-service NODE|18-lts /health/live"
+            "admin-ui NODE|18-lts /health"
+            "audit-service NODE|18-lts /health/live"
+            "auth-service NODE|18-lts /health/live"
+            "cart-service JAVA|17-java17 /health/live"
+            "chat-service NODE|18-lts /health/live"
+            "customer-ui NODE|18-lts /health"
+            "inventory-service PYTHON|3.11 /health/live"
+            "notification-service NODE|18-lts /health/live"
+            "order-processor-service JAVA|17-java17 /health/live"
+            "order-service DOTNETCORE|8.0 /health/live"
+            "payment-service DOTNETCORE|8.0 /health/live"
+            "product-service PYTHON|3.11 /health/live"
+            "review-service NODE|18-lts /health/live"
+            "user-service NODE|18-lts /health/live"
+            "web-bff NODE|20-lts /health/live"
+          )
+
+          for entry in "${SERVICES[@]}"; do
+            read -r name runtime health_path <<< "$entry"
+            app="app-${name}-xshopai-${ENV}-${SUFFIX}"
+
+            if az webapp show --name "$app" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+              echo "Already exists: $app"
+            else
+              az webapp create \
+                --name "$app" \
+                --resource-group "$RESOURCE_GROUP" \
+                --plan "$APP_SERVICE_PLAN" \
+                --runtime "$runtime" \
+                --output none
+              echo "✓ Created: $app"
+            fi
+
+            # Managed identity + Always On + health check
+            az webapp identity assign \
+              --name "$app" --resource-group "$RESOURCE_GROUP" \
+              --output none 2>/dev/null || true
+            az webapp config set \
+              --name "$app" --resource-group "$RESOURCE_GROUP" \
+              --always-on true \
+              --health-check-path "$health_path" \
+              --output none 2>/dev/null || true
+
+            echo "  ✓ Configured: $app (${runtime}, health: ${health_path})"
+          done
+
+      # -------------------------------------------------------------------
+      # Configure every service's app settings — each service gets its
+      # own block with the exact environment variables it needs.
+      # Settings are additive (existing keys not listed here are kept).
+      # -------------------------------------------------------------------
+      - name: Configure service settings
+        run: |
+          configure() {
+            local app="$1"; shift
+            az webapp config appsettings set \
+              --name "$app" --resource-group "$RESOURCE_GROUP" \
+              --settings "$@" \
+              --output none
+            echo "  ✓ Settings: $app"
+          }
+          svc_url() { echo "https://app-${1}-xshopai-${ENV}-${SUFFIX}.azurewebsites.net"; }
+
+          # ---- 1. admin-service ----
+          configure "app-admin-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "RABBITMQ_URL=$RABBITMQ_URL" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "SERVICE_USER_TOKEN=$ADMIN_SERVICE_TOKEN" \
+            "AUTH_SERVICE_URL=$(svc_url auth-service)" \
+            "USER_SERVICE_URL=$(svc_url user-service)" \
+            "PRODUCT_SERVICE_URL=$(svc_url product-service)" \
+            "ORDER_SERVICE_URL=$(svc_url order-service)" \
+            "PAYMENT_SERVICE_URL=$(svc_url payment-service)" \
+            "AUDIT_SERVICE_URL=$(svc_url audit-service)" \
+            "NOTIFICATION_SERVICE_URL=$(svc_url notification-service)" \
+            "INVENTORY_SERVICE_URL=$(svc_url inventory-service)" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=admin-service"
+
+          # ---- 2. admin-ui ----
+          configure "app-admin-ui-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "BFF_URL=$(svc_url web-bff)"
+
+          # ---- 3. audit-service ----
+          AUDIT_PG_HOST=$(echo "$AUDIT_POSTGRES_URL" | sed -E 's|.*@([^:]+):.*|\1|')
+          configure "app-audit-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "POSTGRES_HOST=$AUDIT_PG_HOST" \
+            "POSTGRES_PORT=5432" \
+            "POSTGRES_DB=audit_service_db" \
+            "POSTGRES_USER=$POSTGRES_ADMIN_USER" \
+            "POSTGRES_PASSWORD=$POSTGRES_ADMIN_PASSWORD" \
+            "DB_SSL=true" \
+            "RABBITMQ_URL=$RABBITMQ_URL" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=audit-service"
+
+          # ---- 4. auth-service ----
+          configure "app-auth-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "SERVICE_NAME=auth-service" \
+            "VERSION=1.0.0" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "JWT_ALGORITHM=$JWT_ALGORITHM" \
+            "JWT_ISSUER=$JWT_ISSUER" \
+            "JWT_AUDIENCE=$JWT_AUDIENCE" \
+            "JWT_EXPIRES_IN=$JWT_EXPIRES_IN" \
+            "USER_SERVICE_URL=$(svc_url user-service)" \
+            "RABBITMQ_URL=$RABBITMQ_URL" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=auth-service" \
+            "LOG_LEVEL=info" \
+            "LOG_FORMAT=json" \
+            "LOG_TO_CONSOLE=true"
+
+          # ---- 5. cart-service ----
+          configure "app-cart-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "ApplicationInsightsAgent_EXTENSION_VERSION=~3" \
+            "QUARKUS_HTTP_PORT=8080" \
+            "QUARKUS_REDIS_HOSTS=rediss://:${REDIS_KEY}@${REDIS_HOST}:6380" \
+            "REDIS_HOST=$REDIS_HOST" \
+            "REDIS_PORT=6380" \
+            "REDIS_PASSWORD=$REDIS_KEY" \
+            "RABBITMQ_HOST=$RABBITMQ_HOST" \
+            "RABBITMQ_PORT=5672" \
+            "RABBITMQ_USERNAME=$RABBITMQ_USER" \
+            "RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "SERVICE_TOKEN=$CART_SERVICE_TOKEN" \
+            "SERVICE_TOKEN_ENABLED=true" \
+            "PRODUCT_SERVICE_URL=$(svc_url product-service)" \
+            "INVENTORY_SERVICE_URL=$(svc_url inventory-service)" \
+            "QUARKUS_OTEL_ENABLED=false" \
+            "OTEL_SERVICE_NAME=cart-service"
+
+          # ---- 6. chat-service ----
+          configure "app-chat-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "JWT_ALGORITHM=$JWT_ALGORITHM" \
+            "JWT_ISSUER=$JWT_ISSUER" \
+            "JWT_AUDIENCE=$JWT_AUDIENCE" \
+            "AZURE_OPENAI_ENDPOINT=$OPENAI_ENDPOINT" \
+            "AZURE_OPENAI_API_KEY=$OPENAI_API_KEY" \
+            "AZURE_OPENAI_DEPLOYMENT_NAME=$OPENAI_DEPLOYMENT" \
+            "AZURE_OPENAI_API_VERSION=2024-10-21" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "PRODUCT_SERVICE_URL=$(svc_url product-service)" \
+            "ORDER_SERVICE_URL=$(svc_url order-service)" \
+            "USER_SERVICE_URL=$(svc_url user-service)" \
+            "INVENTORY_SERVICE_URL=$(svc_url inventory-service)" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=chat-service"
+
+          # ---- 7. customer-ui ----
+          configure "app-customer-ui-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "BFF_URL=$(svc_url web-bff)"
+
+          # ---- 8. inventory-service ----
+          configure "app-inventory-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "FLASK_APP=run.py" \
+            "MYSQL_SERVER_CONNECTION=$INVENTORY_MYSQL" \
+            "DB_NAME=inventory_service_db" \
+            "RABBITMQ_URL=$RABBITMQ_URL" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "JWT_ALGORITHM=$JWT_ALGORITHM" \
+            "JWT_ISSUER=$JWT_ISSUER" \
+            "JWT_AUDIENCE=$JWT_AUDIENCE" \
+            "SERVICE_PRODUCT_TOKEN=$ADMIN_SERVICE_TOKEN" \
+            "SERVICE_ORDER_TOKEN=$ORDER_SERVICE_TOKEN" \
+            "SERVICE_CART_TOKEN=$CART_SERVICE_TOKEN" \
+            "SERVICE_WEBBFF_TOKEN=$WEB_BFF_TOKEN" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=inventory-service" \
+            "LOG_LEVEL=INFO" \
+            "LOG_FORMAT=json" \
+            "LOG_TO_CONSOLE=true"
+
+          # ---- 9. notification-service ----
+          configure "app-notification-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "RABBITMQ_URL=$RABBITMQ_URL" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "SMTP_HOST=" \
+            "SMTP_PORT=587" \
+            "SMTP_USER=" \
+            "SMTP_PASS=" \
+            "SMTP_SECURE=false" \
+            "EMAIL_FROM_ADDRESS=noreply@xshopai.com" \
+            "EMAIL_FROM_NAME=xShopAI" \
+            "EMAIL_ENABLED=false" \
+            "EMAIL_PROVIDER=smtp" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=notification-service"
+
+          # ---- 10. order-processor-service ----
+          configure "app-order-processor-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "ApplicationInsightsAgent_EXTENSION_VERSION=~3" \
+            "SERVER_PORT=8080" \
+            "SPRING_DATASOURCE_URL=$ORDER_PROC_POSTGRES_URL" \
+            "SPRING_DATASOURCE_USERNAME=$POSTGRES_ADMIN_USER" \
+            "SPRING_DATASOURCE_PASSWORD=$POSTGRES_ADMIN_PASSWORD" \
+            "RABBITMQ_HOST=$RABBITMQ_HOST" \
+            "RABBITMQ_PORT=5672" \
+            "RABBITMQ_USERNAME=$RABBITMQ_USER" \
+            "RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "JWT_ISSUER=$JWT_ISSUER" \
+            "JWT_AUDIENCE=$JWT_AUDIENCE" \
+            "SERVICES_ORDER_URL=$(svc_url order-service)" \
+            "SERVICES_INVENTORY_URL=$(svc_url inventory-service)" \
+            "SERVICES_PAYMENT_URL=$(svc_url payment-service)" \
+            "SERVICES_NOTIFICATION_URL=$(svc_url notification-service)" \
+            "ORDER_SERVICE_URL=$(svc_url order-service)" \
+            "INVENTORY_SERVICE_URL=$(svc_url inventory-service)" \
+            "PAYMENT_SERVICE_URL=$(svc_url payment-service)" \
+            "NOTIFICATION_SERVICE_URL=$(svc_url notification-service)" \
+            "MANAGEMENT_TRACING_ENABLED=false" \
+            "OTEL_SERVICE_NAME=order-processor-service" \
+            "LOG_LEVEL=INFO" \
+            "LOG_FORMAT=json" \
+            "LOG_TO_CONSOLE=true"
+
+          # ---- 11. order-service ----
+          configure "app-order-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "ASPNETCORE_ENVIRONMENT=$ASPNET_ENV" \
+            "ASPNETCORE_URLS=http://0.0.0.0:8080" \
+            "DATABASE_CONNECTION_STRING=$ORDER_SQL_CONN" \
+            "RABBITMQ_CONNECTION_STRING=$RABBITMQ_URL" \
+            "RabbitMQ__ExchangeName=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=order-service" \
+            "Services__CartService=$(svc_url cart-service)" \
+            "Services__ProductService=$(svc_url product-service)" \
+            "Services__InventoryService=$(svc_url inventory-service)" \
+            "Services__UserService=$(svc_url user-service)"
+
+          # ---- 12. payment-service ----
+          configure "app-payment-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "ASPNETCORE_ENVIRONMENT=$ASPNET_ENV" \
+            "ASPNETCORE_URLS=http://0.0.0.0:8080" \
+            "ConnectionStrings__DefaultConnection=$PAYMENT_SQL_CONN" \
+            "RABBITMQ_CONNECTION_STRING=$RABBITMQ_URL" \
+            "RabbitMQ__ExchangeName=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "Jwt__Key=$JWT_SECRET" \
+            "Jwt__Issuer=auth-service" \
+            "Jwt__Audience=xshopai-platform" \
+            "ServiceTokens__OrderService=$ORDER_SERVICE_TOKEN" \
+            "ServiceTokens__UserService=$USER_SERVICE_TOKEN" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=payment-service"
+
+          # ---- 13. product-service ----
+          configure "app-product-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NAME=product-service" \
+            "API_VERSION=1.0.0" \
+            "MONGODB_URI=$PRODUCT_MONGODB_URI" \
+            "MONGODB_DB_NAME=product_service_db" \
+            "RABBITMQ_URL=$RABBITMQ_URL" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "JWT_ALGORITHM=$JWT_ALGORITHM" \
+            "JWT_ISSUER=$JWT_ISSUER" \
+            "JWT_AUDIENCE=$JWT_AUDIENCE" \
+            "SERVICE_PRODUCT_TOKEN=$ADMIN_SERVICE_TOKEN" \
+            "SERVICE_ORDER_TOKEN=$ORDER_SERVICE_TOKEN" \
+            "SERVICE_CART_TOKEN=$CART_SERVICE_TOKEN" \
+            "SERVICE_WEBBFF_TOKEN=$WEB_BFF_TOKEN" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=product-service" \
+            "LOG_LEVEL=INFO" \
+            "LOG_FORMAT=json" \
+            "LOG_TO_CONSOLE=true"
+
+          # ---- 14. review-service ----
+          configure "app-review-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "SERVICE_NAME=review-service" \
+            "VERSION=1.0.0" \
+            "MONGODB_URI=$REVIEW_MONGODB_URI" \
+            "MONGODB_DB_NAME=review_service_db" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "RABBITMQ_URL=$RABBITMQ_URL" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "CORS_ORIGIN=$(svc_url customer-ui)" \
+            "PRODUCT_SERVICE_URL=$(svc_url product-service)" \
+            "USER_SERVICE_URL=$(svc_url user-service)" \
+            "ORDER_SERVICE_URL=$(svc_url order-service)" \
+            "SERVICE_PRODUCT_TOKEN=$PRODUCT_SERVICE_TOKEN" \
+            "SERVICE_ORDER_TOKEN=$ORDER_SERVICE_TOKEN" \
+            "SERVICE_WEBBFF_TOKEN=$WEB_BFF_TOKEN" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=review-service" \
+            "LOG_LEVEL=info" \
+            "LOG_FORMAT=json" \
+            "LOG_TO_CONSOLE=true"
+
+          # ---- 15. user-service ----
+          configure "app-user-service-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "SERVICE_NAME=user-service" \
+            "VERSION=1.0.0" \
+            "MONGODB_URI=$USER_MONGODB_URI" \
+            "MONGODB_DB_NAME=user_service_db" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "JWT_ALGORITHM=$JWT_ALGORITHM" \
+            "JWT_ISSUER=$JWT_ISSUER" \
+            "JWT_AUDIENCE=$JWT_AUDIENCE" \
+            "JWT_EXPIRES_IN=$JWT_EXPIRES_IN" \
+            "RABBITMQ_URL=$RABBITMQ_URL" \
+            "RABBITMQ_EXCHANGE=xshopai.events" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "SERVICE_AUTH_TOKEN=$AUTH_SERVICE_TOKEN" \
+            "SERVICE_ADMIN_TOKEN=$ADMIN_SERVICE_TOKEN" \
+            "SERVICE_ORDER_TOKEN=$ORDER_SERVICE_TOKEN" \
+            "SERVICE_WEBBFF_TOKEN=$WEB_BFF_TOKEN" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=user-service" \
+            "LOG_LEVEL=INFO" \
+            "LOG_FORMAT=json" \
+            "LOG_TO_CONSOLE=true"
+
+          # ---- 16. web-bff ----
+          configure "app-web-bff-xshopai-${ENV}-${SUFFIX}" \
+            "PORT=8080" \
+            "ENVIRONMENT=$ENV" \
+            "SCM_DO_BUILD_DURING_DEPLOYMENT=true" \
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPINSIGHTS_CONN" \
+            "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
+            "NODE_ENV=$NODE_ENV" \
+            "SERVICE_NAME=web-bff" \
+            "VERSION=1.0.0" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "JWT_ISSUER=$JWT_ISSUER" \
+            "JWT_AUDIENCE=$JWT_AUDIENCE" \
+            "MESSAGING_PROVIDER=rabbitmq" \
+            "ALLOWED_ORIGINS=$(svc_url customer-ui)" \
+            "AUTH_SERVICE_URL=$(svc_url auth-service)" \
+            "USER_SERVICE_URL=$(svc_url user-service)" \
+            "PRODUCT_SERVICE_URL=$(svc_url product-service)" \
+            "CART_SERVICE_URL=$(svc_url cart-service)" \
+            "ORDER_SERVICE_URL=$(svc_url order-service)" \
+            "PAYMENT_SERVICE_URL=$(svc_url payment-service)" \
+            "REVIEW_SERVICE_URL=$(svc_url review-service)" \
+            "INVENTORY_SERVICE_URL=$(svc_url inventory-service)" \
+            "ADMIN_SERVICE_URL=$(svc_url admin-service)" \
+            "CHAT_SERVICE_URL=$(svc_url chat-service)" \
+            "OTEL_TRACES_EXPORTER=azure" \
+            "OTEL_SERVICE_NAME=web-bff" \
+            "LOG_LEVEL=info" \
+            "LOG_FORMAT=json" \
+            "LOG_TO_CONSOLE=true"
+
+          echo "✓ All 16 services configured"
+
+      # -------------------------------------------------------------------
+      # Startup commands (only 4 services need custom commands) and
+      # diagnostic settings (all 16 → Log Analytics).
+      # -------------------------------------------------------------------
+      - name: Configure startup commands & diagnostics
+        run: |
+          # Startup commands for services that don't use platform defaults
+          set_startup() {
+            az webapp config set \
+              --name "$1" --resource-group "$RESOURCE_GROUP" \
+              --startup-file "$2" \
+              --output none
+            echo "  ✓ Startup: $1"
+          }
+
+          set_startup "app-product-service-xshopai-${ENV}-${SUFFIX}" \
+            "gunicorn --worker-class uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:8080 main:app"
+          set_startup "app-inventory-service-xshopai-${ENV}-${SUFFIX}" \
+            "FLASK_SKIP_AZURE_MONITOR=true flask db upgrade && exec gunicorn --bind 0.0.0.0:8080 --workers 2 --timeout 120 --preload run:app"
+          set_startup "app-customer-ui-xshopai-${ENV}-${SUFFIX}" \
+            "pm2 serve /home/site/wwwroot/build --no-daemon --spa -p 8080"
+          set_startup "app-admin-ui-xshopai-${ENV}-${SUFFIX}" \
+            "pm2 serve /home/site/wwwroot/build --no-daemon --spa -p 8080"
+
+          # Diagnostic settings — stream logs + metrics to Log Analytics
+          LOG_ANALYTICS_ID=$(az monitor log-analytics workspace show \
+            --workspace-name "$LOG_ANALYTICS" --resource-group "$RESOURCE_GROUP" \
+            --query id -o tsv)
+
+          ALL_SERVICES=(
+            admin-service admin-ui audit-service auth-service cart-service
+            chat-service customer-ui inventory-service notification-service
+            order-processor-service order-service payment-service
+            product-service review-service user-service web-bff
+          )
+
+          for name in "${ALL_SERVICES[@]}"; do
+            app="app-${name}-xshopai-${ENV}-${SUFFIX}"
+            APP_ID=$(az webapp show --name "$app" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
+            az monitor diagnostic-settings create \
+              --name "diag-${app}" \
+              --resource "$APP_ID" \
+              --workspace "$LOG_ANALYTICS_ID" \
+              --logs '[{"category":"AppServiceHTTPLogs","enabled":true},{"category":"AppServiceConsoleLogs","enabled":true},{"category":"AppServiceAppLogs","enabled":true},{"category":"AppServicePlatformLogs","enabled":true}]' \
+              --metrics '[{"category":"AllMetrics","enabled":true}]' \
+              --output none 2>/dev/null || true
+            echo "  ✓ Diagnostics: $app"
+          done
+
+          echo "✓ Startup commands and diagnostics configured"
+
+      # -------------------------------------------------------------------
+      # Firewall rules — allow App Service outbound IPs to access
+      # MySQL (inventory-service) and PostgreSQL (order-processor-service).
+      # -------------------------------------------------------------------
+      - name: Configure firewall rules
+        run: |
+          add_firewall_rules() {
+            local db_type="$1" server="$2" app_name="$3" rule_prefix="$4"
+            local outbound_ips i=0
+            outbound_ips=$(az webapp show \
+              --name "$app_name" --resource-group "$RESOURCE_GROUP" \
+              --query possibleOutboundIpAddresses -o tsv 2>/dev/null || echo "")
+            [ -z "$outbound_ips" ] && return
+            for ip in $(echo "$outbound_ips" | tr ',' ' '); do
+              i=$((i + 1))
+              if [ "$db_type" = "mysql" ]; then
+                az mysql flexible-server firewall-rule create \
+                  --name "$server" --resource-group "$RESOURCE_GROUP" \
+                  --rule-name "${rule_prefix}-${i}" \
+                  --start-ip-address "$ip" --end-ip-address "$ip" \
+                  --output none 2>/dev/null || true
+              else
+                az postgres flexible-server firewall-rule create \
+                  --name "$server" --resource-group "$RESOURCE_GROUP" \
+                  --rule-name "${rule_prefix}-${i}" \
+                  --start-ip-address "$ip" --end-ip-address "$ip" \
+                  --output none 2>/dev/null || true
+              fi
+            done
+            echo "  ✓ $db_type firewall: $i rules for $app_name"
+          }
+
+          add_firewall_rules "mysql" "$MYSQL_SERVER" \
+            "app-inventory-service-xshopai-${ENV}-${SUFFIX}" "inventory-outbound"
+          add_firewall_rules "postgres" "$POSTGRES_SERVER" \
+            "app-order-processor-service-xshopai-${ENV}-${SUFFIX}" "processor-outbound"
+
+      # -------------------------------------------------------------------
+      # Summary
+      # -------------------------------------------------------------------
+      - name: Service shells summary
+        if: always()
+        run: |
+          {
+            echo "## App Service Shells"
+            echo ""
+            echo "| # | Service | Runtime | Health | App Name |"
+            echo "|---|---|---|---|---|"
+            echo "| 1 | admin-service | NODE\|18-lts | /health/live | \`app-admin-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 2 | admin-ui | NODE\|18-lts | /health | \`app-admin-ui-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 3 | audit-service | NODE\|18-lts | /health/live | \`app-audit-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 4 | auth-service | NODE\|18-lts | /health/live | \`app-auth-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 5 | cart-service | JAVA\|17-java17 | /health/live | \`app-cart-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 6 | chat-service | NODE\|18-lts | /health/live | \`app-chat-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 7 | customer-ui | NODE\|18-lts | /health | \`app-customer-ui-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 8 | inventory-service | PYTHON\|3.11 | /health/live | \`app-inventory-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 9 | notification-service | NODE\|18-lts | /health/live | \`app-notification-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 10 | order-processor-service | JAVA\|17-java17 | /health/live | \`app-order-processor-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 11 | order-service | DOTNETCORE\|8.0 | /health/live | \`app-order-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 12 | payment-service | DOTNETCORE\|8.0 | /health/live | \`app-payment-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 13 | product-service | PYTHON\|3.11 | /health/live | \`app-product-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 14 | review-service | NODE\|18-lts | /health/live | \`app-review-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 15 | user-service | NODE\|18-lts | /health/live | \`app-user-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 16 | web-bff | NODE\|20-lts | /health/live | \`app-web-bff-xshopai-${ENV}-${SUFFIX}\` |"
+            echo ""
+            echo "All shells: managed identity ✓ Always On ✓ health checks ✓ app settings ✓ diagnostics → Log Analytics ✓"
+            echo ""
+            echo "### Next steps"
+            echo "Trigger each service's CI workflow to deploy code to these shells."
           } >> "$GITHUB_STEP_SUMMARY"
