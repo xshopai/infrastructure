@@ -111,7 +111,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       name: 'standard'
     }
     tenantId: subscription().tenantId
-    enableRbacAuthorization: false // Use access policies
+    enableRbacAuthorization: true // Use Azure RBAC - subscription owners get access automatically
     enableSoftDelete: true
     softDeleteRetentionInDays: 90
     enablePurgeProtection: true // Cannot be disabled once enabled
@@ -120,7 +120,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       defaultAction: 'Allow'
       bypass: 'AzureServices'
     }
-    accessPolicies: []
   }
 }
 

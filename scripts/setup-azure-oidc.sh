@@ -145,10 +145,12 @@ assign_role() {
 # Contributor: b24988ac-6180-42a0-ab88-20f7382dd24c
 # User Access Administrator: 18d7d88d-d35e-4fb5-a5c3-7773c20a72d9
 # AcrPush: 8311e382-0749-4cb8-b61a-304f252e45ec
+# Key Vault Administrator: 00482a5a-887f-4fb3-b363-3b7fe8e74483
 
 assign_role "Contributor" "b24988ac-6180-42a0-ab88-20f7382dd24c"
 assign_role "User Access Administrator" "18d7d88d-d35e-4fb5-a5c3-7773c20a72d9"
 assign_role "AcrPush" "8311e382-0749-4cb8-b61a-304f252e45ec"
+assign_role "Key Vault Administrator" "00482a5a-887f-4fb3-b363-3b7fe8e74483"
 
 # ============================================================================
 # Step 4: Configure GitHub OIDC Subject Claims - ENVIRONMENT ONLY
