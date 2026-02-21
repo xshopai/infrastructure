@@ -35,13 +35,13 @@ get_health_check_path() {
         payment-service)
             echo "/health/live"
             ;;
-        # Java Spring Boot services use /actuator/health
+        # Java services (Quarkus + Spring Boot) use custom /health/live
         cart-service|order-processor-service)
-            echo "/actuator/health"
+            echo "/health/live"
             ;;
-        # Static UI apps (customer-ui) - use root or simple path
+        # Static UI apps (nginx) expose /health
         customer-ui)
-            echo "/"
+            echo "/health"
             ;;
         *)
             # Default fallback

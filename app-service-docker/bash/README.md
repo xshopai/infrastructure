@@ -82,7 +82,7 @@ chmod +x deploy.sh deploy-infra.sh modules/*.sh modules/services/*.sh
 | auth-service            | Node.js 18  | MongoDB (Cosmos) | 8003 |
 | user-service            | Node.js 18  | MongoDB (Cosmos) | 8002 |
 | product-service         | Python 3.11 | MongoDB (Cosmos) | 8001 |
-| inventory-service       | Python 3.11 | PostgreSQL       | 8004 |
+| inventory-service       | Python 3.11 | MySQL            | 8005 |
 | audit-service           | Node.js 18  | MongoDB (Cosmos) | 8010 |
 | notification-service    | Node.js 18  | MongoDB (Cosmos) | 8011 |
 | review-service          | Node.js 18  | MongoDB (Cosmos) | 8005 |
