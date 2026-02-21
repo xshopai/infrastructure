@@ -224,7 +224,7 @@ jobs:
         run: |
           echo "Deploying infrastructure (this takes 8-12 minutes)..."
           echo "Resource group will be created by Bicep: ${{ needs.validate.outputs.resource_group }}"
-          
+
           DEPLOYMENT_NAME="xshopai-${{ needs.validate.outputs.environment }}-$(date +%Y%m%d-%H%M%S)"
 
           az deployment sub create \
@@ -262,7 +262,7 @@ jobs:
       - name: Generate deployment summary
         run: |
           SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-          
+
           echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ needs.validate.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
@@ -300,7 +300,7 @@ jobs:
       - name: Check App Service health
         run: |
           echo "Checking App Service status..."
-          
+
           for svc in admin-service admin-ui audit-service auth-service cart-service chat-service customer-ui inventory-service notification-service order-processor-service order-service payment-service product-service review-service user-service web-bff; do
             APP="app-${svc}-xshopai-${{ needs.validate.outputs.environment }}-${{ needs.validate.outputs.suffix }}"
             STATE=$(az webapp show --name "$APP" --resource-group ${{ needs.validate.outputs.resource_group }} --query state -o tsv 2>/dev/null || echo "NotFound")

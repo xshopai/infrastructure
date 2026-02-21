@@ -1,18 +1,27 @@
-name: Deploy App Service Infrastructure
+name: Deploy App Service Infrastructure (CLI)
 # =============================================================================
-# Self-contained infrastructure deployment — no bash scripts required.
+# Self-contained infrastructure deployment using Azure CLI commands.
 # All az CLI commands are inlined directly from the bash infra modules.
-# Deploying in the same sequence as deploy.sh: resource-group → monitoring →
-# app-service-plan → redis → cosmos → postgresql → mysql → sql → rabbitmq →
-# openai → keyvault+secrets
+# Deploying in sequence: resource-group → monitoring → app-service-plan →
+# redis → cosmos → postgresql → mysql → sql → rabbitmq → openai → keyvault
 #
 # PREREQUISITES:
 # 1. AZURE_CREDENTIALS secret configured with service principal credentials
 # 2. Service principal must have "User Access Administrator" role at
 #    subscription level (for RBAC assignments to managed identities)
-#    - Grant manually using Azure REST API (one-time per subscription)
-#    - TODO: automate via IaC (Terraform/Bicep) in future iterations
 # 3. Organization variables: DEPLOY_SUFFIX_DEV (optional default suffix)
+#
+# REQUIRED GitHub Repository Secrets (Settings → Secrets and variables → Actions):
+# - AZURE_CREDENTIALS: Azure service principal credentials (JSON)
+# - POSTGRES_ADMIN_PASSWORD: PostgreSQL admin password
+# - MYSQL_ADMIN_PASSWORD: MySQL admin password
+# - SQL_ADMIN_PASSWORD: SQL Server admin password
+# - RABBITMQ_PASSWORD: RabbitMQ admin password
+# - JWT_SECRET: JWT signing secret
+# - ADMIN_SERVICE_TOKEN, AUTH_SERVICE_TOKEN, USER_SERVICE_TOKEN
+# - CART_SERVICE_TOKEN, ORDER_SERVICE_TOKEN, PRODUCT_SERVICE_TOKEN, WEB_BFF_TOKEN
+#
+# Setup secrets: ./app-service/bicep/scripts/setup-secrets.sh
 # =============================================================================
 
 on:
@@ -109,56 +118,29 @@ jobs:
           echo "Resource Group: rg-xshopai-${ENV}-${SUFFIX}"
 
       # -----------------------------------------------------------------------
-      # Generate passwords (first run) or retrieve them from Key Vault (re-run).
-      # All passwords are masked immediately so they never appear in logs.
-      # Stored individually in KV (Key Vault step) so re-runs are always consistent.
+      # Load credentials from GitHub Repository Secrets
+      # All secrets are pre-configured via setup-secrets.sh script.
+      # This ensures consistent credentials across runs.
       # -----------------------------------------------------------------------
-      - name: Generate or retrieve credentials
+      - name: Load credentials from GitHub Secrets
         run: |
-          gen_password() {
-            local prefix="${1:-Xshop}" len="${2:-16}"
-            echo "${prefix}$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9!@#' | head -c "$len")!"
-          }
-
-          # Try KV first (idempotent on re-runs); fall back to generating a new value
-          get_or_gen() {
-            local secret_name="$1" fallback="$2"
-            if az keyvault show --name "$KEY_VAULT" --resource-group "$RESOURCE_GROUP" &>/dev/null 2>&1; then
-              local val
-              val=$(az keyvault secret show --vault-name "$KEY_VAULT" --name "$secret_name" \
-                --query value -o tsv 2>/dev/null || echo "")
-              [ -n "$val" ] && { echo "$val"; return; }
-            fi
-            echo "$fallback"
-          }
-
-          POSTGRES_ADMIN_USER="pgadmin"
-          POSTGRES_ADMIN_PASSWORD=$(get_or_gen "postgres-admin-password" "$(gen_password 'Pg' 16)")
-
-          MYSQL_ADMIN_USER="mysqladmin"
-          MYSQL_ADMIN_PASSWORD=$(get_or_gen "mysql-admin-password" "$(gen_password 'Mysql' 16)")
-
-          SQL_ADMIN_USER="sqladmin"
-          SQL_ADMIN_PASSWORD=$(get_or_gen "sql-admin-password" "$(gen_password 'Sql' 16)")
-
-          RABBITMQ_USER="admin"
-          RABBITMQ_PASSWORD=$(get_or_gen "rabbitmq-password" "$(gen_password 'Rmq' 16)")
-
-          # Mask before writing to GITHUB_ENV — prevents values appearing in logs
-          echo "::add-mask::$POSTGRES_ADMIN_PASSWORD"
-          echo "::add-mask::$MYSQL_ADMIN_PASSWORD"
-          echo "::add-mask::$SQL_ADMIN_PASSWORD"
-          echo "::add-mask::$RABBITMQ_PASSWORD"
+          # Mask secrets before writing to GITHUB_ENV
+          echo "::add-mask::${{ secrets.POSTGRES_ADMIN_PASSWORD }}"
+          echo "::add-mask::${{ secrets.MYSQL_ADMIN_PASSWORD }}"
+          echo "::add-mask::${{ secrets.SQL_ADMIN_PASSWORD }}"
+          echo "::add-mask::${{ secrets.RABBITMQ_PASSWORD }}"
+          echo "::add-mask::${{ secrets.JWT_SECRET }}"
 
           {
-            echo "POSTGRES_ADMIN_USER=$POSTGRES_ADMIN_USER"
-            echo "POSTGRES_ADMIN_PASSWORD=$POSTGRES_ADMIN_PASSWORD"
-            echo "MYSQL_ADMIN_USER=$MYSQL_ADMIN_USER"
-            echo "MYSQL_ADMIN_PASSWORD=$MYSQL_ADMIN_PASSWORD"
-            echo "SQL_ADMIN_USER=$SQL_ADMIN_USER"
-            echo "SQL_ADMIN_PASSWORD=$SQL_ADMIN_PASSWORD"
-            echo "RABBITMQ_USER=$RABBITMQ_USER"
-            echo "RABBITMQ_PASSWORD=$RABBITMQ_PASSWORD"
+            echo "POSTGRES_ADMIN_USER=pgadmin"
+            echo "POSTGRES_ADMIN_PASSWORD=${{ secrets.POSTGRES_ADMIN_PASSWORD }}"
+            echo "MYSQL_ADMIN_USER=mysqladmin"
+            echo "MYSQL_ADMIN_PASSWORD=${{ secrets.MYSQL_ADMIN_PASSWORD }}"
+            echo "SQL_ADMIN_USER=sqladmin"
+            echo "SQL_ADMIN_PASSWORD=${{ secrets.SQL_ADMIN_PASSWORD }}"
+            echo "RABBITMQ_USER=admin"
+            echo "RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD }}"
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}"
           } >> "$GITHUB_ENV"
 
       # -----------------------------------------------------------------------
@@ -590,9 +572,9 @@ jobs:
       # -----------------------------------------------------------------------
       # 11 — Key Vault + all secrets
       #        Uses access policies (not RBAC) — matches the bash infra scripts.
-      #        Secrets: JWT, RabbitMQ, AppInsights, per-service DB connection
-      #        strings, service-to-service tokens, Azure OpenAI.
-      #        All generated secrets are idempotent: existing values are reused.
+      #        Secrets come from GitHub Repository Secrets (industry standard).
+      #        Stored in Key Vault: JWT, RabbitMQ, AppInsights, per-service DB
+      #        connection strings, service-to-service tokens, Azure OpenAI.
       # -----------------------------------------------------------------------
       - name: Key Vault & Secrets
         run: |
@@ -634,10 +616,7 @@ jobs:
               --output none 2>/dev/null && echo "  ✓ $name" || echo "  ⚠ failed: $name"
           }
 
-          # ---- JWT (reuse existing to keep tokens valid across re-runs) ----
-          JWT_SECRET=$(az keyvault secret show \
-            --vault-name "$KEY_VAULT" --name "jwt-secret" \
-            --query value -o tsv 2>/dev/null || openssl rand -base64 32)
+          # ---- JWT (loaded from GitHub Secrets) ----
           kv_set "jwt-secret"     "$JWT_SECRET"
           kv_set "jwt-issuer"     "auth-service"
           kv_set "jwt-audience"   "xshopai-platform"
@@ -690,18 +669,14 @@ jobs:
           kv_set "payment-service-sql-connection" \
             "Server=${SQL_HOST};Database=payment_service_db;User Id=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=True"
 
-          # ---- Service-to-service tokens (reuse if already exist) ----
-          gen_token() {
-            local name="$1"
-            az keyvault secret show \
-              --vault-name "$KEY_VAULT" --name "$name" \
-              --query value -o tsv 2>/dev/null || \
-            echo "svc-${name%-token}-$(openssl rand -hex 12)"
-          }
-          for t in admin-service-token auth-service-token user-service-token \
-                    cart-service-token order-service-token product-service-token web-bff-token; do
-            kv_set "$t" "$(gen_token "$t")"
-          done
+          # ---- Service-to-service tokens (loaded from GitHub Secrets) ----
+          kv_set "admin-service-token"    "${{ secrets.ADMIN_SERVICE_TOKEN }}"
+          kv_set "auth-service-token"     "${{ secrets.AUTH_SERVICE_TOKEN }}"
+          kv_set "user-service-token"     "${{ secrets.USER_SERVICE_TOKEN }}"
+          kv_set "cart-service-token"     "${{ secrets.CART_SERVICE_TOKEN }}"
+          kv_set "order-service-token"    "${{ secrets.ORDER_SERVICE_TOKEN }}"
+          kv_set "product-service-token"  "${{ secrets.PRODUCT_SERVICE_TOKEN }}"
+          kv_set "web-bff-token"          "${{ secrets.WEB_BFF_TOKEN }}"
 
           # ---- Azure OpenAI (only if provisioned above) ----
           [ -n "$AZURE_OPENAI_ENDPOINT" ] && kv_set "chat-service-openai-endpoint" "$AZURE_OPENAI_ENDPOINT"

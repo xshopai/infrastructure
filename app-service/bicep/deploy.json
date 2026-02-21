@@ -1,0 +1,3625 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.39.26.7824",
+      "templateHash": "1456829646728765452"
+    }
+  },
+  "parameters": {
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Environment name (dev, prod)"
+      }
+    },
+    "suffix": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource suffix (e.g., as01, bicep)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for resource deployment"
+      }
+    },
+    "postgresAdminUser": {
+      "type": "string",
+      "defaultValue": "pgadmin"
+    },
+    "mysqlAdminUser": {
+      "type": "string",
+      "defaultValue": "mysqladmin"
+    },
+    "sqlAdminUser": {
+      "type": "string",
+      "defaultValue": "sqladmin"
+    },
+    "rabbitmqUser": {
+      "type": "string",
+      "defaultValue": "admin"
+    },
+    "postgresAdminPassword": {
+      "type": "securestring"
+    },
+    "mysqlAdminPassword": {
+      "type": "securestring"
+    },
+    "sqlAdminPassword": {
+      "type": "securestring"
+    },
+    "rabbitmqPassword": {
+      "type": "securestring"
+    },
+    "jwtSecret": {
+      "type": "securestring"
+    },
+    "jwtAlgorithm": {
+      "type": "string",
+      "defaultValue": "HS256"
+    },
+    "jwtIssuer": {
+      "type": "string",
+      "defaultValue": "auth-service"
+    },
+    "jwtAudience": {
+      "type": "string",
+      "defaultValue": "xshopai-platform"
+    },
+    "jwtExpiresIn": {
+      "type": "string",
+      "defaultValue": "24h"
+    },
+    "adminServiceToken": {
+      "type": "securestring"
+    },
+    "authServiceToken": {
+      "type": "securestring"
+    },
+    "userServiceToken": {
+      "type": "securestring"
+    },
+    "cartServiceToken": {
+      "type": "securestring"
+    },
+    "orderServiceToken": {
+      "type": "securestring"
+    },
+    "productServiceToken": {
+      "type": "securestring"
+    },
+    "webBffToken": {
+      "type": "securestring"
+    }
+  },
+  "variables": {
+    "resourceGroupName": "[format('rg-xshopai-{0}-{1}', parameters('environment'), parameters('suffix'))]",
+    "tags": {
+      "project": "xshopai",
+      "environment": "[parameters('environment')]",
+      "suffix": "[parameters('suffix')]",
+      "managedBy": "bicep"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/resourceGroups",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('resourceGroupName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]"
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('infrastructure-{0}', uniqueString(deployment().name))]",
+      "resourceGroup": "[variables('resourceGroupName')]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "suffix": {
+            "value": "[parameters('suffix')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "postgresAdminUser": {
+            "value": "[parameters('postgresAdminUser')]"
+          },
+          "postgresAdminPassword": {
+            "value": "[parameters('postgresAdminPassword')]"
+          },
+          "mysqlAdminUser": {
+            "value": "[parameters('mysqlAdminUser')]"
+          },
+          "mysqlAdminPassword": {
+            "value": "[parameters('mysqlAdminPassword')]"
+          },
+          "sqlAdminUser": {
+            "value": "[parameters('sqlAdminUser')]"
+          },
+          "sqlAdminPassword": {
+            "value": "[parameters('sqlAdminPassword')]"
+          },
+          "rabbitmqUser": {
+            "value": "[parameters('rabbitmqUser')]"
+          },
+          "rabbitmqPassword": {
+            "value": "[parameters('rabbitmqPassword')]"
+          },
+          "jwtSecret": {
+            "value": "[parameters('jwtSecret')]"
+          },
+          "jwtAlgorithm": {
+            "value": "[parameters('jwtAlgorithm')]"
+          },
+          "jwtIssuer": {
+            "value": "[parameters('jwtIssuer')]"
+          },
+          "jwtAudience": {
+            "value": "[parameters('jwtAudience')]"
+          },
+          "jwtExpiresIn": {
+            "value": "[parameters('jwtExpiresIn')]"
+          },
+          "adminServiceToken": {
+            "value": "[parameters('adminServiceToken')]"
+          },
+          "authServiceToken": {
+            "value": "[parameters('authServiceToken')]"
+          },
+          "userServiceToken": {
+            "value": "[parameters('userServiceToken')]"
+          },
+          "cartServiceToken": {
+            "value": "[parameters('cartServiceToken')]"
+          },
+          "orderServiceToken": {
+            "value": "[parameters('orderServiceToken')]"
+          },
+          "productServiceToken": {
+            "value": "[parameters('productServiceToken')]"
+          },
+          "webBffToken": {
+            "value": "[parameters('webBffToken')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "13199149527050135613"
+            }
+          },
+          "parameters": {
+            "environment": {
+              "type": "string",
+              "allowedValues": [
+                "dev",
+                "prod"
+              ],
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "suffix": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource suffix (e.g., as01, 001)"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region for resource deployment"
+              }
+            },
+            "postgresAdminPassword": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Admin credentials for databases"
+              }
+            },
+            "mysqlAdminPassword": {
+              "type": "securestring"
+            },
+            "sqlAdminPassword": {
+              "type": "securestring"
+            },
+            "rabbitmqPassword": {
+              "type": "securestring"
+            },
+            "jwtSecret": {
+              "type": "securestring",
+              "metadata": {
+                "description": "JWT configuration"
+              }
+            },
+            "jwtAlgorithm": {
+              "type": "string",
+              "defaultValue": "HS256"
+            },
+            "jwtIssuer": {
+              "type": "string",
+              "defaultValue": "auth-service"
+            },
+            "jwtAudience": {
+              "type": "string",
+              "defaultValue": "xshopai-platform"
+            },
+            "jwtExpiresIn": {
+              "type": "string",
+              "defaultValue": "24h"
+            },
+            "adminServiceToken": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Service tokens for inter-service auth"
+              }
+            },
+            "authServiceToken": {
+              "type": "securestring"
+            },
+            "userServiceToken": {
+              "type": "securestring"
+            },
+            "cartServiceToken": {
+              "type": "securestring"
+            },
+            "orderServiceToken": {
+              "type": "securestring"
+            },
+            "productServiceToken": {
+              "type": "securestring"
+            },
+            "webBffToken": {
+              "type": "securestring"
+            },
+            "postgresAdminUser": {
+              "type": "string",
+              "defaultValue": "pgadmin",
+              "metadata": {
+                "description": "Database usernames"
+              }
+            },
+            "mysqlAdminUser": {
+              "type": "string",
+              "defaultValue": "mysqladmin"
+            },
+            "sqlAdminUser": {
+              "type": "string",
+              "defaultValue": "sqladmin"
+            },
+            "rabbitmqUser": {
+              "type": "string",
+              "defaultValue": "admin"
+            }
+          },
+          "variables": {
+            "resourcePrefix": "[format('xshopai-{0}-{1}', parameters('environment'), parameters('suffix'))]",
+            "nodeEnv": "[if(equals(parameters('environment'), 'prod'), 'production', 'development')]",
+            "aspnetEnv": "[if(equals(parameters('environment'), 'prod'), 'Production', 'Development')]",
+            "tags": {
+              "project": "xshopai",
+              "environment": "[parameters('environment')]",
+              "suffix": "[parameters('suffix')]",
+              "managedBy": "bicep"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-monitoring",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "6627200406291688669"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "logAnalyticsName": "[format('log-{0}', parameters('resourcePrefix'))]",
+                    "appInsightsName": "[format('appi-{0}', parameters('resourcePrefix'))]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.OperationalInsights/workspaces",
+                      "apiVersion": "2022-10-01",
+                      "name": "[variables('logAnalyticsName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "properties": {
+                        "sku": {
+                          "name": "PerGB2018"
+                        },
+                        "retentionInDays": 30,
+                        "features": {
+                          "enableLogAccessUsingOnlyResourcePermissions": true
+                        },
+                        "workspaceCapping": {
+                          "dailyQuotaGb": -1
+                        },
+                        "publicNetworkAccessForIngestion": "Enabled",
+                        "publicNetworkAccessForQuery": "Enabled"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.Insights/components",
+                      "apiVersion": "2020-02-02",
+                      "name": "[variables('appInsightsName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "kind": "web",
+                      "properties": {
+                        "Application_Type": "web",
+                        "Flow_Type": "Bluefield",
+                        "Request_Source": "rest",
+                        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]",
+                        "IngestionMode": "LogAnalytics",
+                        "publicNetworkAccessForIngestion": "Enabled",
+                        "publicNetworkAccessForQuery": "Enabled"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "logAnalyticsWorkspaceId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+                    },
+                    "logAnalyticsWorkspaceName": {
+                      "type": "string",
+                      "value": "[variables('logAnalyticsName')]"
+                    },
+                    "logAnalyticsCustomerId": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName')), '2022-10-01').customerId]"
+                    },
+                    "appInsightsId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]"
+                    },
+                    "appInsightsName": {
+                      "type": "string",
+                      "value": "[variables('appInsightsName')]"
+                    },
+                    "appInsightsInstrumentationKey": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+                    },
+                    "appInsightsConnectionString": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').ConnectionString]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-app-service-plan",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "7024151912623171862"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "sku": {
+                      "type": "string",
+                      "defaultValue": "P3V3",
+                      "allowedValues": [
+                        "P1V3",
+                        "P2V3",
+                        "P3V3"
+                      ],
+                      "metadata": {
+                        "description": "App Service Plan SKU"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "appServicePlanName": "[format('asp-{0}', parameters('resourcePrefix'))]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Web/serverfarms",
+                      "apiVersion": "2022-09-01",
+                      "name": "[variables('appServicePlanName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "sku": {
+                        "name": "[parameters('sku')]",
+                        "tier": "PremiumV3",
+                        "size": "[parameters('sku')]",
+                        "family": "Pv3",
+                        "capacity": 1
+                      },
+                      "kind": "linux",
+                      "properties": {
+                        "reserved": true,
+                        "perSiteScaling": false,
+                        "elasticScaleEnabled": false,
+                        "maximumElasticWorkerCount": 1,
+                        "isSpot": false,
+                        "zoneRedundant": false
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "appServicePlanId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+                    },
+                    "appServicePlanName": {
+                      "type": "string",
+                      "value": "[variables('appServicePlanName')]"
+                    },
+                    "appServicePlanKind": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName')), '2022-09-01', 'full').kind]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-redis",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "18398629510315175154"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "sku": {
+                      "type": "string",
+                      "defaultValue": "Basic",
+                      "allowedValues": [
+                        "Basic",
+                        "Standard",
+                        "Premium"
+                      ],
+                      "metadata": {
+                        "description": "Redis SKU"
+                      }
+                    },
+                    "vmSize": {
+                      "type": "string",
+                      "defaultValue": "C0",
+                      "allowedValues": [
+                        "C0",
+                        "C1",
+                        "C2",
+                        "C3",
+                        "C4",
+                        "C5",
+                        "C6"
+                      ],
+                      "metadata": {
+                        "description": "Redis cache size (C0-C6 for Basic/Standard)"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "redisName": "[format('redis-{0}', parameters('resourcePrefix'))]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Cache/redis",
+                      "apiVersion": "2023-08-01",
+                      "name": "[variables('redisName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "properties": {
+                        "sku": {
+                          "name": "[parameters('sku')]",
+                          "family": "[if(startsWith(parameters('vmSize'), 'C'), 'C', 'P')]",
+                          "capacity": "[int(substring(parameters('vmSize'), 1))]"
+                        },
+                        "enableNonSslPort": false,
+                        "minimumTlsVersion": "1.2",
+                        "publicNetworkAccess": "Enabled",
+                        "redisConfiguration": {
+                          "maxmemory-policy": "allkeys-lru"
+                        }
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "redisId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.Cache/redis', variables('redisName'))]"
+                    },
+                    "redisName": {
+                      "type": "string",
+                      "value": "[variables('redisName')]"
+                    },
+                    "redisHost": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName]"
+                    },
+                    "redisPrimaryKey": {
+                      "type": "string",
+                      "value": "[listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey]"
+                    },
+                    "redisSecondaryKey": {
+                      "type": "string",
+                      "value": "[listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').secondaryKey]"
+                    },
+                    "redisSslPort": {
+                      "type": "int",
+                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort]"
+                    },
+                    "redisPort": {
+                      "type": "int",
+                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').port]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-cosmos",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "15732145195967823129"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "enableAutomaticFailover": {
+                      "type": "bool",
+                      "defaultValue": true,
+                      "metadata": {
+                        "description": "Enable automatic failover"
+                      }
+                    },
+                    "serverVersion": {
+                      "type": "string",
+                      "defaultValue": "4.2",
+                      "allowedValues": [
+                        "4.0",
+                        "4.2",
+                        "5.0",
+                        "6.0"
+                      ],
+                      "metadata": {
+                        "description": "Server version for MongoDB API"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "cosmosAccountName": "[format('cosmos-{0}', parameters('resourcePrefix'))]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.DocumentDB/databaseAccounts",
+                      "apiVersion": "2023-11-15",
+                      "name": "[variables('cosmosAccountName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "kind": "MongoDB",
+                      "properties": {
+                        "databaseAccountOfferType": "Standard",
+                        "apiProperties": {
+                          "serverVersion": "[parameters('serverVersion')]"
+                        },
+                        "consistencyPolicy": {
+                          "defaultConsistencyLevel": "Session"
+                        },
+                        "locations": [
+                          {
+                            "locationName": "[parameters('location')]",
+                            "failoverPriority": 0,
+                            "isZoneRedundant": false
+                          }
+                        ],
+                        "enableAutomaticFailover": "[parameters('enableAutomaticFailover')]",
+                        "disableKeyBasedMetadataWriteAccess": false,
+                        "publicNetworkAccess": "Enabled",
+                        "capabilities": [
+                          {
+                            "name": "EnableMongo"
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "cosmosAccountId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName'))]"
+                    },
+                    "cosmosAccountName": {
+                      "type": "string",
+                      "value": "[variables('cosmosAccountName')]"
+                    },
+                    "cosmosEndpoint": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2023-11-15').documentEndpoint]"
+                    },
+                    "cosmosConnectionString": {
+                      "type": "string",
+                      "value": "[listConnectionStrings(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2023-11-15').connectionStrings[0].connectionString]"
+                    },
+                    "cosmosPrimaryKey": {
+                      "type": "string",
+                      "value": "[listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosAccountName')), '2023-11-15').primaryMasterKey]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-postgresql",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "adminUser": {
+                    "value": "[parameters('postgresAdminUser')]"
+                  },
+                  "adminPassword": {
+                    "value": "[parameters('postgresAdminPassword')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "16198725659381378939"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "adminUser": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Administrator username"
+                      }
+                    },
+                    "adminPassword": {
+                      "type": "securestring",
+                      "metadata": {
+                        "description": "Administrator password"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "serverVersion": {
+                      "type": "string",
+                      "defaultValue": "15",
+                      "allowedValues": [
+                        "11",
+                        "12",
+                        "13",
+                        "14",
+                        "15",
+                        "16"
+                      ],
+                      "metadata": {
+                        "description": "PostgreSQL server version"
+                      }
+                    },
+                    "skuName": {
+                      "type": "string",
+                      "defaultValue": "Standard_B1ms",
+                      "metadata": {
+                        "description": "Compute SKU"
+                      }
+                    },
+                    "skuTier": {
+                      "type": "string",
+                      "defaultValue": "Burstable",
+                      "allowedValues": [
+                        "Burstable",
+                        "GeneralPurpose",
+                        "MemoryOptimized"
+                      ],
+                      "metadata": {
+                        "description": "Compute tier"
+                      }
+                    },
+                    "storageSizeGB": {
+                      "type": "int",
+                      "defaultValue": 32,
+                      "metadata": {
+                        "description": "Storage size in GB"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "postgresServerName": "[format('psql-{0}', parameters('resourcePrefix'))]",
+                    "databases": [
+                      "audit_service_db",
+                      "order_processor_db"
+                    ]
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+                      "apiVersion": "2023-03-01-preview",
+                      "name": "[variables('postgresServerName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "sku": {
+                        "name": "[parameters('skuName')]",
+                        "tier": "[parameters('skuTier')]"
+                      },
+                      "properties": {
+                        "administratorLogin": "[parameters('adminUser')]",
+                        "administratorLoginPassword": "[parameters('adminPassword')]",
+                        "version": "[parameters('serverVersion')]",
+                        "storage": {
+                          "storageSizeGB": "[parameters('storageSizeGB')]"
+                        },
+                        "backup": {
+                          "backupRetentionDays": 7,
+                          "geoRedundantBackup": "Disabled"
+                        },
+                        "highAvailability": {
+                          "mode": "Disabled"
+                        },
+                        "network": {
+                          "publicNetworkAccess": "Enabled"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+                      "apiVersion": "2023-03-01-preview",
+                      "name": "[format('{0}/{1}', variables('postgresServerName'), 'AllowAzureServices')]",
+                      "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "0.0.0.0"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+                      ]
+                    },
+                    {
+                      "copy": {
+                        "name": "postgresDbResources",
+                        "count": "[length(variables('databases'))]"
+                      },
+                      "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+                      "apiVersion": "2023-03-01-preview",
+                      "name": "[format('{0}/{1}', variables('postgresServerName'), variables('databases')[copyIndex()])]",
+                      "properties": {
+                        "charset": "UTF8",
+                        "collation": "en_US.utf8"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "postgresServerId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+                    },
+                    "postgresServerName": {
+                      "type": "string",
+                      "value": "[variables('postgresServerName')]"
+                    },
+                    "postgresHost": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName')), '2023-03-01-preview').fullyQualifiedDomainName]"
+                    },
+                    "postgresDatabases": {
+                      "type": "array",
+                      "value": "[variables('databases')]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-mysql",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "adminUser": {
+                    "value": "[parameters('mysqlAdminUser')]"
+                  },
+                  "adminPassword": {
+                    "value": "[parameters('mysqlAdminPassword')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "12542231737638541261"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "adminUser": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Administrator username"
+                      }
+                    },
+                    "adminPassword": {
+                      "type": "securestring",
+                      "metadata": {
+                        "description": "Administrator password"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "serverVersion": {
+                      "type": "string",
+                      "defaultValue": "8.0.21",
+                      "allowedValues": [
+                        "5.7",
+                        "8.0.21"
+                      ],
+                      "metadata": {
+                        "description": "MySQL server version"
+                      }
+                    },
+                    "skuName": {
+                      "type": "string",
+                      "defaultValue": "Standard_B1ms",
+                      "metadata": {
+                        "description": "Compute SKU"
+                      }
+                    },
+                    "skuTier": {
+                      "type": "string",
+                      "defaultValue": "Burstable",
+                      "allowedValues": [
+                        "Burstable",
+                        "GeneralPurpose",
+                        "MemoryOptimized"
+                      ],
+                      "metadata": {
+                        "description": "Compute tier"
+                      }
+                    },
+                    "storageSizeGB": {
+                      "type": "int",
+                      "defaultValue": 32,
+                      "metadata": {
+                        "description": "Storage size in GB"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "mysqlServerName": "[format('mysql-{0}', parameters('resourcePrefix'))]",
+                    "databaseName": "inventory_service_db"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.DBforMySQL/flexibleServers",
+                      "apiVersion": "2023-06-30",
+                      "name": "[variables('mysqlServerName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "sku": {
+                        "name": "[parameters('skuName')]",
+                        "tier": "[parameters('skuTier')]"
+                      },
+                      "properties": {
+                        "administratorLogin": "[parameters('adminUser')]",
+                        "administratorLoginPassword": "[parameters('adminPassword')]",
+                        "version": "[parameters('serverVersion')]",
+                        "storage": {
+                          "storageSizeGB": "[parameters('storageSizeGB')]",
+                          "autoGrow": "Enabled"
+                        },
+                        "backup": {
+                          "backupRetentionDays": 7,
+                          "geoRedundantBackup": "Disabled"
+                        },
+                        "highAvailability": {
+                          "mode": "Disabled"
+                        },
+                        "network": {
+                          "publicNetworkAccess": "Enabled"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Microsoft.DBforMySQL/flexibleServers/firewallRules",
+                      "apiVersion": "2023-06-30",
+                      "name": "[format('{0}/{1}', variables('mysqlServerName'), 'AllowAzureServices')]",
+                      "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "0.0.0.0"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('mysqlServerName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.DBforMySQL/flexibleServers/databases",
+                      "apiVersion": "2023-06-30",
+                      "name": "[format('{0}/{1}', variables('mysqlServerName'), variables('databaseName'))]",
+                      "properties": {
+                        "charset": "utf8mb4",
+                        "collation": "utf8mb4_general_ci"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('mysqlServerName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "mysqlServerId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.DBforMySQL/flexibleServers', variables('mysqlServerName'))]"
+                    },
+                    "mysqlServerName": {
+                      "type": "string",
+                      "value": "[variables('mysqlServerName')]"
+                    },
+                    "mysqlHost": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.DBforMySQL/flexibleServers', variables('mysqlServerName')), '2023-06-30').fullyQualifiedDomainName]"
+                    },
+                    "mysqlDatabaseName": {
+                      "type": "string",
+                      "value": "[variables('databaseName')]"
+                    },
+                    "mysqlConnectionString": {
+                      "type": "string",
+                      "value": "[format('Server={0};Database={1};Uid={2};Pwd={3};SslMode=Required;', reference(resourceId('Microsoft.DBforMySQL/flexibleServers', variables('mysqlServerName')), '2023-06-30').fullyQualifiedDomainName, variables('databaseName'), parameters('adminUser'), parameters('adminPassword'))]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-sql-server",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "adminUser": {
+                    "value": "[parameters('sqlAdminUser')]"
+                  },
+                  "adminPassword": {
+                    "value": "[parameters('sqlAdminPassword')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "18434603838206051315"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "adminUser": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Administrator username"
+                      }
+                    },
+                    "adminPassword": {
+                      "type": "securestring",
+                      "metadata": {
+                        "description": "Administrator password"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "sqlServerName": "[format('sql-{0}', parameters('resourcePrefix'))]",
+                    "databases": [
+                      "order_service_db",
+                      "payment_service_db"
+                    ]
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Sql/servers",
+                      "apiVersion": "2023-05-01-preview",
+                      "name": "[variables('sqlServerName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[union(parameters('tags'), createObject('SecurityControl', 'Ignore'))]",
+                      "properties": {
+                        "administratorLogin": "[parameters('adminUser')]",
+                        "administratorLoginPassword": "[parameters('adminPassword')]",
+                        "version": "12.0",
+                        "publicNetworkAccess": "Enabled",
+                        "minimalTlsVersion": "1.2"
+                      }
+                    },
+                    {
+                      "type": "Microsoft.Sql/servers/firewallRules",
+                      "apiVersion": "2023-05-01-preview",
+                      "name": "[format('{0}/{1}', variables('sqlServerName'), 'AllowAzureServices')]",
+                      "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "0.0.0.0"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]"
+                      ]
+                    },
+                    {
+                      "copy": {
+                        "name": "sqlDatabases",
+                        "count": "[length(variables('databases'))]"
+                      },
+                      "type": "Microsoft.Sql/servers/databases",
+                      "apiVersion": "2023-05-01-preview",
+                      "name": "[format('{0}/{1}', variables('sqlServerName'), variables('databases')[copyIndex()])]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "sku": {
+                        "name": "GP_S_Gen5",
+                        "tier": "GeneralPurpose",
+                        "family": "Gen5",
+                        "capacity": 2
+                      },
+                      "properties": {
+                        "collation": "SQL_Latin1_General_CP1_CI_AS",
+                        "maxSizeBytes": 34359738368,
+                        "catalogCollation": "SQL_Latin1_General_CP1_CI_AS",
+                        "zoneRedundant": false,
+                        "readScale": "Disabled",
+                        "autoPauseDelay": 60,
+                        "minCapacity": 1,
+                        "requestedBackupStorageRedundancy": "Local"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "sqlServerId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]"
+                    },
+                    "sqlServerName": {
+                      "type": "string",
+                      "value": "[variables('sqlServerName')]"
+                    },
+                    "sqlHost": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.Sql/servers', variables('sqlServerName')), '2023-05-01-preview').fullyQualifiedDomainName]"
+                    },
+                    "sqlDatabases": {
+                      "type": "array",
+                      "value": "[variables('databases')]"
+                    },
+                    "orderDbConnectionString": {
+                      "type": "string",
+                      "value": "[format('Server=tcp:{0},1433;Database=order_service_db;User ID={1};Password={2};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', reference(resourceId('Microsoft.Sql/servers', variables('sqlServerName')), '2023-05-01-preview').fullyQualifiedDomainName, parameters('adminUser'), parameters('adminPassword'))]"
+                    },
+                    "paymentDbConnectionString": {
+                      "type": "string",
+                      "value": "[format('Server=tcp:{0},1433;Database=payment_service_db;User ID={1};Password={2};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', reference(resourceId('Microsoft.Sql/servers', variables('sqlServerName')), '2023-05-01-preview').fullyQualifiedDomainName, parameters('adminUser'), parameters('adminPassword'))]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-rabbitmq",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "rabbitmqUser": {
+                    "value": "[parameters('rabbitmqUser')]"
+                  },
+                  "rabbitmqPassword": {
+                    "value": "[parameters('rabbitmqPassword')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "5181874696355625549"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "rabbitmqUser": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "RabbitMQ username"
+                      }
+                    },
+                    "rabbitmqPassword": {
+                      "type": "securestring",
+                      "metadata": {
+                        "description": "RabbitMQ password"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "cpuCores": {
+                      "type": "int",
+                      "defaultValue": 1,
+                      "metadata": {
+                        "description": "CPU cores"
+                      }
+                    },
+                    "memoryGB": {
+                      "type": "int",
+                      "defaultValue": 2,
+                      "metadata": {
+                        "description": "Memory in GB"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "containerInstanceName": "[format('aci-rabbitmq-{0}', replace(parameters('resourcePrefix'), 'xshopai-', ''))]",
+                    "dnsLabel": "[variables('containerInstanceName')]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.ContainerInstance/containerGroups",
+                      "apiVersion": "2023-05-01",
+                      "name": "[variables('containerInstanceName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "properties": {
+                        "osType": "Linux",
+                        "restartPolicy": "Always",
+                        "ipAddress": {
+                          "type": "Public",
+                          "dnsNameLabel": "[variables('dnsLabel')]",
+                          "ports": [
+                            {
+                              "protocol": "TCP",
+                              "port": 5672
+                            },
+                            {
+                              "protocol": "TCP",
+                              "port": 15672
+                            }
+                          ]
+                        },
+                        "containers": [
+                          {
+                            "name": "rabbitmq",
+                            "properties": {
+                              "image": "mcr.microsoft.com/mirror/docker/library/rabbitmq:3-management",
+                              "resources": {
+                                "requests": {
+                                  "cpu": "[parameters('cpuCores')]",
+                                  "memoryInGB": "[parameters('memoryGB')]"
+                                }
+                              },
+                              "ports": [
+                                {
+                                  "protocol": "TCP",
+                                  "port": 5672
+                                },
+                                {
+                                  "protocol": "TCP",
+                                  "port": 15672
+                                }
+                              ],
+                              "environmentVariables": [
+                                {
+                                  "name": "RABBITMQ_DEFAULT_USER",
+                                  "value": "[parameters('rabbitmqUser')]"
+                                },
+                                {
+                                  "name": "RABBITMQ_DEFAULT_PASS",
+                                  "secureValue": "[parameters('rabbitmqPassword')]"
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ],
+                  "outputs": {
+                    "containerInstanceId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.ContainerInstance/containerGroups', variables('containerInstanceName'))]"
+                    },
+                    "containerInstanceName": {
+                      "type": "string",
+                      "value": "[variables('containerInstanceName')]"
+                    },
+                    "rabbitmqHost": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups', variables('containerInstanceName')), '2023-05-01').ipAddress.fqdn]"
+                    },
+                    "rabbitmqIp": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups', variables('containerInstanceName')), '2023-05-01').ipAddress.ip]"
+                    },
+                    "rabbitmqUrl": {
+                      "type": "string",
+                      "value": "[format('amqp://{0}:{1}@{2}:5672', parameters('rabbitmqUser'), parameters('rabbitmqPassword'), reference(resourceId('Microsoft.ContainerInstance/containerGroups', variables('containerInstanceName')), '2023-05-01').ipAddress.fqdn)]"
+                    },
+                    "rabbitmqManagementUrl": {
+                      "type": "string",
+                      "value": "[format('http://{0}:15672', reference(resourceId('Microsoft.ContainerInstance/containerGroups', variables('containerInstanceName')), '2023-05-01').ipAddress.fqdn)]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-openai",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "11933714209268683817"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Preferred Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "modelName": {
+                      "type": "string",
+                      "defaultValue": "gpt-4o",
+                      "metadata": {
+                        "description": "Model name to deploy"
+                      }
+                    },
+                    "modelVersion": {
+                      "type": "string",
+                      "defaultValue": "2024-11-20",
+                      "metadata": {
+                        "description": "Model version"
+                      }
+                    },
+                    "deploymentName": {
+                      "type": "string",
+                      "defaultValue": "gpt-4o",
+                      "metadata": {
+                        "description": "Deployment name"
+                      }
+                    },
+                    "skuCapacity": {
+                      "type": "int",
+                      "defaultValue": 10,
+                      "metadata": {
+                        "description": "SKU capacity (tokens per minute / 1000)"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "openaiAccountName": "[format('oai-{0}', parameters('resourcePrefix'))]",
+                    "candidateLocations": [
+                      "[parameters('location')]",
+                      "swedencentral",
+                      "westeurope",
+                      "germanywestcentral",
+                      "uksouth",
+                      "eastus2"
+                    ],
+                    "openaiLocation": "[parameters('location')]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.CognitiveServices/accounts",
+                      "apiVersion": "2023-10-01-preview",
+                      "name": "[variables('openaiAccountName')]",
+                      "location": "[variables('openaiLocation')]",
+                      "tags": "[parameters('tags')]",
+                      "kind": "OpenAI",
+                      "sku": {
+                        "name": "S0"
+                      },
+                      "properties": {
+                        "customSubDomainName": "[variables('openaiAccountName')]",
+                        "publicNetworkAccess": "Enabled",
+                        "disableLocalAuth": true,
+                        "networkAcls": {
+                          "defaultAction": "Allow"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Microsoft.CognitiveServices/accounts/deployments",
+                      "apiVersion": "2023-10-01-preview",
+                      "name": "[format('{0}/{1}', variables('openaiAccountName'), parameters('deploymentName'))]",
+                      "sku": {
+                        "name": "Standard",
+                        "capacity": "[parameters('skuCapacity')]"
+                      },
+                      "properties": {
+                        "model": {
+                          "format": "OpenAI",
+                          "name": "[parameters('modelName')]",
+                          "version": "[parameters('modelVersion')]"
+                        },
+                        "versionUpgradeOption": "OnceCurrentVersionExpired",
+                        "raiPolicyName": "Microsoft.Default"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "openaiAccountId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName'))]"
+                    },
+                    "openaiAccountName": {
+                      "type": "string",
+                      "value": "[variables('openaiAccountName')]"
+                    },
+                    "openaiEndpoint": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName')), '2023-10-01-preview').endpoint]"
+                    },
+                    "openaiResourceId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.CognitiveServices/accounts', variables('openaiAccountName'))]"
+                    },
+                    "openaiLocation": {
+                      "type": "string",
+                      "value": "[variables('openaiLocation')]"
+                    },
+                    "deploymentName": {
+                      "type": "string",
+                      "value": "[parameters('deploymentName')]"
+                    },
+                    "modelName": {
+                      "type": "string",
+                      "value": "[parameters('modelName')]"
+                    },
+                    "modelVersion": {
+                      "type": "string",
+                      "value": "[parameters('modelVersion')]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-keyvault",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "logAnalyticsWorkspaceId": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  },
+                  "jwtSecret": {
+                    "value": "[parameters('jwtSecret')]"
+                  },
+                  "jwtAlgorithm": {
+                    "value": "[parameters('jwtAlgorithm')]"
+                  },
+                  "jwtIssuer": {
+                    "value": "[parameters('jwtIssuer')]"
+                  },
+                  "jwtAudience": {
+                    "value": "[parameters('jwtAudience')]"
+                  },
+                  "jwtExpiresIn": {
+                    "value": "[parameters('jwtExpiresIn')]"
+                  },
+                  "postgresAdminUser": {
+                    "value": "[parameters('postgresAdminUser')]"
+                  },
+                  "postgresAdminPassword": {
+                    "value": "[parameters('postgresAdminPassword')]"
+                  },
+                  "mysqlAdminUser": {
+                    "value": "[parameters('mysqlAdminUser')]"
+                  },
+                  "mysqlAdminPassword": {
+                    "value": "[parameters('mysqlAdminPassword')]"
+                  },
+                  "sqlAdminUser": {
+                    "value": "[parameters('sqlAdminUser')]"
+                  },
+                  "sqlAdminPassword": {
+                    "value": "[parameters('sqlAdminPassword')]"
+                  },
+                  "rabbitmqUser": {
+                    "value": "[parameters('rabbitmqUser')]"
+                  },
+                  "rabbitmqPassword": {
+                    "value": "[parameters('rabbitmqPassword')]"
+                  },
+                  "rabbitmqHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-rabbitmq'), '2025-04-01').outputs.rabbitmqHost.value]"
+                  },
+                  "redisHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-redis'), '2025-04-01').outputs.redisHost.value]"
+                  },
+                  "redisKey": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-redis'), '2025-04-01').outputs.redisPrimaryKey.value]"
+                  },
+                  "appInsightsConnectionString": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.appInsightsConnectionString.value]"
+                  },
+                  "appInsightsKey": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.appInsightsInstrumentationKey.value]"
+                  },
+                  "postgresHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-postgresql'), '2025-04-01').outputs.postgresHost.value]"
+                  },
+                  "mysqlHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-mysql'), '2025-04-01').outputs.mysqlHost.value]"
+                  },
+                  "sqlHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-sql-server'), '2025-04-01').outputs.sqlHost.value]"
+                  },
+                  "cosmosConnectionString": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-cosmos'), '2025-04-01').outputs.cosmosConnectionString.value]"
+                  },
+                  "adminServiceToken": {
+                    "value": "[parameters('adminServiceToken')]"
+                  },
+                  "authServiceToken": {
+                    "value": "[parameters('authServiceToken')]"
+                  },
+                  "userServiceToken": {
+                    "value": "[parameters('userServiceToken')]"
+                  },
+                  "cartServiceToken": {
+                    "value": "[parameters('cartServiceToken')]"
+                  },
+                  "orderServiceToken": {
+                    "value": "[parameters('orderServiceToken')]"
+                  },
+                  "productServiceToken": {
+                    "value": "[parameters('productServiceToken')]"
+                  },
+                  "webBffToken": {
+                    "value": "[parameters('webBffToken')]"
+                  },
+                  "openaiEndpoint": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.openaiEndpoint.value]"
+                  },
+                  "openaiDeployment": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.deploymentName.value]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "150057271145235251"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "logAnalyticsWorkspaceId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Log Analytics Workspace ID for diagnostics"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "jwtSecret": {
+                      "type": "securestring"
+                    },
+                    "jwtAlgorithm": {
+                      "type": "string"
+                    },
+                    "jwtIssuer": {
+                      "type": "string"
+                    },
+                    "jwtAudience": {
+                      "type": "string"
+                    },
+                    "jwtExpiresIn": {
+                      "type": "string"
+                    },
+                    "postgresAdminUser": {
+                      "type": "string"
+                    },
+                    "postgresAdminPassword": {
+                      "type": "securestring"
+                    },
+                    "mysqlAdminUser": {
+                      "type": "string"
+                    },
+                    "mysqlAdminPassword": {
+                      "type": "securestring"
+                    },
+                    "sqlAdminUser": {
+                      "type": "string"
+                    },
+                    "sqlAdminPassword": {
+                      "type": "securestring"
+                    },
+                    "rabbitmqUser": {
+                      "type": "string"
+                    },
+                    "rabbitmqPassword": {
+                      "type": "securestring"
+                    },
+                    "rabbitmqHost": {
+                      "type": "string"
+                    },
+                    "redisHost": {
+                      "type": "string"
+                    },
+                    "redisKey": {
+                      "type": "securestring"
+                    },
+                    "appInsightsConnectionString": {
+                      "type": "string"
+                    },
+                    "appInsightsKey": {
+                      "type": "securestring"
+                    },
+                    "postgresHost": {
+                      "type": "string"
+                    },
+                    "mysqlHost": {
+                      "type": "string"
+                    },
+                    "sqlHost": {
+                      "type": "string"
+                    },
+                    "cosmosConnectionString": {
+                      "type": "securestring"
+                    },
+                    "adminServiceToken": {
+                      "type": "securestring"
+                    },
+                    "authServiceToken": {
+                      "type": "securestring"
+                    },
+                    "userServiceToken": {
+                      "type": "securestring"
+                    },
+                    "cartServiceToken": {
+                      "type": "securestring"
+                    },
+                    "orderServiceToken": {
+                      "type": "securestring"
+                    },
+                    "productServiceToken": {
+                      "type": "securestring"
+                    },
+                    "webBffToken": {
+                      "type": "securestring"
+                    },
+                    "openaiEndpoint": {
+                      "type": "string"
+                    },
+                    "openaiDeployment": {
+                      "type": "string"
+                    }
+                  },
+                  "variables": {
+                    "keyVaultName": "[format('kv-{0}', parameters('resourcePrefix'))]",
+                    "cosmosDbPattern": "mongodb://",
+                    "userMongoUri": "[format('{0}user_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]",
+                    "productMongoUri": "[format('{0}product_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]",
+                    "reviewMongoUri": "[format('{0}review_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]",
+                    "auditPostgresUrl": "[format('postgresql://{0}:{1}@{2}:5432/audit_service_db?sslmode=require', parameters('postgresAdminUser'), parameters('postgresAdminPassword'), parameters('postgresHost'))]",
+                    "orderProcessorPostgresUrl": "[format('postgresql://{0}:{1}@{2}:5432/order_processor_db?sslmode=require', parameters('postgresAdminUser'), parameters('postgresAdminPassword'), parameters('postgresHost'))]",
+                    "inventoryMysqlConnection": "[format('Server={0};Database=inventory_service_db;Uid={1};Pwd={2};SslMode=Required;', parameters('mysqlHost'), parameters('mysqlAdminUser'), parameters('mysqlAdminPassword'))]",
+                    "orderSqlConnection": "[format('Server=tcp:{0},1433;Database=order_service_db;User ID={1};Password={2};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', parameters('sqlHost'), parameters('sqlAdminUser'), parameters('sqlAdminPassword'))]",
+                    "paymentSqlConnection": "[format('Server=tcp:{0},1433;Database=payment_service_db;User ID={1};Password={2};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;', parameters('sqlHost'), parameters('sqlAdminUser'), parameters('sqlAdminPassword'))]",
+                    "rabbitmqUrl": "[format('amqp://{0}:{1}@{2}:5672', parameters('rabbitmqUser'), parameters('rabbitmqPassword'), parameters('rabbitmqHost'))]"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.KeyVault/vaults",
+                      "apiVersion": "2023-07-01",
+                      "name": "[variables('keyVaultName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "properties": {
+                        "sku": {
+                          "family": "A",
+                          "name": "standard"
+                        },
+                        "tenantId": "[subscription().tenantId]",
+                        "enableRbacAuthorization": false,
+                        "enableSoftDelete": true,
+                        "softDeleteRetentionInDays": 7,
+                        "enablePurgeProtection": false,
+                        "publicNetworkAccess": "Enabled",
+                        "networkAcls": {
+                          "defaultAction": "Allow",
+                          "bypass": "AzureServices"
+                        },
+                        "accessPolicies": []
+                      }
+                    },
+                    {
+                      "type": "Microsoft.Insights/diagnosticSettings",
+                      "apiVersion": "2021-05-01-preview",
+                      "scope": "[format('Microsoft.KeyVault/vaults/{0}', variables('keyVaultName'))]",
+                      "name": "[format('diag-{0}', variables('keyVaultName'))]",
+                      "properties": {
+                        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                        "logs": [
+                          {
+                            "category": "AuditEvent",
+                            "enabled": true
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "category": "AllMetrics",
+                            "enabled": true
+                          }
+                        ]
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'jwt-secret')]",
+                      "properties": {
+                        "value": "[parameters('jwtSecret')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'jwt-algorithm')]",
+                      "properties": {
+                        "value": "[parameters('jwtAlgorithm')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'jwt-issuer')]",
+                      "properties": {
+                        "value": "[parameters('jwtIssuer')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'jwt-audience')]",
+                      "properties": {
+                        "value": "[parameters('jwtAudience')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'jwt-expires-in')]",
+                      "properties": {
+                        "value": "[parameters('jwtExpiresIn')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'postgres-admin-user')]",
+                      "properties": {
+                        "value": "[parameters('postgresAdminUser')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'postgres-admin-password')]",
+                      "properties": {
+                        "value": "[parameters('postgresAdminPassword')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'mysql-admin-user')]",
+                      "properties": {
+                        "value": "[parameters('mysqlAdminUser')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'mysql-admin-password')]",
+                      "properties": {
+                        "value": "[parameters('mysqlAdminPassword')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'sql-admin-user')]",
+                      "properties": {
+                        "value": "[parameters('sqlAdminUser')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'sql-admin-password')]",
+                      "properties": {
+                        "value": "[parameters('sqlAdminPassword')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'rabbitmq-user')]",
+                      "properties": {
+                        "value": "[parameters('rabbitmqUser')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'rabbitmq-password')]",
+                      "properties": {
+                        "value": "[parameters('rabbitmqPassword')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'rabbitmq-host')]",
+                      "properties": {
+                        "value": "[parameters('rabbitmqHost')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'rabbitmq-url')]",
+                      "properties": {
+                        "value": "[variables('rabbitmqUrl')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'redis-host')]",
+                      "properties": {
+                        "value": "[parameters('redisHost')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'redis-key')]",
+                      "properties": {
+                        "value": "[parameters('redisKey')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'appinsights-connection-string')]",
+                      "properties": {
+                        "value": "[parameters('appInsightsConnectionString')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'appinsights-instrumentation-key')]",
+                      "properties": {
+                        "value": "[parameters('appInsightsKey')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'user-service-mongodb-uri')]",
+                      "properties": {
+                        "value": "[variables('userMongoUri')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'product-service-mongodb-uri')]",
+                      "properties": {
+                        "value": "[variables('productMongoUri')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'review-service-mongodb-uri')]",
+                      "properties": {
+                        "value": "[variables('reviewMongoUri')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'audit-service-postgres-url')]",
+                      "properties": {
+                        "value": "[variables('auditPostgresUrl')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'order-processor-service-postgres-url')]",
+                      "properties": {
+                        "value": "[variables('orderProcessorPostgresUrl')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'inventory-service-mysql-server')]",
+                      "properties": {
+                        "value": "[variables('inventoryMysqlConnection')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'order-service-sql-connection')]",
+                      "properties": {
+                        "value": "[variables('orderSqlConnection')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'payment-service-sql-connection')]",
+                      "properties": {
+                        "value": "[variables('paymentSqlConnection')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'admin-service-token')]",
+                      "properties": {
+                        "value": "[parameters('adminServiceToken')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'auth-service-token')]",
+                      "properties": {
+                        "value": "[parameters('authServiceToken')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'user-service-token')]",
+                      "properties": {
+                        "value": "[parameters('userServiceToken')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'cart-service-token')]",
+                      "properties": {
+                        "value": "[parameters('cartServiceToken')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'order-service-token')]",
+                      "properties": {
+                        "value": "[parameters('orderServiceToken')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'product-service-token')]",
+                      "properties": {
+                        "value": "[parameters('productServiceToken')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'web-bff-token')]",
+                      "properties": {
+                        "value": "[parameters('webBffToken')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'chat-service-openai-endpoint')]",
+                      "properties": {
+                        "value": "[parameters('openaiEndpoint')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.KeyVault/vaults/secrets",
+                      "apiVersion": "2023-07-01",
+                      "name": "[format('{0}/{1}', variables('keyVaultName'), 'chat-service-openai-deployment')]",
+                      "properties": {
+                        "value": "[parameters('openaiDeployment')]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "keyVaultId": {
+                      "type": "string",
+                      "value": "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+                    },
+                    "keyVaultName": {
+                      "type": "string",
+                      "value": "[variables('keyVaultName')]"
+                    },
+                    "keyVaultUri": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri]"
+                    }
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-cosmos')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-mysql')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-openai')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-postgresql')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-rabbitmq')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-redis')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-sql-server')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-app-services",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "environment": {
+                    "value": "[parameters('environment')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "appServicePlanId": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-service-plan'), '2025-04-01').outputs.appServicePlanId.value]"
+                  },
+                  "appInsightsConnectionString": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.appInsightsConnectionString.value]"
+                  },
+                  "appInsightsKey": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.appInsightsInstrumentationKey.value]"
+                  },
+                  "nodeEnv": {
+                    "value": "[variables('nodeEnv')]"
+                  },
+                  "aspnetEnv": {
+                    "value": "[variables('aspnetEnv')]"
+                  },
+                  "jwtSecret": {
+                    "value": "[parameters('jwtSecret')]"
+                  },
+                  "jwtAlgorithm": {
+                    "value": "[parameters('jwtAlgorithm')]"
+                  },
+                  "jwtIssuer": {
+                    "value": "[parameters('jwtIssuer')]"
+                  },
+                  "jwtAudience": {
+                    "value": "[parameters('jwtAudience')]"
+                  },
+                  "jwtExpiresIn": {
+                    "value": "[parameters('jwtExpiresIn')]"
+                  },
+                  "rabbitmqHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-rabbitmq'), '2025-04-01').outputs.rabbitmqHost.value]"
+                  },
+                  "rabbitmqUser": {
+                    "value": "[parameters('rabbitmqUser')]"
+                  },
+                  "rabbitmqPassword": {
+                    "value": "[parameters('rabbitmqPassword')]"
+                  },
+                  "redisHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-redis'), '2025-04-01').outputs.redisHost.value]"
+                  },
+                  "redisKey": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-redis'), '2025-04-01').outputs.redisPrimaryKey.value]"
+                  },
+                  "postgresHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-postgresql'), '2025-04-01').outputs.postgresHost.value]"
+                  },
+                  "postgresAdminUser": {
+                    "value": "[parameters('postgresAdminUser')]"
+                  },
+                  "postgresAdminPassword": {
+                    "value": "[parameters('postgresAdminPassword')]"
+                  },
+                  "mysqlHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-mysql'), '2025-04-01').outputs.mysqlHost.value]"
+                  },
+                  "mysqlConnectionString": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-mysql'), '2025-04-01').outputs.mysqlConnectionString.value]"
+                  },
+                  "sqlHost": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-sql-server'), '2025-04-01').outputs.sqlHost.value]"
+                  },
+                  "sqlOrderConnectionString": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-sql-server'), '2025-04-01').outputs.orderDbConnectionString.value]"
+                  },
+                  "sqlPaymentConnectionString": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-sql-server'), '2025-04-01').outputs.paymentDbConnectionString.value]"
+                  },
+                  "cosmosConnectionString": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-cosmos'), '2025-04-01').outputs.cosmosConnectionString.value]"
+                  },
+                  "openaiEndpoint": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.openaiEndpoint.value]"
+                  },
+                  "openaiDeployment": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.deploymentName.value]"
+                  },
+                  "openaiResourceId": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.openaiResourceId.value]"
+                  },
+                  "adminServiceToken": {
+                    "value": "[parameters('adminServiceToken')]"
+                  },
+                  "authServiceToken": {
+                    "value": "[parameters('authServiceToken')]"
+                  },
+                  "userServiceToken": {
+                    "value": "[parameters('userServiceToken')]"
+                  },
+                  "cartServiceToken": {
+                    "value": "[parameters('cartServiceToken')]"
+                  },
+                  "orderServiceToken": {
+                    "value": "[parameters('orderServiceToken')]"
+                  },
+                  "productServiceToken": {
+                    "value": "[parameters('productServiceToken')]"
+                  },
+                  "webBffToken": {
+                    "value": "[parameters('webBffToken')]"
+                  },
+                  "logAnalyticsWorkspaceId": {
+                    "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "6692281254220642074"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for deployment"
+                      }
+                    },
+                    "environment": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Environment name (dev, prod)"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{env}-{suffix})"
+                      }
+                    },
+                    "appServicePlanId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "App Service Plan resource ID"
+                      }
+                    },
+                    "appInsightsConnectionString": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Application Insights connection string"
+                      }
+                    },
+                    "appInsightsKey": {
+                      "type": "securestring",
+                      "metadata": {
+                        "description": "Application Insights instrumentation key"
+                      }
+                    },
+                    "nodeEnv": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Node environment"
+                      }
+                    },
+                    "aspnetEnv": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "ASP.NET environment"
+                      }
+                    },
+                    "jwtSecret": {
+                      "type": "securestring"
+                    },
+                    "jwtAlgorithm": {
+                      "type": "string"
+                    },
+                    "jwtIssuer": {
+                      "type": "string"
+                    },
+                    "jwtAudience": {
+                      "type": "string"
+                    },
+                    "jwtExpiresIn": {
+                      "type": "string"
+                    },
+                    "rabbitmqHost": {
+                      "type": "string"
+                    },
+                    "rabbitmqUser": {
+                      "type": "string"
+                    },
+                    "rabbitmqPassword": {
+                      "type": "securestring"
+                    },
+                    "redisHost": {
+                      "type": "string"
+                    },
+                    "redisKey": {
+                      "type": "securestring"
+                    },
+                    "postgresHost": {
+                      "type": "string"
+                    },
+                    "postgresAdminUser": {
+                      "type": "string"
+                    },
+                    "postgresAdminPassword": {
+                      "type": "securestring"
+                    },
+                    "mysqlHost": {
+                      "type": "string"
+                    },
+                    "mysqlConnectionString": {
+                      "type": "securestring"
+                    },
+                    "sqlHost": {
+                      "type": "string"
+                    },
+                    "sqlOrderConnectionString": {
+                      "type": "securestring"
+                    },
+                    "sqlPaymentConnectionString": {
+                      "type": "securestring"
+                    },
+                    "cosmosConnectionString": {
+                      "type": "securestring"
+                    },
+                    "openaiEndpoint": {
+                      "type": "string"
+                    },
+                    "openaiDeployment": {
+                      "type": "string"
+                    },
+                    "openaiResourceId": {
+                      "type": "string"
+                    },
+                    "adminServiceToken": {
+                      "type": "securestring"
+                    },
+                    "authServiceToken": {
+                      "type": "securestring"
+                    },
+                    "userServiceToken": {
+                      "type": "securestring"
+                    },
+                    "cartServiceToken": {
+                      "type": "securestring"
+                    },
+                    "orderServiceToken": {
+                      "type": "securestring"
+                    },
+                    "productServiceToken": {
+                      "type": "securestring"
+                    },
+                    "webBffToken": {
+                      "type": "securestring"
+                    },
+                    "logAnalyticsWorkspaceId": {
+                      "type": "string"
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "suffix": "[split(parameters('resourcePrefix'), '-')[2]]",
+                    "services": [
+                      {
+                        "name": "admin-service",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "admin-ui",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health"
+                      },
+                      {
+                        "name": "audit-service",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "auth-service",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "cart-service",
+                        "runtime": "JAVA:17-java17",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "chat-service",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "customer-ui",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health"
+                      },
+                      {
+                        "name": "inventory-service",
+                        "runtime": "PYTHON:3.11",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "notification-service",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "order-processor-service",
+                        "runtime": "JAVA:17-java17",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "order-service",
+                        "runtime": "DOTNETCORE:8.0",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "payment-service",
+                        "runtime": "DOTNETCORE:8.0",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "product-service",
+                        "runtime": "PYTHON:3.11",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "review-service",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "user-service",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health/live"
+                      },
+                      {
+                        "name": "web-bff",
+                        "runtime": "NODE:24-lts",
+                        "health": "/health/live"
+                      }
+                    ],
+                    "serviceUrlPrefix": "https://app-",
+                    "serviceUrlSuffix": "[format('-xshopai-{0}-{1}.azurewebsites.net', parameters('environment'), variables('suffix'))]",
+                    "rabbitmqUrl": "[format('amqp://{0}:{1}@{2}:5672', parameters('rabbitmqUser'), parameters('rabbitmqPassword'), parameters('rabbitmqHost'))]",
+                    "userMongodbUri": "[format('{0}user_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]",
+                    "productMongodbUri": "[format('{0}product_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]",
+                    "reviewMongodbUri": "[format('{0}review_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]"
+                  },
+                  "resources": [
+                    {
+                      "copy": {
+                        "name": "appServices",
+                        "count": "[length(variables('services'))]"
+                      },
+                      "type": "Microsoft.Web/sites",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('app-{0}-xshopai-{1}-{2}', variables('services')[copyIndex()].name, parameters('environment'), variables('suffix'))]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "kind": "app,linux",
+                      "identity": {
+                        "type": "SystemAssigned"
+                      },
+                      "properties": {
+                        "serverFarmId": "[parameters('appServicePlanId')]",
+                        "httpsOnly": true,
+                        "clientAffinityEnabled": false,
+                        "siteConfig": {
+                          "linuxFxVersion": "[variables('services')[copyIndex()].runtime]",
+                          "alwaysOn": true,
+                          "healthCheckPath": "[variables('services')[copyIndex()].health]",
+                          "http20Enabled": true,
+                          "minTlsVersion": "1.2",
+                          "ftpsState": "Disabled",
+                          "scmIpSecurityRestrictionsUseMain": true,
+                          "appSettings": []
+                        }
+                      }
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[0].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "RABBITMQ_URL": "[variables('rabbitmqUrl')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "SERVICE_USER_TOKEN": "[parameters('adminServiceToken')]",
+                        "AUTH_SERVICE_URL": "[format('{0}auth-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "USER_SERVICE_URL": "[format('{0}user-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "PRODUCT_SERVICE_URL": "[format('{0}product-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "ORDER_SERVICE_URL": "[format('{0}order-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "PAYMENT_SERVICE_URL": "[format('{0}payment-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "AUDIT_SERVICE_URL": "[format('{0}audit-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "NOTIFICATION_SERVICE_URL": "[format('{0}notification-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "INVENTORY_SERVICE_URL": "[format('{0}inventory-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "admin-service"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[0].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[1].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "BFF_URL": "[format('{0}web-bff{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[1].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[1].name, parameters('environment'), variables('suffix')), 'web')]",
+                      "properties": {
+                        "appCommandLine": "pm2 serve /home/site/wwwroot/build --no-daemon --spa -p 8080"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[1].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[2].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "POSTGRES_HOST": "[parameters('postgresHost')]",
+                        "POSTGRES_PORT": "5432",
+                        "POSTGRES_DB": "audit_service_db",
+                        "POSTGRES_USER": "[parameters('postgresAdminUser')]",
+                        "POSTGRES_PASSWORD": "[parameters('postgresAdminPassword')]",
+                        "DB_SSL": "true",
+                        "RABBITMQ_URL": "[variables('rabbitmqUrl')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "audit-service"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[2].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[3].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "SERVICE_NAME": "auth-service",
+                        "VERSION": "1.0.0",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "JWT_ALGORITHM": "[parameters('jwtAlgorithm')]",
+                        "JWT_ISSUER": "[parameters('jwtIssuer')]",
+                        "JWT_AUDIENCE": "[parameters('jwtAudience')]",
+                        "JWT_EXPIRES_IN": "[parameters('jwtExpiresIn')]",
+                        "USER_SERVICE_URL": "[format('{0}user-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "RABBITMQ_URL": "[variables('rabbitmqUrl')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "auth-service",
+                        "LOG_LEVEL": "info",
+                        "LOG_FORMAT": "json",
+                        "LOG_TO_CONSOLE": "true"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[3].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[4].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "ApplicationInsightsAgent_EXTENSION_VERSION": "~3",
+                        "QUARKUS_HTTP_PORT": "8080",
+                        "QUARKUS_REDIS_HOSTS": "[format('rediss://:{0}@{1}:6380', parameters('redisKey'), parameters('redisHost'))]",
+                        "REDIS_HOST": "[parameters('redisHost')]",
+                        "REDIS_PORT": "6380",
+                        "REDIS_PASSWORD": "[parameters('redisKey')]",
+                        "RABBITMQ_HOST": "[parameters('rabbitmqHost')]",
+                        "RABBITMQ_PORT": "5672",
+                        "RABBITMQ_USERNAME": "[parameters('rabbitmqUser')]",
+                        "RABBITMQ_PASSWORD": "[parameters('rabbitmqPassword')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "SERVICE_TOKEN": "[parameters('cartServiceToken')]",
+                        "SERVICE_TOKEN_ENABLED": "true",
+                        "PRODUCT_SERVICE_URL": "[format('{0}product-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "INVENTORY_SERVICE_URL": "[format('{0}inventory-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "QUARKUS_OTEL_ENABLED": "false",
+                        "OTEL_SERVICE_NAME": "cart-service"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[4].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[5].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "JWT_ALGORITHM": "[parameters('jwtAlgorithm')]",
+                        "JWT_ISSUER": "[parameters('jwtIssuer')]",
+                        "JWT_AUDIENCE": "[parameters('jwtAudience')]",
+                        "AZURE_OPENAI_ENDPOINT": "[parameters('openaiEndpoint')]",
+                        "AZURE_OPENAI_DEPLOYMENT_NAME": "[parameters('openaiDeployment')]",
+                        "AZURE_OPENAI_API_VERSION": "2024-10-21",
+                        "AZURE_USE_MANAGED_IDENTITY": "true",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "PRODUCT_SERVICE_URL": "[format('{0}product-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "ORDER_SERVICE_URL": "[format('{0}order-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "USER_SERVICE_URL": "[format('{0}user-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "INVENTORY_SERVICE_URL": "[format('{0}inventory-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "chat-service"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[5].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "name": "[guid(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[5].name, parameters('environment'), variables('suffix'))), parameters('openaiResourceId'), 'CognitiveServicesOpenAIUser')]",
+                      "properties": {
+                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')]",
+                        "principalId": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[5].name, parameters('environment'), variables('suffix'))), '2022-09-01', 'full').identity.principalId]",
+                        "principalType": "ServicePrincipal"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[5].name, parameters('environment'), variables('suffix')))]",
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[5].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[6].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "BFF_URL": "[format('{0}web-bff{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[6].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[6].name, parameters('environment'), variables('suffix')), 'web')]",
+                      "properties": {
+                        "appCommandLine": "pm2 serve /home/site/wwwroot/build --no-daemon --spa -p 8080"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[6].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[7].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "FLASK_APP": "run.py",
+                        "MYSQL_SERVER_CONNECTION": "[parameters('mysqlConnectionString')]",
+                        "DB_NAME": "inventory_service_db",
+                        "RABBITMQ_URL": "[variables('rabbitmqUrl')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "JWT_ALGORITHM": "[parameters('jwtAlgorithm')]",
+                        "JWT_ISSUER": "[parameters('jwtIssuer')]",
+                        "JWT_AUDIENCE": "[parameters('jwtAudience')]",
+                        "SERVICE_PRODUCT_TOKEN": "[parameters('adminServiceToken')]",
+                        "SERVICE_ORDER_TOKEN": "[parameters('orderServiceToken')]",
+                        "SERVICE_CART_TOKEN": "[parameters('cartServiceToken')]",
+                        "SERVICE_WEBBFF_TOKEN": "[parameters('webBffToken')]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "inventory-service",
+                        "LOG_LEVEL": "INFO",
+                        "LOG_FORMAT": "json",
+                        "LOG_TO_CONSOLE": "true"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[7].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[7].name, parameters('environment'), variables('suffix')), 'web')]",
+                      "properties": {
+                        "appCommandLine": "FLASK_SKIP_AZURE_MONITOR=true flask db upgrade && exec gunicorn --bind 0.0.0.0:8080 --workers 2 --timeout 120 --preload run:app"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[7].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[8].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "RABBITMQ_URL": "[variables('rabbitmqUrl')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "SMTP_HOST": "",
+                        "SMTP_PORT": "587",
+                        "SMTP_USER": "",
+                        "SMTP_PASS": "",
+                        "SMTP_SECURE": "false",
+                        "EMAIL_FROM_ADDRESS": "noreply@xshopai.com",
+                        "EMAIL_FROM_NAME": "xShopAI",
+                        "EMAIL_ENABLED": "false",
+                        "EMAIL_PROVIDER": "smtp",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "notification-service"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[8].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[9].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "ApplicationInsightsAgent_EXTENSION_VERSION": "~3",
+                        "SERVER_PORT": "8080",
+                        "SPRING_DATASOURCE_URL": "[format('jdbc:postgresql://{0}:5432/order_processor_db?sslmode=require', parameters('postgresHost'))]",
+                        "SPRING_DATASOURCE_USERNAME": "[parameters('postgresAdminUser')]",
+                        "SPRING_DATASOURCE_PASSWORD": "[parameters('postgresAdminPassword')]",
+                        "RABBITMQ_HOST": "[parameters('rabbitmqHost')]",
+                        "RABBITMQ_PORT": "5672",
+                        "RABBITMQ_USERNAME": "[parameters('rabbitmqUser')]",
+                        "RABBITMQ_PASSWORD": "[parameters('rabbitmqPassword')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "JWT_ISSUER": "[parameters('jwtIssuer')]",
+                        "JWT_AUDIENCE": "[parameters('jwtAudience')]",
+                        "SERVICES_ORDER_URL": "[format('{0}order-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "SERVICES_INVENTORY_URL": "[format('{0}inventory-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "SERVICES_PAYMENT_URL": "[format('{0}payment-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "SERVICES_NOTIFICATION_URL": "[format('{0}notification-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "ORDER_SERVICE_URL": "[format('{0}order-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "INVENTORY_SERVICE_URL": "[format('{0}inventory-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "PAYMENT_SERVICE_URL": "[format('{0}payment-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "NOTIFICATION_SERVICE_URL": "[format('{0}notification-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "MANAGEMENT_TRACING_ENABLED": "false",
+                        "OTEL_SERVICE_NAME": "order-processor-service",
+                        "LOG_LEVEL": "INFO",
+                        "LOG_FORMAT": "json",
+                        "LOG_TO_CONSOLE": "true"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[9].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[10].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "ASPNETCORE_ENVIRONMENT": "[parameters('aspnetEnv')]",
+                        "ASPNETCORE_URLS": "http://0.0.0.0:8080",
+                        "DATABASE_CONNECTION_STRING": "[parameters('sqlOrderConnectionString')]",
+                        "RABBITMQ_CONNECTION_STRING": "[variables('rabbitmqUrl')]",
+                        "RabbitMQ__ExchangeName": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "order-service",
+                        "Services__CartService": "[format('{0}cart-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "Services__ProductService": "[format('{0}product-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "Services__InventoryService": "[format('{0}inventory-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "Services__UserService": "[format('{0}user-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[10].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[11].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "ASPNETCORE_ENVIRONMENT": "[parameters('aspnetEnv')]",
+                        "ASPNETCORE_URLS": "http://0.0.0.0:8080",
+                        "ConnectionStrings__DefaultConnection": "[parameters('sqlPaymentConnectionString')]",
+                        "RABBITMQ_CONNECTION_STRING": "[variables('rabbitmqUrl')]",
+                        "RabbitMQ__ExchangeName": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "Jwt__Key": "[parameters('jwtSecret')]",
+                        "Jwt__Issuer": "auth-service",
+                        "Jwt__Audience": "xshopai-platform",
+                        "ServiceTokens__OrderService": "[parameters('orderServiceToken')]",
+                        "ServiceTokens__UserService": "[parameters('userServiceToken')]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "payment-service"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[11].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[12].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NAME": "product-service",
+                        "API_VERSION": "1.0.0",
+                        "MONGODB_URI": "[variables('productMongodbUri')]",
+                        "MONGODB_DB_NAME": "product_service_db",
+                        "RABBITMQ_URL": "[variables('rabbitmqUrl')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "JWT_ALGORITHM": "[parameters('jwtAlgorithm')]",
+                        "JWT_ISSUER": "[parameters('jwtIssuer')]",
+                        "JWT_AUDIENCE": "[parameters('jwtAudience')]",
+                        "SERVICE_PRODUCT_TOKEN": "[parameters('adminServiceToken')]",
+                        "SERVICE_ORDER_TOKEN": "[parameters('orderServiceToken')]",
+                        "SERVICE_CART_TOKEN": "[parameters('cartServiceToken')]",
+                        "SERVICE_WEBBFF_TOKEN": "[parameters('webBffToken')]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "product-service",
+                        "LOG_LEVEL": "INFO",
+                        "LOG_FORMAT": "json",
+                        "LOG_TO_CONSOLE": "true"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[12].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[12].name, parameters('environment'), variables('suffix')), 'web')]",
+                      "properties": {
+                        "appCommandLine": "gunicorn --worker-class uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:8080 main:app"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[12].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[13].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "SERVICE_NAME": "review-service",
+                        "VERSION": "1.0.0",
+                        "MONGODB_URI": "[variables('reviewMongodbUri')]",
+                        "MONGODB_DB_NAME": "review_service_db",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "RABBITMQ_URL": "[variables('rabbitmqUrl')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "CORS_ORIGIN": "[format('{0}customer-ui{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "PRODUCT_SERVICE_URL": "[format('{0}product-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "USER_SERVICE_URL": "[format('{0}user-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "ORDER_SERVICE_URL": "[format('{0}order-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "SERVICE_PRODUCT_TOKEN": "[parameters('productServiceToken')]",
+                        "SERVICE_ORDER_TOKEN": "[parameters('orderServiceToken')]",
+                        "SERVICE_WEBBFF_TOKEN": "[parameters('webBffToken')]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "review-service",
+                        "LOG_LEVEL": "info",
+                        "LOG_FORMAT": "json",
+                        "LOG_TO_CONSOLE": "true"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[13].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[14].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "SERVICE_NAME": "user-service",
+                        "VERSION": "1.0.0",
+                        "MONGODB_URI": "[variables('userMongodbUri')]",
+                        "MONGODB_DB_NAME": "user_service_db",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "JWT_ALGORITHM": "[parameters('jwtAlgorithm')]",
+                        "JWT_ISSUER": "[parameters('jwtIssuer')]",
+                        "JWT_AUDIENCE": "[parameters('jwtAudience')]",
+                        "JWT_EXPIRES_IN": "[parameters('jwtExpiresIn')]",
+                        "RABBITMQ_URL": "[variables('rabbitmqUrl')]",
+                        "RABBITMQ_EXCHANGE": "xshopai.events",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "SERVICE_AUTH_TOKEN": "[parameters('authServiceToken')]",
+                        "SERVICE_ADMIN_TOKEN": "[parameters('adminServiceToken')]",
+                        "SERVICE_ORDER_TOKEN": "[parameters('orderServiceToken')]",
+                        "SERVICE_WEBBFF_TOKEN": "[parameters('webBffToken')]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "user-service",
+                        "LOG_LEVEL": "INFO",
+                        "LOG_FORMAT": "json",
+                        "LOG_TO_CONSOLE": "true"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[14].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Web/sites/config",
+                      "apiVersion": "2022-09-01",
+                      "name": "[format('{0}/{1}', format('app-{0}-xshopai-{1}-{2}', variables('services')[15].name, parameters('environment'), variables('suffix')), 'appsettings')]",
+                      "properties": {
+                        "PORT": "8080",
+                        "ENVIRONMENT": "[parameters('environment')]",
+                        "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+                        "APPLICATIONINSIGHTS_CONNECTION_STRING": "[parameters('appInsightsConnectionString')]",
+                        "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appInsightsKey')]",
+                        "NODE_ENV": "[parameters('nodeEnv')]",
+                        "SERVICE_NAME": "web-bff",
+                        "VERSION": "1.0.0",
+                        "JWT_SECRET": "[parameters('jwtSecret')]",
+                        "JWT_ISSUER": "[parameters('jwtIssuer')]",
+                        "JWT_AUDIENCE": "[parameters('jwtAudience')]",
+                        "MESSAGING_PROVIDER": "rabbitmq",
+                        "ALLOWED_ORIGINS": "[format('{0}customer-ui{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "AUTH_SERVICE_URL": "[format('{0}auth-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "USER_SERVICE_URL": "[format('{0}user-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "PRODUCT_SERVICE_URL": "[format('{0}product-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "CART_SERVICE_URL": "[format('{0}cart-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "ORDER_SERVICE_URL": "[format('{0}order-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "PAYMENT_SERVICE_URL": "[format('{0}payment-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "REVIEW_SERVICE_URL": "[format('{0}review-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "INVENTORY_SERVICE_URL": "[format('{0}inventory-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "ADMIN_SERVICE_URL": "[format('{0}admin-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "CHAT_SERVICE_URL": "[format('{0}chat-service{1}', variables('serviceUrlPrefix'), variables('serviceUrlSuffix'))]",
+                        "OTEL_TRACES_EXPORTER": "azure",
+                        "OTEL_SERVICE_NAME": "web-bff",
+                        "LOG_LEVEL": "info",
+                        "LOG_FORMAT": "json",
+                        "LOG_TO_CONSOLE": "true"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[15].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    },
+                    {
+                      "copy": {
+                        "name": "diagnosticSettings",
+                        "count": "[length(variables('services'))]"
+                      },
+                      "type": "Microsoft.Insights/diagnosticSettings",
+                      "apiVersion": "2021-05-01-preview",
+                      "scope": "[format('Microsoft.Web/sites/{0}', format('app-{0}-xshopai-{1}-{2}', variables('services')[copyIndex()].name, parameters('environment'), variables('suffix')))]",
+                      "name": "[format('diag-app-{0}-xshopai-{1}-{2}', variables('services')[copyIndex()].name, parameters('environment'), variables('suffix'))]",
+                      "properties": {
+                        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                        "logs": [
+                          {
+                            "category": "AppServiceHTTPLogs",
+                            "enabled": true
+                          },
+                          {
+                            "category": "AppServiceConsoleLogs",
+                            "enabled": true
+                          },
+                          {
+                            "category": "AppServiceAppLogs",
+                            "enabled": true
+                          },
+                          {
+                            "category": "AppServicePlatformLogs",
+                            "enabled": true
+                          }
+                        ],
+                        "metrics": [
+                          {
+                            "category": "AllMetrics",
+                            "enabled": true
+                          }
+                        ]
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[copyIndex()].name, parameters('environment'), variables('suffix')))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "serviceUrls": {
+                      "type": "object",
+                      "value": {
+                        "adminService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[0].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "adminUi": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[1].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "auditService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[2].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "authService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[3].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "cartService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[4].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "chatService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[5].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "customerUi": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[6].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "inventoryService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[7].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "notificationService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[8].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "orderProcessorService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[9].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "orderService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[10].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "paymentService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[11].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "productService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[12].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "reviewService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[13].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "userService": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[14].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]",
+                        "webBff": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[15].name, parameters('environment'), variables('suffix'))), '2022-09-01').defaultHostName]"
+                      }
+                    },
+                    "appServiceIds": {
+                      "type": "array",
+                      "copy": {
+                        "count": "[length(variables('services'))]",
+                        "input": "[resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}-{2}', variables('services')[copyIndex()].name, parameters('environment'), variables('suffix')))]"
+                      }
+                    },
+                    "appServiceNames": {
+                      "type": "array",
+                      "copy": {
+                        "count": "[length(variables('services'))]",
+                        "input": "[format('app-{0}-xshopai-{1}-{2}', variables('services')[copyIndex()].name, parameters('environment'), variables('suffix'))]"
+                      }
+                    }
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-app-service-plan')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-cosmos')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-monitoring')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-mysql')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-openai')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-postgresql')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-rabbitmq')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-redis')]",
+                "[resourceId('Microsoft.Resources/deployments', 'deploy-sql-server')]"
+              ]
+            }
+          ],
+          "outputs": {
+            "resourceGroupName": {
+              "type": "string",
+              "value": "[resourceGroup().name]"
+            },
+            "resourceGroupLocation": {
+              "type": "string",
+              "value": "[parameters('location')]"
+            },
+            "environment": {
+              "type": "string",
+              "value": "[parameters('environment')]"
+            },
+            "suffix": {
+              "type": "string",
+              "value": "[parameters('suffix')]"
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+            },
+            "appInsightsName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.appInsightsName.value]"
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-monitoring'), '2025-04-01').outputs.appInsightsConnectionString.value]"
+            },
+            "appServicePlanId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-service-plan'), '2025-04-01').outputs.appServicePlanId.value]"
+            },
+            "appServicePlanName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-service-plan'), '2025-04-01').outputs.appServicePlanName.value]"
+            },
+            "appServiceUrls": {
+              "type": "object",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-app-services'), '2025-04-01').outputs.serviceUrls.value]"
+            },
+            "postgresHost": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-postgresql'), '2025-04-01').outputs.postgresHost.value]"
+            },
+            "mysqlHost": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-mysql'), '2025-04-01').outputs.mysqlHost.value]"
+            },
+            "sqlHost": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-sql-server'), '2025-04-01').outputs.sqlHost.value]"
+            },
+            "cosmosAccountName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-cosmos'), '2025-04-01').outputs.cosmosAccountName.value]"
+            },
+            "redisHost": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-redis'), '2025-04-01').outputs.redisHost.value]"
+            },
+            "rabbitmqHost": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-rabbitmq'), '2025-04-01').outputs.rabbitmqHost.value]"
+            },
+            "openaiEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.openaiEndpoint.value]"
+            },
+            "openaiDeployment": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-openai'), '2025-04-01').outputs.deploymentName.value]"
+            },
+            "keyVaultName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[variables('resourceGroupName')]"
+    },
+    "resourceGroupId": {
+      "type": "string",
+      "value": "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
+    },
+    "location": {
+      "type": "string",
+      "value": "[reference(subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName')), '2024-03-01', 'full').location]"
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('infrastructure-{0}', uniqueString(deployment().name))), '2025-04-01').outputs.logAnalyticsWorkspaceId.value]"
+    },
+    "appInsightsName": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('infrastructure-{0}', uniqueString(deployment().name))), '2025-04-01').outputs.appInsightsName.value]"
+    },
+    "appServicePlanName": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('infrastructure-{0}', uniqueString(deployment().name))), '2025-04-01').outputs.appServicePlanName.value]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', format('infrastructure-{0}', uniqueString(deployment().name))), '2025-04-01').outputs.keyVaultName.value]"
+    }
+  }
+}
