@@ -101,24 +101,24 @@ param tags object
 
 var suffix = split(resourcePrefix, '-')[2]
 
-// Service definitions: name, runtime, health path
+// Service definitions: name, runtime, health path, startup command
 var services = [
-  { name: 'admin-service', runtime: 'NODE:24-lts', health: '/health/live' }
-  { name: 'admin-ui', runtime: 'NODE:24-lts', health: '/health' }
-  { name: 'audit-service', runtime: 'NODE:24-lts', health: '/health/live' }
-  { name: 'auth-service', runtime: 'NODE:24-lts', health: '/health/live' }
-  { name: 'cart-service', runtime: 'JAVA:17-java17', health: '/health/live' }
-  { name: 'chat-service', runtime: 'NODE:24-lts', health: '/health/live' }
-  { name: 'customer-ui', runtime: 'NODE:24-lts', health: '/health' }
-  { name: 'inventory-service', runtime: 'PYTHON:3.11', health: '/health/live' }
-  { name: 'notification-service', runtime: 'NODE:24-lts', health: '/health/live' }
-  { name: 'order-processor-service', runtime: 'JAVA:17-java17', health: '/health/live' }
-  { name: 'order-service', runtime: 'DOTNETCORE:8.0', health: '/health/live' }
-  { name: 'payment-service', runtime: 'DOTNETCORE:8.0', health: '/health/live' }
-  { name: 'product-service', runtime: 'PYTHON:3.11', health: '/health/live' }
-  { name: 'review-service', runtime: 'NODE:24-lts', health: '/health/live' }
-  { name: 'user-service', runtime: 'NODE:24-lts', health: '/health/live' }
-  { name: 'web-bff', runtime: 'NODE:24-lts', health: '/health/live' }
+  { name: 'admin-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node src/server.js' }
+  { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health', startup: 'npx serve -s build -l 8080' }
+  { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/server.js' }
+  { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node src/server.js' }
+  { name: 'cart-service', runtime: 'JAVA|17-java17', health: '/health/live', startup: '' }
+  { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/src/server.js' }
+  { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health', startup: 'npx serve -s build -l 8080' }
+  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: 'gunicorn -b 0.0.0.0:8080 main:app' }
+  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/src/server.js' }
+  { name: 'order-processor-service', runtime: 'JAVA|17-java17', health: '/health/live', startup: '' }
+  { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startup: '' }
+  { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startup: '' }
+  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: 'gunicorn -b 0.0.0.0:8080 main:app' }
+  { name: 'review-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node src/server.js' }
+  { name: 'user-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node src/server.js' }
+  { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/server.js' }
 ]
 
 // Helper function for service URLs
@@ -152,6 +152,7 @@ resource appServices 'Microsoft.Web/sites@2022-09-01' = [for svc in services: {
     clientAffinityEnabled: false
     siteConfig: {
       linuxFxVersion: svc.runtime
+      appCommandLine: svc.startup
       alwaysOn: true
       healthCheckPath: svc.health
       http20Enabled: true
@@ -174,7 +175,7 @@ resource adminServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -203,7 +204,7 @@ resource adminUiConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -226,7 +227,7 @@ resource auditServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -251,7 +252,7 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -281,7 +282,7 @@ resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
@@ -312,7 +313,7 @@ resource chatServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -352,7 +353,7 @@ resource customerUiConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -375,7 +376,7 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     FLASK_APP: 'run.py'
@@ -415,7 +416,7 @@ resource notificationServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -443,7 +444,7 @@ resource orderProcessorServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
@@ -483,7 +484,7 @@ resource orderServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ASPNETCORE_ENVIRONMENT: aspnetEnv
@@ -509,7 +510,7 @@ resource paymentServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ASPNETCORE_ENVIRONMENT: aspnetEnv
@@ -535,7 +536,7 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NAME: 'product-service'
@@ -576,7 +577,7 @@ resource reviewServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -610,7 +611,7 @@ resource userServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -645,7 +646,7 @@ resource webBffConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
