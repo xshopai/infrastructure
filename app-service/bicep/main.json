@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "13199149527050135613"
+      "templateHash": "1993678287117420466"
     }
   },
   "parameters": {
@@ -663,7 +663,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "16198725659381378939"
+              "templateHash": "9473288956495998459"
             }
           },
           "parameters": {
@@ -770,9 +770,6 @@
                 },
                 "highAvailability": {
                   "mode": "Disabled"
-                },
-                "network": {
-                  "publicNetworkAccess": "Enabled"
                 }
               }
             },
@@ -1381,7 +1378,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "11933714209268683817"
+              "templateHash": "11441557253395236777"
             }
           },
           "parameters": {
@@ -1434,14 +1431,6 @@
           },
           "variables": {
             "openaiAccountName": "[format('oai-{0}', parameters('resourcePrefix'))]",
-            "candidateLocations": [
-              "[parameters('location')]",
-              "swedencentral",
-              "westeurope",
-              "germanywestcentral",
-              "uksouth",
-              "eastus2"
-            ],
             "openaiLocation": "[parameters('location')]"
           },
           "resources": [
@@ -1646,7 +1635,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "150057271145235251"
+              "templateHash": "14967501666046690615"
             }
           },
           "parameters": {
@@ -1770,7 +1759,6 @@
           },
           "variables": {
             "keyVaultName": "[format('kv-{0}', parameters('resourcePrefix'))]",
-            "cosmosDbPattern": "mongodb://",
             "userMongoUri": "[format('{0}user_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]",
             "productMongoUri": "[format('{0}product_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]",
             "reviewMongoUri": "[format('{0}review_service_db?retryWrites=true&w=majority', parameters('cosmosConnectionString'))]",
@@ -1796,8 +1784,8 @@
                 "tenantId": "[subscription().tenantId]",
                 "enableRbacAuthorization": false,
                 "enableSoftDelete": true,
-                "softDeleteRetentionInDays": 7,
-                "enablePurgeProtection": false,
+                "softDeleteRetentionInDays": 90,
+                "enablePurgeProtection": true,
                 "publicNetworkAccess": "Enabled",
                 "networkAcls": {
                   "defaultAction": "Allow",
@@ -2327,14 +2315,8 @@
           "postgresAdminPassword": {
             "value": "[parameters('postgresAdminPassword')]"
           },
-          "mysqlHost": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-mysql'), '2025-04-01').outputs.mysqlHost.value]"
-          },
           "mysqlConnectionString": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-mysql'), '2025-04-01').outputs.mysqlConnectionString.value]"
-          },
-          "sqlHost": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-sql-server'), '2025-04-01').outputs.sqlHost.value]"
           },
           "sqlOrderConnectionString": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-sql-server'), '2025-04-01').outputs.orderDbConnectionString.value]"
@@ -2389,7 +2371,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "6692281254220642074"
+              "templateHash": "10990757264675972675"
             }
           },
           "parameters": {
@@ -2480,14 +2462,8 @@
             "postgresAdminPassword": {
               "type": "securestring"
             },
-            "mysqlHost": {
-              "type": "string"
-            },
             "mysqlConnectionString": {
               "type": "securestring"
-            },
-            "sqlHost": {
-              "type": "string"
             },
             "sqlOrderConnectionString": {
               "type": "securestring"

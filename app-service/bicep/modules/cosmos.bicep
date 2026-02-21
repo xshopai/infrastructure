@@ -68,5 +68,7 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2023-11-15' = {
 output cosmosAccountId string = cosmosAccount.id
 output cosmosAccountName string = cosmosAccount.name
 output cosmosEndpoint string = cosmosAccount.properties.documentEndpoint
+#disable-next-line outputs-should-not-contain-secrets
 output cosmosConnectionString string = cosmosAccount.listConnectionStrings().connectionStrings[0].connectionString
+#disable-next-line outputs-should-not-contain-secrets
 output cosmosPrimaryKey string = cosmosAccount.listKeys().primaryMasterKey

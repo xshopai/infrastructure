@@ -57,7 +57,9 @@ resource redis 'Microsoft.Cache/redis@2023-08-01' = {
 output redisId string = redis.id
 output redisName string = redis.name
 output redisHost string = redis.properties.hostName
+#disable-next-line outputs-should-not-contain-secrets
 output redisPrimaryKey string = redis.listKeys().primaryKey
+#disable-next-line outputs-should-not-contain-secrets
 output redisSecondaryKey string = redis.listKeys().secondaryKey
 output redisSslPort int = redis.properties.sslPort
 output redisPort int = redis.properties.port

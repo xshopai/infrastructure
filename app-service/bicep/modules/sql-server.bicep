@@ -94,5 +94,7 @@ output sqlHost string = sqlServer.properties.fullyQualifiedDomainName
 output sqlDatabases array = databases
 
 // Connection strings for each database
+#disable-next-line outputs-should-not-contain-secrets
 output orderDbConnectionString string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=order_service_db;User ID=${adminUser};Password=${adminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+#disable-next-line outputs-should-not-contain-secrets
 output paymentDbConnectionString string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=payment_service_db;User ID=${adminUser};Password=${adminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'

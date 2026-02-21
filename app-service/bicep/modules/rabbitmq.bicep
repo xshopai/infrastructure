@@ -103,5 +103,6 @@ output containerInstanceId string = rabbitmqContainer.id
 output containerInstanceName string = rabbitmqContainer.name
 output rabbitmqHost string = rabbitmqContainer.properties.ipAddress.fqdn
 output rabbitmqIp string = rabbitmqContainer.properties.ipAddress.ip
+#disable-next-line outputs-should-not-contain-secrets
 output rabbitmqUrl string = 'amqp://${rabbitmqUser}:${rabbitmqPassword}@${rabbitmqContainer.properties.ipAddress.fqdn}:5672'
 output rabbitmqManagementUrl string = 'http://${rabbitmqContainer.properties.ipAddress.fqdn}:15672'

@@ -256,9 +256,7 @@ module appServices './modules/app-services.bicep' = {
     postgresHost: postgresql.outputs.postgresHost
     postgresAdminUser: postgresAdminUser
     postgresAdminPassword: postgresAdminPassword
-    mysqlHost: mysql.outputs.mysqlHost
     mysqlConnectionString: mysql.outputs.mysqlConnectionString
-    sqlHost: sqlServer.outputs.sqlHost
     sqlOrderConnectionString: sqlServer.outputs.orderDbConnectionString
     sqlPaymentConnectionString: sqlServer.outputs.paymentDbConnectionString
     cosmosConnectionString: cosmos.outputs.cosmosConnectionString

@@ -84,8 +84,7 @@ param openaiDeployment string
 
 var keyVaultName = 'kv-${resourcePrefix}'
 
-// Extract database names from Cosmos connection string
-var cosmosDbPattern = 'mongodb://'
+// Build database connection strings from Cosmos
 var userMongoUri = '${cosmosConnectionString}user_service_db?retryWrites=true&w=majority'
 var productMongoUri = '${cosmosConnectionString}product_service_db?retryWrites=true&w=majority'
 var reviewMongoUri = '${cosmosConnectionString}review_service_db?retryWrites=true&w=majority'

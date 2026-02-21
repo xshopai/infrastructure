@@ -55,12 +55,10 @@ param postgresAdminUser string
 param postgresAdminPassword string
 
 // MySQL
-param mysqlHost string
 @secure()
 param mysqlConnectionString string
 
 // SQL Server
-param sqlHost string
 @secure()
 param sqlOrderConnectionString string
 @secure()
@@ -492,15 +490,15 @@ resource orderServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     ASPNETCORE_URLS: 'http://0.0.0.0:8080'
     DATABASE_CONNECTION_STRING: sqlOrderConnectionString
     RABBITMQ_CONNECTION_STRING: rabbitmqUrl
-    'RabbitMQ__ExchangeName': 'xshopai.events'
+    RabbitMQ__ExchangeName: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
     JWT_SECRET: jwtSecret
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'order-service'
-    'Services__CartService': '${serviceUrlPrefix}cart-service${serviceUrlSuffix}'
-    'Services__ProductService': '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
-    'Services__InventoryService': '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
-    'Services__UserService': '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
+    Services__CartService: '${serviceUrlPrefix}cart-service${serviceUrlSuffix}'
+    Services__ProductService: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
+    Services__InventoryService: '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
+    Services__UserService: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
   }
 }
 
@@ -516,15 +514,15 @@ resource paymentServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ASPNETCORE_ENVIRONMENT: aspnetEnv
     ASPNETCORE_URLS: 'http://0.0.0.0:8080'
-    'ConnectionStrings__DefaultConnection': sqlPaymentConnectionString
+    ConnectionStrings__DefaultConnection: sqlPaymentConnectionString
     RABBITMQ_CONNECTION_STRING: rabbitmqUrl
-    'RabbitMQ__ExchangeName': 'xshopai.events'
+    RabbitMQ__ExchangeName: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
-    'Jwt__Key': jwtSecret
-    'Jwt__Issuer': 'auth-service'
-    'Jwt__Audience': 'xshopai-platform'
-    'ServiceTokens__OrderService': orderServiceToken
-    'ServiceTokens__UserService': userServiceToken
+    Jwt__Key: jwtSecret
+    Jwt__Issuer: 'auth-service'
+    Jwt__Audience: 'xshopai-platform'
+    ServiceTokens__OrderService: orderServiceToken
+    ServiceTokens__UserService: userServiceToken
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'payment-service'
   }

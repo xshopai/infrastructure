@@ -32,18 +32,8 @@ param skuCapacity int = 10
 
 var openaiAccountName = 'oai-${resourcePrefix}'
 
-// Fallback regions if OpenAI is not available in primary location
-// Priority: location → swedencentral → westeurope → germanywestcentral → uksouth → eastus2
-var candidateLocations = [
-  location
-  'swedencentral'
-  'westeurope'
-  'germanywestcentral'
-  'uksouth'
-  'eastus2'
-]
-
-// Use first candidate location (multi-region fallback requires runtime logic)
+// OpenAI location - using primary location
+// (fallback to other regions like swedencentral, westeurope would require runtime logic)
 var openaiLocation = location
 
 // =============================================================================

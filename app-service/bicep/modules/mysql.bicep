@@ -103,4 +103,5 @@ output mysqlServerId string = mysqlServer.id
 output mysqlServerName string = mysqlServer.name
 output mysqlHost string = mysqlServer.properties.fullyQualifiedDomainName
 output mysqlDatabaseName string = databaseName
+#disable-next-line outputs-should-not-contain-secrets
 output mysqlConnectionString string = 'Server=${mysqlServer.properties.fullyQualifiedDomainName};Database=${databaseName};Uid=${adminUser};Pwd=${adminPassword};SslMode=Required;'
