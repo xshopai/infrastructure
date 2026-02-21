@@ -7,21 +7,23 @@ name: Deploy App Service Infrastructure (Bicep)
 # Uses subscription-scoped deployment - resource group is created via Bicep,
 # not via CLI. This is the proper IaC approach.
 #
+# Authentication: Uses OIDC (OpenID Connect) - no secrets to rotate!
 # Prerequisites:
-# 1. AZURE_CREDENTIALS secret with service principal JSON
-# 2. Service principal with Contributor + User Access Administrator roles
+# 1. Run scripts/setup-all.sh to set up Azure AD App + GitHub secrets
+# 2. GitHub environments 'dev' and 'prod' must exist
 #
-# REQUIRED GitHub Repository Secrets (Settings → Secrets and variables → Actions):
-# - AZURE_CREDENTIALS: Azure service principal credentials (JSON)
-# - POSTGRES_ADMIN_PASSWORD: PostgreSQL admin password
-# - MYSQL_ADMIN_PASSWORD: MySQL admin password
-# - SQL_ADMIN_PASSWORD: SQL Server admin password
-# - RABBITMQ_PASSWORD: RabbitMQ admin password
-# - JWT_SECRET: JWT signing secret
+# REQUIRED GitHub Organization Secrets (set by setup-all.sh):
+# - AZURE_CLIENT_ID: Azure AD App client ID
+# - AZURE_TENANT_ID: Azure AD tenant ID
+# - AZURE_SUBSCRIPTION_ID: Azure subscription ID
+#
+# REQUIRED GitHub Repository Secrets (infrastructure repo only):
+# - POSTGRES_ADMIN_PASSWORD, MYSQL_ADMIN_PASSWORD, SQL_ADMIN_PASSWORD
+# - RABBITMQ_PASSWORD, JWT_SECRET
 # - ADMIN_SERVICE_TOKEN, AUTH_SERVICE_TOKEN, USER_SERVICE_TOKEN
 # - CART_SERVICE_TOKEN, ORDER_SERVICE_TOKEN, PRODUCT_SERVICE_TOKEN, WEB_BFF_TOKEN
 #
-# Setup secrets: ./app-service/bicep/scripts/setup-secrets.sh
+# Setup: ./scripts/setup-all.sh
 # =============================================================================
 
 on:
@@ -61,6 +63,13 @@ jobs:
     name: Validate Bicep (${{ inputs.environment }})
     runs-on: ubuntu-latest
 
+    environment:
+      name: ${{ inputs.environment }}
+
+    permissions:
+      id-token: write
+      contents: read
+
     outputs:
       resource_group: ${{ steps.config.outputs.resource_group }}
       suffix: ${{ steps.config.outputs.suffix }}
@@ -71,10 +80,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Resolve configuration
         id: config
@@ -149,14 +160,23 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
 
+    environment:
+      name: ${{ inputs.environment }}
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Run what-if analysis (subscription-scoped)
         working-directory: ${{ env.BICEP_DIR }}
@@ -209,14 +229,20 @@ jobs:
     environment:
       name: ${{ inputs.environment }}
 
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy infrastructure (subscription-scoped)
         id: deploy
@@ -281,11 +307,20 @@ jobs:
     needs: [validate, deploy]
     if: ${{ !inputs.what_if_only }}
 
+    environment:
+      name: ${{ inputs.environment }}
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: List deployed resources
         run: |
