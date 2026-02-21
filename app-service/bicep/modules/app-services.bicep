@@ -111,7 +111,7 @@ var services = [
   { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/src/server.js' }
   { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health', startup: 'npx serve -s build -l 8080' }
   { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: 'gunicorn -b 0.0.0.0:8080 main:app' }
-  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/src/server.js' }
+  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/server.js' }
   { name: 'order-processor-service', runtime: 'JAVA|17-java17', health: '/health/live', startup: '' }
   { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startup: '' }
   { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startup: '' }
