@@ -98,22 +98,34 @@ fi
 echo -e "${GREEN}✓ Azure AD App found: $CLIENT_ID${NC}"
 
 # =============================================================================
-# STEP 1: Organization-Level Secrets (OIDC)
+# STEP 1: Clean Up Legacy Secrets (from old SP approach)
 # =============================================================================
 echo ""
-echo -e "${BLUE}Step 1: Organization-Level Secrets (OIDC)${NC}"
+echo -e "${BLUE}Step 1: Clean Up Legacy Secrets${NC}"
+echo "------------------------------------------------------------------------"
+
+# Remove old SP-based secrets that are no longer needed with OIDC
+for legacy_secret in AZURE_CLIENT_SECRET AZURE_CREDENTIALS; do
+  if gh secret list --org "$GITHUB_ORG" 2>/dev/null | grep -q "^$legacy_secret"; then
+    gh secret delete "$legacy_secret" --org "$GITHUB_ORG" 2>/dev/null || true
+    echo -e "  ${YELLOW}✓ $legacy_secret (deleted - not needed for OIDC)${NC}"
+  fi
+done
+
+# =============================================================================
+# STEP 2: Organization-Level Secrets (OIDC) - Always Overwrite
+# =============================================================================
+echo ""
+echo -e "${BLUE}Step 2: Organization-Level Secrets (OIDC)${NC}"
 echo "------------------------------------------------------------------------"
 
 set_org_secret() {
   local name="$1"
   local value="$2"
   
-  if gh secret list --org "$GITHUB_ORG" 2>/dev/null | grep -q "^$name"; then
-    echo -e "  ${GREEN}✓ $name (exists)${NC}"
-  else
-    echo "$value" | gh secret set "$name" --org "$GITHUB_ORG" --visibility all
-    echo -e "  ${GREEN}✓ $name (created)${NC}"
-  fi
+  # Always overwrite to ensure correct values
+  echo "$value" | gh secret set "$name" --org "$GITHUB_ORG" --visibility all
+  echo -e "  ${GREEN}✓ $name (set)${NC}"
 }
 
 set_org_secret "AZURE_CLIENT_ID" "$CLIENT_ID"
@@ -121,14 +133,16 @@ set_org_secret "AZURE_TENANT_ID" "$TENANT_ID"
 set_org_secret "AZURE_SUBSCRIPTION_ID" "$SUBSCRIPTION_ID"
 
 echo ""
-echo -e "  ${GREEN}✓ OIDC secrets never expire - token exchange, no rotation needed!${NC}"
+echo -e "  ${GREEN}✓ OIDC secrets set - token exchange, no rotation needed!${NC}"
 
 # =============================================================================
-# STEP 2: Infrastructure Repo Secrets (Auto-Generated)
+# STEP 3: Infrastructure Repo Secrets (Auto-Generated)
 # =============================================================================
 echo ""
-echo -e "${BLUE}Step 2: Infrastructure Repository Secrets${NC}"
+echo -e "${BLUE}Step 3: Infrastructure Repository Secrets${NC}"
 echo "------------------------------------------------------------------------"
+echo -e "  ${YELLOW}Note: Repo secrets are only created if missing (to preserve deployed app configs)${NC}"
+echo ""
 
 # Helper to generate secure password
 gen_password() {

@@ -97,38 +97,58 @@ fi
 echo "   SP Object ID: $SP_OBJECT_ID"
 
 # ============================================================================
-# Step 3: Assign Roles to Service Principal
+# Step 3: Assign Roles to Service Principal (using REST API for reliability)
 # ============================================================================
 
 echo ""
 echo "🔧 Step 3: Assigning roles to Service Principal..."
 
-# Contributor role
-echo "   Assigning Contributor role..."
-az role assignment create \
-    --assignee $SP_OBJECT_ID \
-    --role "Contributor" \
-    --scope "/subscriptions/$SUBSCRIPTION_ID" \
-    --only-show-errors > /dev/null 2>&1 || echo "   (Role may already be assigned)"
-echo "   ✅ Contributor role assigned"
+# Function to assign role using REST API (more reliable than az role assignment create)
+assign_role() {
+    local role_name="$1"
+    local role_id="$2"
+    local assignment_id=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null || openssl rand -hex 16)
+    
+    echo "   Assigning $role_name role..."
+    
+    # Check if already assigned
+    EXISTING=$(az role assignment list \
+        --assignee "$SP_OBJECT_ID" \
+        --role "$role_name" \
+        --scope "/subscriptions/$SUBSCRIPTION_ID" \
+        --query "[0].id" -o tsv 2>/dev/null || echo "")
+    
+    if [ -n "$EXISTING" ]; then
+        echo "   ✅ $role_name role (already assigned)"
+        return 0
+    fi
+    
+    # Use REST API to create role assignment
+    az rest --method PUT \
+        --uri "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/roleAssignments/$assignment_id?api-version=2022-04-01" \
+        --body "{
+            \"properties\": {
+                \"roleDefinitionId\": \"/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/roleDefinitions/$role_id\",
+                \"principalId\": \"$SP_OBJECT_ID\",
+                \"principalType\": \"ServicePrincipal\"
+            }
+        }" --output none 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+        echo "   ✅ $role_name role assigned"
+    else
+        echo "   ⚠️  Failed to assign $role_name role"
+    fi
+}
 
-# User Access Administrator role (needed for managed identity operations)
-echo "   Assigning User Access Administrator role..."
-az role assignment create \
-    --assignee $SP_OBJECT_ID \
-    --role "User Access Administrator" \
-    --scope "/subscriptions/$SUBSCRIPTION_ID" \
-    --only-show-errors > /dev/null 2>&1 || echo "   (Role may already be assigned)"
-echo "   ✅ User Access Administrator role assigned"
+# Role Definition IDs (these are Azure built-in role IDs)
+# Contributor: b24988ac-6180-42a0-ab88-20f7382dd24c
+# User Access Administrator: 18d7d88d-d35e-4fb5-a5c3-7773c20a72d9
+# AcrPush: 8311e382-0749-4cb8-b61a-304f252e45ec
 
-# AcrPush role (needed for pushing images to ACR)
-echo "   Assigning AcrPush role..."
-az role assignment create \
-    --assignee $SP_OBJECT_ID \
-    --role "AcrPush" \
-    --scope "/subscriptions/$SUBSCRIPTION_ID" \
-    --only-show-errors > /dev/null 2>&1 || echo "   (Role may already be assigned)"
-echo "   ✅ AcrPush role assigned"
+assign_role "Contributor" "b24988ac-6180-42a0-ab88-20f7382dd24c"
+assign_role "User Access Administrator" "18d7d88d-d35e-4fb5-a5c3-7773c20a72d9"
+assign_role "AcrPush" "8311e382-0749-4cb8-b61a-304f252e45ec"
 
 # ============================================================================
 # Step 4: Configure GitHub OIDC Subject Claims - ENVIRONMENT ONLY
