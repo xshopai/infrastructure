@@ -77,7 +77,6 @@ var tags = {
   environment: environment
   suffix: suffix
   managedBy: 'bicep'
-  deployedAt: utcNow('yyyy-MM-ddTHH:mm:ssZ')
 }
 
 // =============================================================================
@@ -133,7 +132,7 @@ output resourceGroupId string = resourceGroup.id
 output location string = resourceGroup.location
 
 // Pass through outputs from infrastructure module
-output logAnalyticsWorkspaceName string = infrastructure.outputs.logAnalyticsWorkspaceName
+output logAnalyticsWorkspaceId string = infrastructure.outputs.logAnalyticsWorkspaceId
 output appInsightsName string = infrastructure.outputs.appInsightsName
 output appServicePlanName string = infrastructure.outputs.appServicePlanName
 output keyVaultName string = infrastructure.outputs.keyVaultName
