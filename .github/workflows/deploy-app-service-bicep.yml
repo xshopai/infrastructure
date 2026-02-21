@@ -109,6 +109,15 @@ jobs:
           az bicep build --file main.bicep
           echo "✓ Compilation successful"
 
+      - name: Create resource group
+        run: |
+          echo "Ensuring resource group exists..."
+          az group create \
+            --name ${{ steps.config.outputs.resource_group }} \
+            --location ${{ steps.config.outputs.location }} \
+            --tags environment=${{ steps.config.outputs.environment }} deployment=bicep
+          echo "✓ Resource group ready"
+
       - name: Validate deployment
         working-directory: app-service/bicep
         run: |
