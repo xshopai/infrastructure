@@ -4,26 +4,24 @@ name: Deploy App Service Infrastructure (Bicep)
 # Declarative Infrastructure as Code using Azure Bicep
 # Deploys all xShopAI infrastructure in 8-12 minutes (5-10x faster than bash)
 #
+# Uses subscription-scoped deployment - resource group is created via Bicep,
+# not via CLI. This is the proper IaC approach.
+#
 # Prerequisites:
 # 1. AZURE_CREDENTIALS secret with service principal JSON
 # 2. Service principal with Contributor + User Access Administrator roles
 #
-# REQUIRED GitHub Repository Secrets (go to Settings → Secrets and variables → Actions):
+# REQUIRED GitHub Repository Secrets (Settings → Secrets and variables → Actions):
 # - AZURE_CREDENTIALS: Azure service principal credentials (JSON)
-# - POSTGRES_ADMIN_PASSWORD: PostgreSQL admin password (16+ chars, alphanumeric)
-# - MYSQL_ADMIN_PASSWORD: MySQL admin password (16+ chars, alphanumeric)
-# - SQL_ADMIN_PASSWORD: SQL Server admin password (16+ chars, mixed case + number + special)
-# - RABBITMQ_PASSWORD: RabbitMQ admin password (16+ chars)
-# - JWT_SECRET: JWT signing secret (64+ chars recommended)
-# - ADMIN_SERVICE_TOKEN: Admin service API token (64 chars)
-# - AUTH_SERVICE_TOKEN: Auth service API token (64 chars)
-# - USER_SERVICE_TOKEN: User service API token (64 chars)
-# - CART_SERVICE_TOKEN: Cart service API token (64 chars)
-# - ORDER_SERVICE_TOKEN: Order service API token (64 chars)
-# - PRODUCT_SERVICE_TOKEN: Product service API token (64 chars)
-# - WEB_BFF_TOKEN: Web BFF API token (64 chars)
+# - POSTGRES_ADMIN_PASSWORD: PostgreSQL admin password
+# - MYSQL_ADMIN_PASSWORD: MySQL admin password
+# - SQL_ADMIN_PASSWORD: SQL Server admin password
+# - RABBITMQ_PASSWORD: RabbitMQ admin password
+# - JWT_SECRET: JWT signing secret
+# - ADMIN_SERVICE_TOKEN, AUTH_SERVICE_TOKEN, USER_SERVICE_TOKEN
+# - CART_SERVICE_TOKEN, ORDER_SERVICE_TOKEN, PRODUCT_SERVICE_TOKEN, WEB_BFF_TOKEN
 #
-# To generate secrets, run: openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32
+# Setup secrets: ./app-service/bicep/scripts/setup-secrets.sh
 # =============================================================================
 
 on:
@@ -51,6 +49,9 @@ on:
         required: false
         type: boolean
         default: false
+
+env:
+  BICEP_DIR: app-service/bicep
 
 jobs:
   # ===========================================================================
@@ -98,29 +99,23 @@ jobs:
           az bicep upgrade
           az bicep version
 
-      - name: Compile Bicep template
-        working-directory: app-service/bicep
+      - name: Compile Bicep templates
+        working-directory: ${{ env.BICEP_DIR }}
         run: |
-          echo "Compiling main.bicep..."
+          echo "Compiling deploy.bicep (subscription-scoped)..."
+          az bicep build --file deploy.bicep
+          echo "Compiling main.bicep (resource group-scoped)..."
           az bicep build --file main.bicep
           echo "✓ Compilation successful"
 
-      - name: Create resource group
+      - name: Validate deployment (subscription-scoped)
+        working-directory: ${{ env.BICEP_DIR }}
         run: |
-          echo "Creating resource group..."
-          az group create \
-            --name ${{ steps.config.outputs.resource_group }} \
+          echo "Validating Bicep deployment at subscription scope..."
+          az deployment sub validate \
             --location ${{ steps.config.outputs.location }} \
-            --tags environment=${{ steps.config.outputs.environment }} deployment=bicep
-          echo "✓ Resource group ready"
-
-      - name: Validate deployment
-        working-directory: app-service/bicep
-        run: |
-          echo "Validating Bicep deployment..."
-          az deployment group validate \
-            --resource-group ${{ steps.config.outputs.resource_group }} \
-            --template-file main.bicep \
+            --template-file deploy.bicep \
+            --parameters environment=${{ steps.config.outputs.environment }} \
             --parameters suffix=${{ steps.config.outputs.suffix }} \
             --parameters location=${{ steps.config.outputs.location }} \
             --parameters postgresAdminUser=pgadmin \
@@ -163,8 +158,8 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Run what-if analysis
-        working-directory: app-service/bicep
+      - name: Run what-if analysis (subscription-scoped)
+        working-directory: ${{ env.BICEP_DIR }}
         run: |
           echo "### What-If Analysis Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -172,9 +167,10 @@ jobs:
           echo "**Resource Group:** ${{ needs.validate.outputs.resource_group }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          az deployment group what-if \
-            --resource-group ${{ needs.validate.outputs.resource_group }} \
-            --template-file main.bicep \
+          az deployment sub what-if \
+            --location ${{ needs.validate.outputs.location }} \
+            --template-file deploy.bicep \
+            --parameters environment=${{ needs.validate.outputs.environment }} \
             --parameters suffix=${{ needs.validate.outputs.suffix }} \
             --parameters location=${{ needs.validate.outputs.location }} \
             --parameters postgresAdminUser=pgadmin \
@@ -222,26 +218,20 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Ensure resource group exists
-        run: |
-          az group create \
-            --name ${{ needs.validate.outputs.resource_group }} \
-            --location ${{ needs.validate.outputs.location }} \
-            --tags project=xshopai environment=${{ needs.validate.outputs.environment }} managedBy=bicep \
-            2>/dev/null || true
-          echo "✓ Resource group ready"
-
-      - name: Deploy Bicep infrastructure
+      - name: Deploy infrastructure (subscription-scoped)
         id: deploy
-        working-directory: app-service/bicep
+        working-directory: ${{ env.BICEP_DIR }}
         run: |
           echo "Deploying infrastructure (this takes 8-12 minutes)..."
-          DEPLOYMENT_NAME="bicep-deploy-$(date +%Y%m%d-%H%M%S)"
+          echo "Resource group will be created by Bicep: ${{ needs.validate.outputs.resource_group }}"
+          
+          DEPLOYMENT_NAME="xshopai-${{ needs.validate.outputs.environment }}-$(date +%Y%m%d-%H%M%S)"
 
-          az deployment group create \
+          az deployment sub create \
             --name "$DEPLOYMENT_NAME" \
-            --resource-group ${{ needs.validate.outputs.resource_group }} \
-            --template-file main.bicep \
+            --location ${{ needs.validate.outputs.location }} \
+            --template-file deploy.bicep \
+            --parameters environment=${{ needs.validate.outputs.environment }} \
             --parameters suffix=${{ needs.validate.outputs.suffix }} \
             --parameters location=${{ needs.validate.outputs.location }} \
             --parameters postgresAdminUser=pgadmin \
@@ -278,6 +268,7 @@ jobs:
           echo "**Environment:** ${{ needs.validate.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "**Resource Group:** ${{ needs.validate.outputs.resource_group }}" >> $GITHUB_STEP_SUMMARY
           echo "**Location:** ${{ needs.validate.outputs.location }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployment:** ${{ steps.deploy.outputs.deployment_name }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "[View in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${{ needs.validate.outputs.resource_group }}/overview)" >> $GITHUB_STEP_SUMMARY
 
