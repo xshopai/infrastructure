@@ -1,0 +1,75 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environment": {
+      "value": "dev"
+    },
+    "suffix": {
+      "value": "local"
+    },
+    "location": {
+      "value": "francecentral"
+    },
+    "postgresAdminUser": {
+      "value": "pgadmin"
+    },
+    "postgresAdminPassword": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "mysqlAdminUser": {
+      "value": "mysqladmin"
+    },
+    "mysqlAdminPassword": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "sqlAdminUser": {
+      "value": "sqladmin"
+    },
+    "sqlAdminPassword": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "rabbitmqUser": {
+      "value": "admin"
+    },
+    "rabbitmqPassword": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "jwtSecret": {
+      "value": "GENERATE_AND_REPLACE_ME_64_CHARS"
+    },
+    "jwtAlgorithm": {
+      "value": "HS256"
+    },
+    "jwtIssuer": {
+      "value": "auth-service"
+    },
+    "jwtAudience": {
+      "value": "xshopai-platform"
+    },
+    "jwtExpiresIn": {
+      "value": "24h"
+    },
+    "adminServiceToken": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "authServiceToken": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "userServiceToken": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "cartServiceToken": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "orderServiceToken": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "productServiceToken": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    },
+    "webBffToken": {
+      "value": "GENERATE_AND_REPLACE_ME"
+    }
+  }
+}

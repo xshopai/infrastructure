@@ -1,0 +1,135 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environment": {
+      "value": "prod"
+    },
+    "suffix": {
+      "value": "pr01"
+    },
+    "location": {
+      "value": "francecentral"
+    },
+    "postgresAdminUser": {
+      "value": "pgadmin"
+    },
+    "postgresAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "postgres-admin-password"
+      }
+    },
+    "mysqlAdminUser": {
+      "value": "mysqladmin"
+    },
+    "mysqlAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "mysql-admin-password"
+      }
+    },
+    "sqlAdminUser": {
+      "value": "sqladmin"
+    },
+    "sqlAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "sql-admin-password"
+      }
+    },
+    "rabbitmqUser": {
+      "value": "admin"
+    },
+    "rabbitmqPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "rabbitmq-password"
+      }
+    },
+    "jwtSecret": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "jwt-secret"
+      }
+    },
+    "jwtAlgorithm": {
+      "value": "HS256"
+    },
+    "jwtIssuer": {
+      "value": "auth-service"
+    },
+    "jwtAudience": {
+      "value": "xshopai-platform"
+    },
+    "jwtExpiresIn": {
+      "value": "24h"
+    },
+    "adminServiceToken": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "admin-service-token"
+      }
+    },
+    "authServiceToken": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "auth-service-token"
+      }
+    },
+    "userServiceToken": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "user-service-token"
+      }
+    },
+    "cartServiceToken": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "cart-service-token"
+      }
+    },
+    "orderServiceToken": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "order-service-token"
+      }
+    },
+    "productServiceToken": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "product-service-token"
+      }
+    },
+    "webBffToken": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{RG}/providers/Microsoft.KeyVault/vaults/{KV_NAME}"
+        },
+        "secretName": "web-bff-token"
+      }
+    }
+  }
+}

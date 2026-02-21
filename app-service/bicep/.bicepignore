@@ -1,0 +1,33 @@
+# Bicep Ignore File
+# Files and patterns to ignore when building Bicep modules
+
+# Local development files
+*.local.json
+*.local.bicep
+parameters.local.json
+
+# Temporary files
+*.tmp
+*.temp
+~*
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.compiled.json
+bicepconfig.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Credentials (double-check Git is also ignoring these)
+*.credentials.json
+*.secrets.json
+*.private.json
