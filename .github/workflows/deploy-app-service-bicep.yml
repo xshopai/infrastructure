@@ -118,6 +118,56 @@ jobs:
             --tags environment=${{ steps.config.outputs.environment }} deployment=bicep
           echo "✓ Resource group ready"
 
+      - name: Generate secrets for first deployment
+        id: secrets
+        run: |
+          echo "Generating secure secrets..."
+          
+          # Generate random secure passwords (32 chars, alphanumeric + special chars)
+          POSTGRES_PWD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+          MYSQL_PWD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+          SQL_PWD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+          RABBITMQ_PWD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+          JWT_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
+          
+          # Generate service tokens (64 chars)
+          ADMIN_TOKEN=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
+          AUTH_TOKEN=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
+          USER_TOKEN=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
+          CART_TOKEN=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
+          ORDER_TOKEN=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
+          PRODUCT_TOKEN=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
+          WEBBFF_TOKEN=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-64)
+          
+          # Set as masked outputs (secrets won't be logged)
+          echo "::add-mask::$POSTGRES_PWD"
+          echo "::add-mask::$MYSQL_PWD"
+          echo "::add-mask::$SQL_PWD"
+          echo "::add-mask::$RABBITMQ_PWD"
+          echo "::add-mask::$JWT_SECRET"
+          echo "::add-mask::$ADMIN_TOKEN"
+          echo "::add-mask::$AUTH_TOKEN"
+          echo "::add-mask::$USER_TOKEN"
+          echo "::add-mask::$CART_TOKEN"
+          echo "::add-mask::$ORDER_TOKEN"
+          echo "::add-mask::$PRODUCT_TOKEN"
+          echo "::add-mask::$WEBBFF_TOKEN"
+          
+          echo "postgresPassword=$POSTGRES_PWD" >> $GITHUB_OUTPUT
+          echo "mysqlPassword=$MYSQL_PWD" >> $GITHUB_OUTPUT
+          echo "sqlPassword=$SQL_PWD" >> $GITHUB_OUTPUT
+          echo "rabbitmqPassword=$RABBITMQ_PWD" >> $GITHUB_OUTPUT
+          echo "jwtSecret=$JWT_SECRET" >> $GITHUB_OUTPUT
+          echo "adminToken=$ADMIN_TOKEN" >> $GITHUB_OUTPUT
+          echo "authToken=$AUTH_TOKEN" >> $GITHUB_OUTPUT
+          echo "userToken=$USER_TOKEN" >> $GITHUB_OUTPUT
+          echo "cartToken=$CART_TOKEN" >> $GITHUB_OUTPUT
+          echo "orderToken=$ORDER_TOKEN" >> $GITHUB_OUTPUT
+          echo "productToken=$PRODUCT_TOKEN" >> $GITHUB_OUTPUT
+          echo "webbffToken=$WEBBFF_TOKEN" >> $GITHUB_OUTPUT
+          
+          echo "✓ Generated 12 secure secrets"
+
       - name: Validate deployment
         working-directory: app-service/bicep
         run: |
@@ -125,9 +175,28 @@ jobs:
           az deployment group validate \
             --resource-group ${{ steps.config.outputs.resource_group }} \
             --template-file main.bicep \
-            --parameters @parameters.${{ steps.config.outputs.environment }}.json \
             --parameters suffix=${{ steps.config.outputs.suffix }} \
             --parameters location=${{ steps.config.outputs.location }} \
+            --parameters postgresAdminUser=pgadmin \
+            --parameters postgresAdminPassword='${{ steps.secrets.outputs.postgresPassword }}' \
+            --parameters mysqlAdminUser=mysqladmin \
+            --parameters mysqlAdminPassword='${{ steps.secrets.outputs.mysqlPassword }}' \
+            --parameters sqlAdminUser=sqladmin \
+            --parameters sqlAdminPassword='${{ steps.secrets.outputs.sqlPassword }}' \
+            --parameters rabbitmqUser=admin \
+            --parameters rabbitmqPassword='${{ steps.secrets.outputs.rabbitmqPassword }}' \
+            --parameters jwtSecret='${{ steps.secrets.outputs.jwtSecret }}' \
+            --parameters jwtAlgorithm=HS256 \
+            --parameters jwtIssuer=auth-service \
+            --parameters jwtAudience=xshopai-platform \
+            --parameters jwtExpiresIn=24h \
+            --parameters adminServiceToken='${{ steps.secrets.outputs.adminToken }}' \
+            --parameters authServiceToken='${{ steps.secrets.outputs.authToken }}' \
+            --parameters userServiceToken='${{ steps.secrets.outputs.userToken }}' \
+            --parameters cartServiceToken='${{ steps.secrets.outputs.cartToken }}' \
+            --parameters orderServiceToken='${{ steps.secrets.outputs.orderToken }}' \
+            --parameters productServiceToken='${{ steps.secrets.outputs.productToken }}' \
+            --parameters webBffToken='${{ steps.secrets.outputs.webbffToken }}' \
             --output table
           echo "✓ Validation successful"
 
@@ -141,6 +210,31 @@ jobs:
             app-service/bicep/modules/*.bicep
             app-service/bicep/parameters.${{ steps.config.outputs.environment }}.json
           retention-days: 7
+
+      - name: Save secrets to artifact
+        run: |
+          echo "Saving secrets for subsequent jobs..."
+          cat > /tmp/secrets.env <<EOF
+          POSTGRES_PASSWORD=${{ steps.secrets.outputs.postgresPassword }}
+          MYSQL_PASSWORD=${{ steps.secrets.outputs.mysqlPassword }}
+          SQL_PASSWORD=${{ steps.secrets.outputs.sqlPassword }}
+          RABBITMQ_PASSWORD=${{ steps.secrets.outputs.rabbitmqPassword }}
+          JWT_SECRET=${{ steps.secrets.outputs.jwtSecret }}
+          ADMIN_TOKEN=${{ steps.secrets.outputs.adminToken }}
+          AUTH_TOKEN=${{ steps.secrets.outputs.authToken }}
+          USER_TOKEN=${{ steps.secrets.outputs.userToken }}
+          CART_TOKEN=${{ steps.secrets.outputs.cartToken }}
+          ORDER_TOKEN=${{ steps.secrets.outputs.orderToken }}
+          PRODUCT_TOKEN=${{ steps.secrets.outputs.productToken }}
+          WEBBFF_TOKEN=${{ steps.secrets.outputs.webbffToken }}
+          EOF
+          
+      - name: Upload secrets artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-secrets-${{ steps.config.outputs.environment }}
+          path: /tmp/secrets.env
+          retention-days: 1
 
   # ===========================================================================
   # Job 2: What-If Analysis
@@ -180,6 +274,47 @@ jobs:
           echo "resource_group=${RESOURCE_GROUP}" >> $GITHUB_OUTPUT
           echo "location=${{ inputs.location }}" >> $GITHUB_OUTPUT
 
+      - name: Download secrets
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-secrets-${{ steps.config.outputs.environment }}
+          path: /tmp/
+
+      - name: Load secrets
+        id: secrets
+        run: |
+          echo "Loading generated secrets..."
+          source /tmp/secrets.env
+          
+          # Mask secrets in logs
+          echo "::add-mask::$POSTGRES_PASSWORD"
+          echo "::add-mask::$MYSQL_PASSWORD"
+          echo "::add-mask::$SQL_PASSWORD"
+          echo "::add-mask::$RABBITMQ_PASSWORD"
+          echo "::add-mask::$JWT_SECRET"
+          echo "::add-mask::$ADMIN_TOKEN"
+          echo "::add-mask::$AUTH_TOKEN"
+          echo "::add-mask::$USER_TOKEN"
+          echo "::add-mask::$CART_TOKEN"
+          echo "::add-mask::$ORDER_TOKEN"
+          echo "::add-mask::$PRODUCT_TOKEN"
+          echo "::add-mask::$WEBBFF_TOKEN"
+          
+          echo "postgresPassword=$POSTGRES_PASSWORD" >> $GITHUB_OUTPUT
+          echo "mysqlPassword=$MYSQL_PASSWORD" >> $GITHUB_OUTPUT
+          echo "sqlPassword=$SQL_PASSWORD" >> $GITHUB_OUTPUT
+          echo "rabbitmqPassword=$RABBITMQ_PASSWORD" >> $GITHUB_OUTPUT
+          echo "jwtSecret=$JWT_SECRET" >> $GITHUB_OUTPUT
+          echo "adminToken=$ADMIN_TOKEN" >> $GITHUB_OUTPUT
+          echo "authToken=$AUTH_TOKEN" >> $GITHUB_OUTPUT
+          echo "userToken=$USER_TOKEN" >> $GITHUB_OUTPUT
+          echo "cartToken=$CART_TOKEN" >> $GITHUB_OUTPUT
+          echo "orderToken=$ORDER_TOKEN" >> $GITHUB_OUTPUT
+          echo "productToken=$PRODUCT_TOKEN" >> $GITHUB_OUTPUT
+          echo "webbffToken=$WEBBFF_TOKEN" >> $GITHUB_OUTPUT
+          
+          echo "✓ Secrets loaded"
+
       - name: Run what-if analysis
         id: whatif
         working-directory: app-service/bicep
@@ -195,9 +330,28 @@ jobs:
           WHATIF_OUTPUT=$(az deployment group what-if \
             --resource-group ${{ steps.config.outputs.resource_group }} \
             --template-file main.bicep \
-            --parameters @parameters.${{ steps.config.outputs.environment }}.json \
             --parameters suffix=${{ steps.config.outputs.suffix }} \
             --parameters location=${{ steps.config.outputs.location }} \
+            --parameters postgresAdminUser=pgadmin \
+            --parameters postgresAdminPassword='${{ steps.secrets.outputs.postgresPassword }}' \
+            --parameters mysqlAdminUser=mysqladmin \
+            --parameters mysqlAdminPassword='${{ steps.secrets.outputs.mysqlPassword }}' \
+            --parameters sqlAdminUser=sqladmin \
+            --parameters sqlAdminPassword='${{ steps.secrets.outputs.sqlPassword }}' \
+            --parameters rabbitmqUser=admin \
+            --parameters rabbitmqPassword='${{ steps.secrets.outputs.rabbitmqPassword }}' \
+            --parameters jwtSecret='${{ steps.secrets.outputs.jwtSecret }}' \
+            --parameters jwtAlgorithm=HS256 \
+            --parameters jwtIssuer=auth-service \
+            --parameters jwtAudience=xshopai-platform \
+            --parameters jwtExpiresIn=24h \
+            --parameters adminServiceToken='${{ steps.secrets.outputs.adminToken }}' \
+            --parameters authServiceToken='${{ steps.secrets.outputs.authToken }}' \
+            --parameters userServiceToken='${{ steps.secrets.outputs.userToken }}' \
+            --parameters cartServiceToken='${{ steps.secrets.outputs.cartToken }}' \
+            --parameters orderServiceToken='${{ steps.secrets.outputs.orderToken }}' \
+            --parameters productServiceToken='${{ steps.secrets.outputs.productToken }}' \
+            --parameters webBffToken='${{ steps.secrets.outputs.webbffToken }}' \
             --no-pretty-print \
             --output yaml 2>&1 || echo "Error occurred")
 
@@ -290,6 +444,47 @@ jobs:
             echo "✓ Resource group already exists"
           fi
 
+      - name: Download secrets
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-secrets-${{ steps.config.outputs.environment }}
+          path: /tmp/
+
+      - name: Load secrets
+        id: secrets
+        run: |
+          echo "Loading generated secrets..."
+          source /tmp/secrets.env
+          
+          # Mask secrets in logs
+          echo "::add-mask::$POSTGRES_PASSWORD"
+          echo "::add-mask::$MYSQL_PASSWORD"
+          echo "::add-mask::$SQL_PASSWORD"
+          echo "::add-mask::$RABBITMQ_PASSWORD"
+          echo "::add-mask::$JWT_SECRET"
+          echo "::add-mask::$ADMIN_TOKEN"
+          echo "::add-mask::$AUTH_TOKEN"
+          echo "::add-mask::$USER_TOKEN"
+          echo "::add-mask::$CART_TOKEN"
+          echo "::add-mask::$ORDER_TOKEN"
+          echo "::add-mask::$PRODUCT_TOKEN"
+          echo "::add-mask::$WEBBFF_TOKEN"
+          
+          echo "postgresPassword=$POSTGRES_PASSWORD" >> $GITHUB_OUTPUT
+          echo "mysqlPassword=$MYSQL_PASSWORD" >> $GITHUB_OUTPUT
+          echo "sqlPassword=$SQL_PASSWORD" >> $GITHUB_OUTPUT
+          echo "rabbitmqPassword=$RABBITMQ_PASSWORD" >> $GITHUB_OUTPUT
+          echo "jwtSecret=$JWT_SECRET" >> $GITHUB_OUTPUT
+          echo "adminToken=$ADMIN_TOKEN" >> $GITHUB_OUTPUT
+          echo "authToken=$AUTH_TOKEN" >> $GITHUB_OUTPUT
+          echo "userToken=$USER_TOKEN" >> $GITHUB_OUTPUT
+          echo "cartToken=$CART_TOKEN" >> $GITHUB_OUTPUT
+          echo "orderToken=$ORDER_TOKEN" >> $GITHUB_OUTPUT
+          echo "productToken=$PRODUCT_TOKEN" >> $GITHUB_OUTPUT
+          echo "webbffToken=$WEBBFF_TOKEN" >> $GITHUB_OUTPUT
+          
+          echo "✓ Secrets loaded"
+
       - name: Deploy Bicep infrastructure
         id: deploy
         working-directory: app-service/bicep
@@ -301,9 +496,28 @@ jobs:
             --name "$DEPLOYMENT_NAME" \
             --resource-group ${{ steps.config.outputs.resource_group }} \
             --template-file main.bicep \
-            --parameters @parameters.${{ steps.config.outputs.environment }}.json \
             --parameters suffix=${{ steps.config.outputs.suffix }} \
             --parameters location=${{ steps.config.outputs.location }} \
+            --parameters postgresAdminUser=pgadmin \
+            --parameters postgresAdminPassword='${{ steps.secrets.outputs.postgresPassword }}' \
+            --parameters mysqlAdminUser=mysqladmin \
+            --parameters mysqlAdminPassword='${{ steps.secrets.outputs.mysqlPassword }}' \
+            --parameters sqlAdminUser=sqladmin \
+            --parameters sqlAdminPassword='${{ steps.secrets.outputs.sqlPassword }}' \
+            --parameters rabbitmqUser=admin \
+            --parameters rabbitmqPassword='${{ steps.secrets.outputs.rabbitmqPassword }}' \
+            --parameters jwtSecret='${{ steps.secrets.outputs.jwtSecret }}' \
+            --parameters jwtAlgorithm=HS256 \
+            --parameters jwtIssuer=auth-service \
+            --parameters jwtAudience=xshopai-platform \
+            --parameters jwtExpiresIn=24h \
+            --parameters adminServiceToken='${{ steps.secrets.outputs.adminToken }}' \
+            --parameters authServiceToken='${{ steps.secrets.outputs.authToken }}' \
+            --parameters userServiceToken='${{ steps.secrets.outputs.userToken }}' \
+            --parameters cartServiceToken='${{ steps.secrets.outputs.cartToken }}' \
+            --parameters orderServiceToken='${{ steps.secrets.outputs.orderToken }}' \
+            --parameters productServiceToken='${{ steps.secrets.outputs.productToken }}' \
+            --parameters webBffToken='${{ steps.secrets.outputs.webbffToken }}' \
             --output json > deployment-output.json
 
           echo "deployment_name=${DEPLOYMENT_NAME}" >> $GITHUB_OUTPUT
