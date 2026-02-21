@@ -1426,7 +1426,7 @@ jobs:
       #
       # NOTE: This can be slow (5-10+ IPs per service × 2 services = 20+ API calls).
       # Idempotency check skips existing rules on re-runs.
-      # 
+      #
       # TODO: Consider VNet integration for better performance and security:
       # - Enable VNet integration on App Services
       # - Configure database private endpoints
