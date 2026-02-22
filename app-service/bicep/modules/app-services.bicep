@@ -212,7 +212,8 @@ resource adminUiConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    ENABLE_ORYX_BUILD: 'true'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -220,13 +221,7 @@ resource adminUiConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-resource adminUiStartup 'Microsoft.Web/sites/config@2022-09-01' = {
-  parent: appServices[1]
-  name: 'web'
-  properties: {
-    appCommandLine: 'pm2 serve /home/site/wwwroot/build --no-daemon --spa -p 8080'
-  }
-}
+// Note: startup command will be set during deployment, not during infra provisioning
 
 // 3. audit-service
 resource auditServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
@@ -352,7 +347,8 @@ resource customerUiConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    ENABLE_ORYX_BUILD: 'true'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
@@ -360,13 +356,7 @@ resource customerUiConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-resource customerUiStartup 'Microsoft.Web/sites/config@2022-09-01' = {
-  parent: appServices[6]
-  name: 'web'
-  properties: {
-    appCommandLine: 'pm2 serve /home/site/wwwroot/build --no-daemon --spa -p 8080'
-  }
-}
+// Note: startup command will be set during deployment, not during infra provisioning
 
 // 8. inventory-service
 resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
@@ -375,7 +365,8 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    ENABLE_ORYX_BUILD: 'true'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     FLASK_APP: 'run.py'
@@ -401,13 +392,7 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-resource inventoryServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
-  parent: appServices[7]
-  name: 'web'
-  properties: {
-    appCommandLine: 'FLASK_SKIP_AZURE_MONITOR=true flask db upgrade && exec gunicorn --bind 0.0.0.0:8080 --workers 2 --timeout 120 --preload run:app'
-  }
-}
+// Note: startup command will be set during deployment via Oryx build detection
 
 // 9. notification-service
 resource notificationServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
@@ -521,7 +506,8 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    ENABLE_ORYX_BUILD: 'true'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NAME: 'product-service'
@@ -543,13 +529,7 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-resource productServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
-  parent: appServices[12]
-  name: 'web'
-  properties: {
-    appCommandLine: 'gunicorn --worker-class uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:8080 main:app'
-  }
-}
+// Note: startup command will be set during deployment via Oryx build detection
 
 // 14. review-service
 resource reviewServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
