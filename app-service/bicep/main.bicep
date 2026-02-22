@@ -57,6 +57,9 @@ param productServiceToken string
 @secure()
 param webBffToken string
 
+@description('Azure AD Object ID of user/service principal to grant Key Vault access (optional)')
+param keyVaultAdminObjectId string = ''
+
 @description('Database usernames')
 param postgresAdminUser string = 'pgadmin'
 param mysqlAdminUser string = 'mysqladmin'
@@ -222,6 +225,8 @@ module keyvault './modules/keyvault.bicep' = {
     // Azure OpenAI
     openaiEndpoint: openai.outputs.openaiEndpoint
     openaiDeployment: openai.outputs.deploymentName
+    // RBAC
+    keyVaultAdminObjectId: keyVaultAdminObjectId
   }
 }
 

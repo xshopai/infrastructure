@@ -86,6 +86,7 @@ jobs:
       suffix: ${{ steps.config.outputs.suffix }}
       environment: ${{ steps.config.outputs.environment }}
       location: ${{ steps.config.outputs.location }}
+      object_id: ${{ steps.get-object-id.outputs.object_id }}
 
     steps:
       - name: Checkout repository
@@ -160,6 +161,25 @@ jobs:
           az bicep upgrade
           az bicep version
 
+      - name: Get admin user Object ID for Key Vault access
+        id: get-object-id
+        run: |
+          # Try to get Object ID from secrets, fallback to signed-in user
+          if [ -n "${{ secrets.KEYVAULT_ADMIN_OBJECT_ID }}" ]; then
+            OBJECT_ID="${{ secrets.KEYVAULT_ADMIN_OBJECT_ID }}"
+            echo "Using Object ID from secret: ${OBJECT_ID}"
+          else
+            # For local testing, get currently signed-in user
+            OBJECT_ID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || echo "")
+            if [ -z "$OBJECT_ID" ]; then
+              echo "⚠️  No Key Vault admin Object ID configured - skipping RBAC assignment"
+              echo "   To grant yourself access, add KEYVAULT_ADMIN_OBJECT_ID secret with your Azure AD Object ID"
+            else
+              echo "Using currently authenticated principal: ${OBJECT_ID}"
+            fi
+          fi
+          echo "object_id=${OBJECT_ID}" >> $GITHUB_OUTPUT
+
       - name: Compile Bicep templates
         working-directory: ${{ env.BICEP_DIR }}
         run: |
@@ -199,6 +219,7 @@ jobs:
             --parameters orderServiceToken="${{ secrets.ORDER_SERVICE_TOKEN }}" \
             --parameters productServiceToken="${{ secrets.PRODUCT_SERVICE_TOKEN }}" \
             --parameters webBffToken="${{ secrets.WEB_BFF_TOKEN }}" \
+            --parameters keyVaultAdminObjectId="${{ steps.get-object-id.outputs.object_id }}" \
             --output table
           echo "✓ Validation successful"
 
@@ -264,6 +285,7 @@ jobs:
             --parameters orderServiceToken="${{ secrets.ORDER_SERVICE_TOKEN }}" \
             --parameters productServiceToken="${{ secrets.PRODUCT_SERVICE_TOKEN }}" \
             --parameters webBffToken="${{ secrets.WEB_BFF_TOKEN }}" \
+            --parameters keyVaultAdminObjectId="${{ needs.validate.outputs.object_id }}" \
             --output table
 
           echo "✓ What-if analysis complete"
@@ -339,6 +361,7 @@ jobs:
             --parameters orderServiceToken="${{ secrets.ORDER_SERVICE_TOKEN }}" \
             --parameters productServiceToken="${{ secrets.PRODUCT_SERVICE_TOKEN }}" \
             --parameters webBffToken="${{ secrets.WEB_BFF_TOKEN }}" \
+            --parameters keyVaultAdminObjectId="${{ needs.validate.outputs.object_id }}" \
             --output json
 
           echo "deployment_name=${DEPLOYMENT_NAME}" >> $GITHUB_OUTPUT

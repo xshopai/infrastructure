@@ -78,6 +78,9 @@ param webBffToken string
 param openaiEndpoint string
 param openaiDeployment string
 
+@description('Azure AD Object ID of user/service principal to grant Key Vault Secrets Officer access (optional)')
+param keyVaultAdminObjectId string = ''
+
 // =============================================================================
 // Variables
 // =============================================================================
@@ -141,6 +144,18 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
         enabled: true
       }
     ]
+  }
+}
+
+// RBAC Role Assignment - Grant Key Vault Secrets Officer to specified principal
+// This allows viewing and managing secrets in the Azure Portal
+resource keyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(keyVaultAdminObjectId)) {
+  name: guid(keyVault.id, keyVaultAdminObjectId, 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
+  scope: keyVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7') // Key Vault Secrets Officer
+    principalId: keyVaultAdminObjectId
+    principalType: 'User'
   }
 }
 

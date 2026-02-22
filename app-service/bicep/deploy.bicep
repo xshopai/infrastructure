@@ -67,6 +67,9 @@ param productServiceToken string
 @secure()
 param webBffToken string
 
+@description('Azure AD Object ID of user/service principal to grant Key Vault access (optional)')
+param keyVaultAdminObjectId string = ''
+
 // =============================================================================
 // Variables
 // =============================================================================
@@ -120,6 +123,7 @@ module infrastructure 'main.bicep' = {
     orderServiceToken: orderServiceToken
     productServiceToken: productServiceToken
     webBffToken: webBffToken
+    keyVaultAdminObjectId: keyVaultAdminObjectId
   }
 }
 
