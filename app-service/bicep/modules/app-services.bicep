@@ -179,11 +179,19 @@ resource adminServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
+    SERVICE_NAME: 'admin-service'
+    VERSION: '1.0.0'
     JWT_SECRET: jwtSecret
+    JWT_ISSUER: jwtIssuer
+    JWT_AUDIENCE: jwtAudience
+    MESSAGING_PROVIDER: 'rabbitmq'
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
-    MESSAGING_PROVIDER: 'rabbitmq'
-    SERVICE_USER_TOKEN: adminServiceToken
+    OTEL_TRACES_EXPORTER: 'azure'
+    OTEL_SERVICE_NAME: 'admin-service'
+    LOG_LEVEL: 'info'
+    LOG_FORMAT: 'json'
+    LOG_TO_CONSOLE: 'true'
     AUTH_SERVICE_URL: '${serviceUrlPrefix}auth-service${serviceUrlSuffix}'
     USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
     PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
@@ -191,9 +199,7 @@ resource adminServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     PAYMENT_SERVICE_URL: '${serviceUrlPrefix}payment-service${serviceUrlSuffix}'
     AUDIT_SERVICE_URL: '${serviceUrlPrefix}audit-service${serviceUrlSuffix}'
     NOTIFICATION_SERVICE_URL: '${serviceUrlPrefix}notification-service${serviceUrlSuffix}'
-    INVENTORY_SERVICE_URL: '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
-    OTEL_TRACES_EXPORTER: 'azure'
-    OTEL_SERVICE_NAME: 'admin-service'
+    USER_SERVICE_TOKEN: adminServiceToken
   }
 }
 
@@ -264,6 +270,7 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_AUDIENCE: jwtAudience
     JWT_EXPIRES_IN: jwtExpiresIn
     USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
+    USER_SERVICE_TOKEN: authServiceToken
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
@@ -274,20 +281,20 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     LOG_TO_CONSOLE: 'true'
   }
 }
+  }
+}
 
 // 5. cart-service
 resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   parent: appServices[4]
   name: 'appsettings'
   properties: {
-    PORT: '8080'
     ENVIRONMENT: environment
     SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
     QUARKUS_HTTP_PORT: '8080'
-    QUARKUS_REDIS_HOSTS: 'rediss://:${redisKey}@${redisHost}:6380'
     REDIS_HOST: redisHost
     REDIS_PORT: '6380'
     REDIS_PASSWORD: redisKey
@@ -317,19 +324,11 @@ resource chatServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
-    JWT_SECRET: jwtSecret
-    JWT_ALGORITHM: jwtAlgorithm
-    JWT_ISSUER: jwtIssuer
-    JWT_AUDIENCE: jwtAudience
     AZURE_OPENAI_ENDPOINT: openaiEndpoint
     AZURE_OPENAI_DEPLOYMENT_NAME: openaiDeployment
     AZURE_OPENAI_API_VERSION: '2024-10-21'
     AZURE_USE_MANAGED_IDENTITY: 'true'
     MESSAGING_PROVIDER: 'rabbitmq'
-    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
-    ORDER_SERVICE_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
-    USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
-    INVENTORY_SERVICE_URL: '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'chat-service'
   }
@@ -389,10 +388,11 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_ALGORITHM: jwtAlgorithm
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
-    SERVICE_PRODUCT_TOKEN: adminServiceToken
-    SERVICE_ORDER_TOKEN: orderServiceToken
-    SERVICE_CART_TOKEN: cartServiceToken
-    SERVICE_WEBBFF_TOKEN: webBffToken
+    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
+    PRODUCT_SERVICE_TOKEN: productServiceToken
+    ORDER_SERVICE_TOKEN: orderServiceToken
+    CART_SERVICE_TOKEN: cartServiceToken
+    WEBBFF_SERVICE_TOKEN: webBffToken
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'inventory-service'
     LOG_LEVEL: 'INFO'
@@ -458,17 +458,6 @@ resource orderProcessorServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     RABBITMQ_PASSWORD: rabbitmqPassword
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
-    JWT_SECRET: jwtSecret
-    JWT_ISSUER: jwtIssuer
-    JWT_AUDIENCE: jwtAudience
-    SERVICES_ORDER_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
-    SERVICES_INVENTORY_URL: '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
-    SERVICES_PAYMENT_URL: '${serviceUrlPrefix}payment-service${serviceUrlSuffix}'
-    SERVICES_NOTIFICATION_URL: '${serviceUrlPrefix}notification-service${serviceUrlSuffix}'
-    ORDER_SERVICE_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
-    INVENTORY_SERVICE_URL: '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
-    PAYMENT_SERVICE_URL: '${serviceUrlPrefix}payment-service${serviceUrlSuffix}'
-    NOTIFICATION_SERVICE_URL: '${serviceUrlPrefix}notification-service${serviceUrlSuffix}'
     MANAGEMENT_TRACING_ENABLED: 'false'
     OTEL_SERVICE_NAME: 'order-processor-service'
     LOG_LEVEL: 'INFO'
@@ -493,13 +482,11 @@ resource orderServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     RABBITMQ_CONNECTION_STRING: rabbitmqUrl
     RabbitMQ__ExchangeName: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
-    JWT_SECRET: jwtSecret
+    Jwt__Secret: jwtSecret
+    Jwt__Issuer: jwtIssuer
+    Jwt__Audience: jwtAudience
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'order-service'
-    Services__CartService: '${serviceUrlPrefix}cart-service${serviceUrlSuffix}'
-    Services__ProductService: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
-    Services__InventoryService: '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
-    Services__UserService: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
   }
 }
 
@@ -520,10 +507,8 @@ resource paymentServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     RabbitMQ__ExchangeName: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
     Jwt__Key: jwtSecret
-    Jwt__Issuer: 'auth-service'
-    Jwt__Audience: 'xshopai-platform'
-    ServiceTokens__OrderService: orderServiceToken
-    ServiceTokens__UserService: userServiceToken
+    Jwt__Issuer: jwtIssuer
+    Jwt__Audience: jwtAudience
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'payment-service'
   }
@@ -550,10 +535,6 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_ALGORITHM: jwtAlgorithm
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
-    SERVICE_PRODUCT_TOKEN: adminServiceToken
-    SERVICE_ORDER_TOKEN: orderServiceToken
-    SERVICE_CART_TOKEN: cartServiceToken
-    SERVICE_WEBBFF_TOKEN: webBffToken
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'product-service'
     LOG_LEVEL: 'INFO'
@@ -586,16 +567,11 @@ resource reviewServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     MONGODB_URI: reviewMongodbUri
     MONGODB_DB_NAME: 'review_service_db'
     JWT_SECRET: jwtSecret
+    JWT_ISSUER: jwtIssuer
+    JWT_AUDIENCE: jwtAudience
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
-    CORS_ORIGIN: '${serviceUrlPrefix}customer-ui${serviceUrlSuffix}'
-    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
-    USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
-    ORDER_SERVICE_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
-    SERVICE_PRODUCT_TOKEN: productServiceToken
-    SERVICE_ORDER_TOKEN: orderServiceToken
-    SERVICE_WEBBFF_TOKEN: webBffToken
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'review-service'
     LOG_LEVEL: 'info'
@@ -627,10 +603,10 @@ resource userServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
-    SERVICE_AUTH_TOKEN: authServiceToken
-    SERVICE_ADMIN_TOKEN: adminServiceToken
-    SERVICE_ORDER_TOKEN: orderServiceToken
-    SERVICE_WEBBFF_TOKEN: webBffToken
+    AUTH_SERVICE_TOKEN: authServiceToken
+    ADMIN_SERVICE_TOKEN: adminServiceToken
+    ORDER_SERVICE_TOKEN: orderServiceToken
+    WEBBFF_SERVICE_TOKEN: webBffToken
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'user-service'
     LOG_LEVEL: 'INFO'

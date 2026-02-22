@@ -303,9 +303,15 @@ jobs:
         run: |
           echo "Deploying infrastructure (this takes 8-12 minutes)..."
           echo "Resource group will be created by Bicep: ${{ needs.validate.outputs.resource_group }}"
+          echo "Deployment mode: Incremental (updates existing resources, creates new ones)"
 
           DEPLOYMENT_NAME="xshopai-${{ needs.validate.outputs.environment }}-$(date +%Y%m%d-%H%M%S)"
 
+          # Deploy with incremental mode (explicit for clarity)
+          # - Creates new resources
+          # - Updates existing resources if configuration changed
+          # - Leaves unchanged resources as-is
+          # - Does NOT delete resources not in template
           az deployment sub create \
             --name "$DEPLOYMENT_NAME" \
             --location ${{ needs.validate.outputs.location }} \
