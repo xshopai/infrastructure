@@ -113,8 +113,8 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     tenantId: subscription().tenantId
     enableRbacAuthorization: true // Use Azure RBAC - subscription owners get access automatically
     enableSoftDelete: true
-    softDeleteRetentionInDays: 90
-    enablePurgeProtection: true // Cannot be disabled once enabled
+    softDeleteRetentionInDays: 7 // Reduced from 90 days for faster name reclaim
+    enablePurgeProtection: false // Disabled to allow immediate purging
     publicNetworkAccess: 'Enabled'
     networkAcls: {
       defaultAction: 'Allow'
