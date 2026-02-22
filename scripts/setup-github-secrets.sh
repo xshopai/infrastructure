@@ -153,8 +153,8 @@ set_org_variable() {
   echo -e "  ${GREEN}✓ $name = $value${NC}"
 }
 
-set_org_variable "DEPLOY_SUFFIX_DEV" "dev"
-set_org_variable "DEPLOY_SUFFIX_PROD" "prod"
+set_org_variable "DEPLOY_SUFFIX_DEV" "development"
+set_org_variable "DEPLOY_SUFFIX_PROD" "production"
 
 echo ""
 echo -e "  ${GREEN}✓ Deployment suffix variables set for all repositories${NC}"
