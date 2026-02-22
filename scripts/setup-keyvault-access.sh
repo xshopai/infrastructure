@@ -3,7 +3,15 @@
 # Setup Key Vault RBAC Access
 # =============================================================================
 # This script helps you configure Azure AD Object ID for Key Vault access
-# Run this to grant yourself permission to view secrets in the Key Vault
+# Run this to grant yourself or another user permission to view secrets
+#
+# NOTE: This is automatically handled by setup-github-secrets.sh
+# Only run this script if you need to:
+#   - Update the Object ID to a different user
+#   - Grant access to someone who didn't run the initial setup
+#   - Fix Key Vault access issues
+#
+# For initial setup, run: ./setup-all.sh (includes this automatically)
 
 set -e
 

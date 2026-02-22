@@ -8,6 +8,7 @@
 # Creates:
 #   - Org secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
 #   - Infra repo secrets: DB passwords, JWT, service tokens (auto-generated)
+#   - Infra repo secret: KEYVAULT_ADMIN_OBJECT_ID (for Key Vault RBAC access)
 #
 # Prerequisites:
 #   - gh CLI authenticated with org admin access
@@ -252,6 +253,20 @@ track_secret "ORDER_SERVICE_TOKEN" gen_token order-service
 track_secret "PRODUCT_SERVICE_TOKEN" gen_token product-service
 track_secret "WEB_BFF_TOKEN" gen_token web-bff
 
+# Key Vault RBAC - get current user's Object ID for Key Vault access
+echo -e "\n${BLUE}Setting Key Vault Admin Access${NC}"
+echo "------------------------------------------------------------------------"
+KEYVAULT_ADMIN_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || echo "")
+if [ -z "$KEYVAULT_ADMIN_OBJECT_ID" ]; then
+  echo -e "  ${YELLOW}⚠ Could not get Object ID (not logged in as user?)${NC}"
+  echo -e "  ${YELLOW}  Key Vault RBAC access will not be configured${NC}"
+  echo -e "  ${YELLOW}  Run: az ad signed-in-user show --query id -o tsv${NC}"
+  echo -e "  ${YELLOW}  Then manually set: gh secret set KEYVAULT_ADMIN_OBJECT_ID --repo $INFRA_REPO${NC}"
+else
+  echo -e "  ${BLUE}ℹ Current user Object ID: $KEYVAULT_ADMIN_OBJECT_ID${NC}"
+  track_secret "KEYVAULT_ADMIN_OBJECT_ID" echo "$KEYVAULT_ADMIN_OBJECT_ID"
+fi
+
 # =============================================================================
 # Summary
 # =============================================================================
@@ -303,7 +318,7 @@ echo "  └───────────────────────
 echo ""
 echo "  ┌─────────────────────────────────────────────────────────────┐"
 echo "  │               INFRASTRUCTURE REPO ONLY                      │"
-echo "  │  DB Passwords, JWT, Service Tokens                          │"
+echo "  │  DB Passwords, JWT, Service Tokens, Key Vault RBAC         │"
 echo "  │         │                                                   │"
 echo "  │         ▼                                                   │"
 echo "  │  Bicep Workflow ───────────────► Azure Key Vault            │"
