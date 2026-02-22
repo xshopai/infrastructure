@@ -102,25 +102,25 @@ param tags object
 var suffix = split(resourcePrefix, '-')[1]
 
 // Service definitions: name, runtime, health path
-// Note: startup commands removed - Azure auto-detects from package.json, requirements.txt, etc.
-// Add startup commands back in CI/CD deployment if custom commands needed
+// Note: No startup commands - Azure will show default shell page until code is deployed
+// Azure auto-detects startup from package.json, requirements.txt, etc. when code is deployed
 var services = [
-  { name: 'admin-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
-  { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health', startup: '' }
-  { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
-  { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
-  { name: 'cart-service', runtime: 'JAVA|17-java17', health: '/health/live', startup: '' }
-  { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
-  { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health', startup: '' }
-  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: '' }
-  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
-  { name: 'order-processor-service', runtime: 'JAVA|17-java17', health: '/health/live', startup: '' }
-  { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startup: '' }
-  { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startup: '' }
-  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: '' }
-  { name: 'review-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
-  { name: 'user-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
-  { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
+  { name: 'admin-service', runtime: 'NODE|24-lts', health: '/health/live' }
+  { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health' }
+  { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live' }
+  { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live' }
+  { name: 'cart-service', runtime: 'JAVA|17-java17', health: '/health/live' }
+  { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live' }
+  { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health' }
+  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live' }
+  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live' }
+  { name: 'order-processor-service', runtime: 'JAVA|17-java17', health: '/health/live' }
+  { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live' }
+  { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live' }
+  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live' }
+  { name: 'review-service', runtime: 'NODE|24-lts', health: '/health/live' }
+  { name: 'user-service', runtime: 'NODE|24-lts', health: '/health/live' }
+  { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live' }
 ]
 
 // Helper function for service URLs
@@ -154,7 +154,7 @@ resource appServices 'Microsoft.Web/sites@2022-09-01' = [for svc in services: {
     clientAffinityEnabled: false
     siteConfig: {
       linuxFxVersion: svc.runtime
-      appCommandLine: svc.startup
+      // appCommandLine not set - allows Azure to show default shell page until code deployed
       alwaysOn: true
       healthCheckPath: svc.health
       http20Enabled: true
