@@ -111,20 +111,26 @@ assign_role() {
     
     echo "   Assigning $role_name role..."
     
-    # Check if already assigned
-    EXISTING=$(az role assignment list \
+    # Check if already assigned (with timeout to prevent hanging)
+    set +e  # Temporarily disable exit on error
+    EXISTING=$(timeout 30s az role assignment list \
         --assignee "$SP_OBJECT_ID" \
         --role "$role_name" \
         --scope "/subscriptions/$SUBSCRIPTION_ID" \
         --query "[0].id" -o tsv 2>/dev/null || echo "")
+    local check_exit=$?
+    set -e  # Re-enable exit on error
     
-    if [ -n "$EXISTING" ]; then
+    if [ $check_exit -eq 124 ]; then
+        echo "   ⚠️  Timeout checking existing $role_name assignment - will attempt to assign"
+    elif [ -n "$EXISTING" ] && [ "$EXISTING" != "None" ]; then
         echo "   ✅ $role_name role (already assigned)"
         return 0
     fi
     
-    # Use REST API to create role assignment
-    az rest --method PUT \
+    # Use REST API to create role assignment (with timeout)
+    set +e
+    timeout 60s az rest --method PUT \
         --uri "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Authorization/roleAssignments/$assignment_id?api-version=2022-04-01" \
         --body "{
             \"properties\": {
@@ -132,12 +138,17 @@ assign_role() {
                 \"principalId\": \"$SP_OBJECT_ID\",
                 \"principalType\": \"ServicePrincipal\"
             }
-        }" --output none 2>/dev/null
+        }" --output none 2>&1
+    local assign_exit=$?
+    set -e
     
-    if [ $? -eq 0 ]; then
+    if [ $assign_exit -eq 0 ]; then
         echo "   ✅ $role_name role assigned"
+    elif [ $assign_exit -eq 124 ]; then
+        echo "   ⚠️  Timeout assigning $role_name role (may still be in progress)"
     else
-        echo "   ⚠️  Failed to assign $role_name role"
+        # Role might already exist even if check failed
+        echo "   ⚠️  Could not confirm $role_name assignment (may already exist)"
     fi
 }
 
