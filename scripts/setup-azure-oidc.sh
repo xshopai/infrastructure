@@ -190,7 +190,13 @@ assign_role "Key Vault Administrator" "00482a5a-887f-4fb3-b363-3b7fe8e74483"
 echo ""
 echo "🔧 Step 4: Configuring GitHub OIDC settings..."
 
-# Check if GitHub CLI is authenticated (with verbose output for debugging)
+# Unset GH_TOKEN if present (can interfere with gh CLI authentication)
+if [ -n "${GH_TOKEN:-}" ]; then
+    echo "   ⚠️  Unsetting GH_TOKEN environment variable (can interfere with gh CLI)"
+    unset GH_TOKEN
+fi
+
+# Check if GitHub CLI is authenticated
 set +e  # Temporarily disable exit on error
 gh auth status 2>&1 | head -5
 GH_AUTH_EXIT=$?
