@@ -101,24 +101,26 @@ param tags object
 
 var suffix = split(resourcePrefix, '-')[1]
 
-// Service definitions: name, runtime, health path, startup command
+// Service definitions: name, runtime, health path
+// Note: startup commands removed - Azure auto-detects from package.json, requirements.txt, etc.
+// Add startup commands back in CI/CD deployment if custom commands needed
 var services = [
-  { name: 'admin-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node src/server.js' }
-  { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health', startup: 'npx serve -s build -l 8080' }
-  { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/server.js' }
-  { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node src/server.js' }
+  { name: 'admin-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
+  { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health', startup: '' }
+  { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
+  { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
   { name: 'cart-service', runtime: 'JAVA|17-java17', health: '/health/live', startup: '' }
-  { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/src/server.js' }
-  { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health', startup: 'npx serve -s build -l 8080' }
-  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: 'gunicorn -b 0.0.0.0:8080 main:app' }
-  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/server.js' }
+  { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
+  { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health', startup: '' }
+  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: '' }
+  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
   { name: 'order-processor-service', runtime: 'JAVA|17-java17', health: '/health/live', startup: '' }
   { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startup: '' }
   { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startup: '' }
-  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: 'gunicorn -b 0.0.0.0:8080 main:app' }
-  { name: 'review-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node src/server.js' }
-  { name: 'user-service', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node src/server.js' }
-  { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live', startup: 'node dist/server.js' }
+  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live', startup: '' }
+  { name: 'review-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
+  { name: 'user-service', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
+  { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live', startup: '' }
 ]
 
 // Helper function for service URLs
