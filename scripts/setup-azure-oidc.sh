@@ -190,9 +190,15 @@ assign_role "Key Vault Administrator" "00482a5a-887f-4fb3-b363-3b7fe8e74483"
 echo ""
 echo "🔧 Step 4: Configuring GitHub OIDC settings..."
 
-# Check if GitHub CLI is authenticated
-if ! gh auth status > /dev/null 2>&1; then
-    echo "   ❌ Error: GitHub CLI not authenticated. Please run 'gh auth login' first."
+# Check if GitHub CLI is authenticated (with verbose output for debugging)
+set +e  # Temporarily disable exit on error
+gh auth status 2>&1 | head -5
+GH_AUTH_EXIT=$?
+set -e  # Re-enable exit on error
+
+if [ $GH_AUTH_EXIT -ne 0 ]; then
+    echo "   ❌ Error: GitHub CLI not authenticated properly."
+    echo "   Please run: gh auth login --scopes admin:org"
     exit 1
 fi
 
