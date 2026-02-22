@@ -71,7 +71,7 @@ param webBffToken string
 // Variables
 // =============================================================================
 
-var resourceGroupName = 'rg-xshopai-${environment}-${suffix}'
+var resourceGroupName = 'rg-xshopai-${suffix}'
 var tags = {
   project: 'xshopai'
   environment: environment

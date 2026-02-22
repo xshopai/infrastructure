@@ -51,7 +51,7 @@ fi
 echo -e "${GREEN}✓ gh CLI installed${NC}"
 
 # Check gh auth - use gh-auth.sh if not authenticated
-if ! gh auth status &>/dev/null 2>&1; then
+if ! gh auth status >/dev/null 2>&1; then
   echo -e "${YELLOW}! gh CLI not authenticated${NC}"
   if [ -f "$SCRIPT_DIR/gh-auth.sh" ]; then
     "$SCRIPT_DIR/gh-auth.sh"
@@ -106,8 +106,9 @@ echo "------------------------------------------------------------------------"
 
 # Remove old SP-based secrets that are no longer needed with OIDC
 for legacy_secret in AZURE_CLIENT_SECRET AZURE_CREDENTIALS; do
+  # Check if secret exists by checking exit code
   if gh secret list --org "$GITHUB_ORG" 2>/dev/null | grep -q "^$legacy_secret"; then
-    gh secret delete "$legacy_secret" --org "$GITHUB_ORG" 2>/dev/null || true
+    gh secret delete "$legacy_secret" --org "$GITHUB_ORG" >/dev/null 2>&1 || true
     echo -e "  ${YELLOW}✓ $legacy_secret (deleted - not needed for OIDC)${NC}"
   fi
 done
@@ -136,10 +137,32 @@ echo ""
 echo -e "  ${GREEN}✓ OIDC secrets set - token exchange, no rotation needed!${NC}"
 
 # =============================================================================
-# STEP 3: Infrastructure Repo Secrets (Auto-Generated)
+# STEP 3: Organization-Level Variables (Deployment Configuration)
 # =============================================================================
 echo ""
-echo -e "${BLUE}Step 3: Infrastructure Repository Secrets${NC}"
+echo -e "${BLUE}Step 3: Organization-Level Variables (Deployment)${NC}"
+echo "------------------------------------------------------------------------"
+
+set_org_variable() {
+  local name="$1"
+  local value="$2"
+  
+  # Always overwrite to ensure correct values
+  gh variable set "$name" --org "$GITHUB_ORG" --visibility all --body "$value"
+  echo -e "  ${GREEN}✓ $name = $value${NC}"
+}
+
+set_org_variable "DEPLOY_SUFFIX_DEV" "dev"
+set_org_variable "DEPLOY_SUFFIX_PROD" "prod"
+
+echo ""
+echo -e "  ${GREEN}✓ Deployment suffix variables set for all repositories${NC}"
+
+# =============================================================================
+# STEP 4: Infrastructure Repo Secrets (Auto-Generated)
+# =============================================================================
+echo ""
+echo -e "${BLUE}Step 4: Infrastructure Repository Secrets${NC}"
 echo "------------------------------------------------------------------------"
 echo -e "  ${YELLOW}Note: Repo secrets are only created if missing (to preserve deployed app configs)${NC}"
 echo ""
@@ -162,49 +185,93 @@ ensure_secret() {
   shift
   local generator="$@"
   
+  # Check if secret exists by verifying gh secret list output
   if gh secret list --repo "$INFRA_REPO" 2>/dev/null | grep -q "^$name"; then
     echo -e "  ${GREEN}✓ $name (exists)${NC}"
     return 0
   else
+    # Temporarily disable exit on error for proper error handling
+    set +e
     local value
     value=$($generator)
-    echo "$value" | gh secret set "$name" --repo "$INFRA_REPO"
-    echo -e "  ${GREEN}✓ $name (created)${NC}"
-    return 1
+    local gen_exit=$?
+    
+    if [ $gen_exit -ne 0 ]; then
+      set -e
+      echo -e "  ${RED}✗ $name (failed to generate)${NC}"
+      return 2
+    fi
+    
+    echo "$value" | gh secret set "$name" --repo "$INFRA_REPO" >/dev/null 2>&1
+    local set_exit=$?
+    set -e
+    
+    if [ $set_exit -eq 0 ]; then
+      echo -e "  ${GREEN}✓ $name (created)${NC}"
+      return 1
+    else
+      echo -e "  ${RED}✗ $name (failed to set)${NC}"
+      return 2
+    fi
   fi
 }
 
 CREATED=0
+FAILED=0
+
+# Helper function to track secret creation - prevents set -e from exiting
+track_secret() {
+  set +e
+  ensure_secret "$@"
+  local exit_code=$?
+  set -e
+  
+  if [ $exit_code -eq 1 ]; then
+    CREATED=$((CREATED + 1))
+  elif [ $exit_code -eq 2 ]; then
+    FAILED=$((FAILED + 1))
+  fi
+  return 0
+}
 
 # Database passwords
-ensure_secret "POSTGRES_ADMIN_PASSWORD" gen_password Pg 20 || ((CREATED++)) || true
-ensure_secret "MYSQL_ADMIN_PASSWORD" gen_password Mysql 20 || ((CREATED++)) || true
-ensure_secret "SQL_ADMIN_PASSWORD" gen_password Sql 20 || ((CREATED++)) || true
-ensure_secret "RABBITMQ_PASSWORD" gen_password Rmq 20 || ((CREATED++)) || true
+track_secret "POSTGRES_ADMIN_PASSWORD" gen_password Pg 20
+track_secret "MYSQL_ADMIN_PASSWORD" gen_password Mysql 20
+track_secret "SQL_ADMIN_PASSWORD" gen_password Sql 20
+track_secret "RABBITMQ_PASSWORD" gen_password Rmq 20
 
 # JWT
-ensure_secret "JWT_SECRET" openssl rand -base64 48 || ((CREATED++)) || true
+track_secret "JWT_SECRET" openssl rand -base64 48
 
 # Service tokens
-ensure_secret "ADMIN_SERVICE_TOKEN" gen_token admin-service || ((CREATED++)) || true
-ensure_secret "AUTH_SERVICE_TOKEN" gen_token auth-service || ((CREATED++)) || true
-ensure_secret "USER_SERVICE_TOKEN" gen_token user-service || ((CREATED++)) || true
-ensure_secret "CART_SERVICE_TOKEN" gen_token cart-service || ((CREATED++)) || true
-ensure_secret "ORDER_SERVICE_TOKEN" gen_token order-service || ((CREATED++)) || true
-ensure_secret "PRODUCT_SERVICE_TOKEN" gen_token product-service || ((CREATED++)) || true
-ensure_secret "WEB_BFF_TOKEN" gen_token web-bff || ((CREATED++)) || true
+track_secret "ADMIN_SERVICE_TOKEN" gen_token admin-service
+track_secret "AUTH_SERVICE_TOKEN" gen_token auth-service
+track_secret "USER_SERVICE_TOKEN" gen_token user-service
+track_secret "CART_SERVICE_TOKEN" gen_token cart-service
+track_secret "ORDER_SERVICE_TOKEN" gen_token order-service
+track_secret "PRODUCT_SERVICE_TOKEN" gen_token product-service
+track_secret "WEB_BFF_TOKEN" gen_token web-bff
 
 # =============================================================================
 # Summary
 # =============================================================================
 echo ""
 echo "=============================================="
-echo -e "${GREEN}Setup Complete!${NC}"
+if [ "$FAILED" -gt 0 ]; then
+  echo -e "${RED}Setup Completed with Errors${NC}"
+else
+  echo -e "${GREEN}Setup Complete!${NC}"
+fi
 echo "=============================================="
 echo ""
 
 if [ "$CREATED" -gt 0 ]; then
   echo -e "${YELLOW}$CREATED new secrets were created.${NC}"
+fi
+
+if [ "$FAILED" -gt 0 ]; then
+  echo -e "${RED}$FAILED secrets failed to create.${NC}"
+  echo -e "${YELLOW}Review the output above for details.${NC}"
 fi
 
 echo ""
@@ -214,6 +281,9 @@ echo ""
 echo -e "${BLUE}Organization Secrets (OIDC):${NC}"
 gh secret list --org "$GITHUB_ORG" 2>/dev/null | grep -E "^AZURE" || echo "  (none)"
 echo ""
+echo -e "${BLUE}Organization Variables (Deployment):${NC}"
+gh variable list --org "$GITHUB_ORG" 2>/dev/null | grep -E "^DEPLOY_SUFFIX" || echo "  (none)"
+echo ""
 echo -e "${BLUE}Infrastructure Repo Secrets:${NC}"
 gh secret list --repo "$INFRA_REPO" 2>/dev/null || echo "  (none)"
 echo ""
@@ -222,7 +292,8 @@ echo "Architecture (OIDC):"
 echo ""
 echo "  ┌─────────────────────────────────────────────────────────────┐"
 echo "  │                    ORGANIZATION LEVEL                       │"
-echo "  │  AZURE_CLIENT_ID + TENANT_ID + SUBSCRIPTION_ID              │"
+echo "  │  Secrets: AZURE_CLIENT_ID + TENANT_ID + SUBSCRIPTION_ID     │"
+echo "  │  Variables: DEPLOY_SUFFIX_DEV, DEPLOY_SUFFIX_PROD          │"
 echo "  │                          │                                  │"
 echo "  │           GitHub OIDC Token Exchange (no secrets!)          │"
 echo "  │                          │                                  │"

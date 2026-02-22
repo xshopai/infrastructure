@@ -99,7 +99,7 @@ param tags object
 // Variables
 // =============================================================================
 
-var suffix = split(resourcePrefix, '-')[2]
+var suffix = split(resourcePrefix, '-')[1]
 
 // Service definitions: name, runtime, health path, startup command
 var services = [
@@ -123,7 +123,7 @@ var services = [
 
 // Helper function for service URLs
 var serviceUrlPrefix = 'https://app-'
-var serviceUrlSuffix = '-xshopai-${environment}-${suffix}.azurewebsites.net'
+var serviceUrlSuffix = '-xshopai-${suffix}.azurewebsites.net'
 
 // Build RabbitMQ URL
 var rabbitmqUrl = 'amqp://${rabbitmqUser}:${rabbitmqPassword}@${rabbitmqHost}:5672'
@@ -139,7 +139,7 @@ var reviewMongodbUri = '${cosmosConnectionString}review_service_db?retryWrites=t
 
 // Create all 16 App Services
 resource appServices 'Microsoft.Web/sites@2022-09-01' = [for svc in services: {
-  name: 'app-${svc.name}-xshopai-${environment}-${suffix}'
+  name: 'app-${svc.name}-xshopai-${suffix}'
   location: location
   tags: tags
   kind: 'app,linux'

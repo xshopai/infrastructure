@@ -26,6 +26,12 @@ set -e  # Exit on error
 # ============================================================================
 GITHUB_ORG="xshopai"
 
+# Unset GH_TOKEN if present (can interfere with keyring authentication)
+if [ -n "$GH_TOKEN" ]; then
+    echo "⚠️  Unsetting invalid GH_TOKEN environment variable"
+    unset GH_TOKEN
+fi
+
 echo "============================================"
 echo "GitHub Environments Setup for xshopai"
 echo "============================================"
@@ -85,18 +91,19 @@ for repo in "${REPOS[@]}"; do
     # Check if repo exists
     if ! gh repo view "${GITHUB_ORG}/${repo}" > /dev/null 2>&1; then
         echo "   ⚠️  Repository does not exist - skipping"
-        ((SKIP_COUNT++))
+        SKIP_COUNT=$((SKIP_COUNT + 1))
         echo ""
         continue
     fi
     
     for env in "${ENVIRONMENTS[@]}"; do
-        # Check if environment already exists
-        EXISTING=$(gh api "repos/${GITHUB_ORG}/${repo}/environments/${env}" 2>/dev/null || echo "")
-        
-        if [ -n "$EXISTING" ]; then
+        # Check if environment already exists by testing the exit code
+        if gh api "repos/${GITHUB_ORG}/${repo}/environments/${env}" > /dev/null 2>&1; then
             echo "   ✅ Environment '${env}' already exists"
         else
+            # Disable exit on error for manual error handling
+            set +e
+            
             # Create environment
             # For prod, enable protection rules (wait_timer + reviewers could be added later)
             if [ "$env" == "prod" ]; then
@@ -113,17 +120,101 @@ EOF
                 gh api -X PUT "repos/${GITHUB_ORG}/${repo}/environments/${env}" > /dev/null 2>&1
             fi
             
-            if [ $? -eq 0 ]; then
+            EXIT_CODE=$?
+            set -e  # Re-enable exit on error
+            
+            if [ $EXIT_CODE -eq 0 ]; then
                 echo "   ✅ Created environment '${env}'"
-                ((SUCCESS_COUNT++))
+                SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
             else
                 echo "   ❌ Failed to create environment '${env}'"
-                ((ERROR_COUNT++))
+                ERROR_COUNT=$((ERROR_COUNT + 1))
             fi
         fi
     done
     echo ""
 done
+
+# ============================================================================
+# Configure Production Environment Protection Rules
+# ============================================================================
+
+echo ""
+echo "============================================"
+echo "🔒 Configuring Production Environment Protection"
+echo "============================================"
+echo ""
+
+# Set the required reviewer for prod deployments
+REVIEWER_USERNAME="prasadhonrao"
+
+echo "📋 Configuring approver: $REVIEWER_USERNAME"
+
+# Verify the user exists and get their ID
+REVIEWER_ID=$(gh api "users/${REVIEWER_USERNAME}" --jq '.id' 2>/dev/null || echo "")
+
+if [ -z "$REVIEWER_ID" ]; then
+    echo "⚠️  Could not find GitHub user: $REVIEWER_USERNAME. Skipping protection rule setup."
+    echo "   You can manually configure protection rules in GitHub settings."
+    PROTECTION_SKIPPED=true
+else
+    echo "   Found user: $REVIEWER_USERNAME (ID: $REVIEWER_ID)"
+    echo ""
+    
+    PROTECTION_SUCCESS=0
+    PROTECTION_FAILED=0
+    
+    for repo in "${REPOS[@]}"; do
+        # Check if repo exists
+        if ! gh repo view "${GITHUB_ORG}/${repo}" > /dev/null 2>&1; then
+            continue
+        fi
+        
+        echo "🔒 Configuring protection for: ${GITHUB_ORG}/${repo}/prod"
+        
+        # Check if environment exists first
+        if ! gh api "repos/${GITHUB_ORG}/${repo}/environments/prod" > /dev/null 2>&1; then
+            echo "   ⚠️  Prod environment doesn't exist - skipping"
+            continue
+        fi
+        
+        # Disable exit on error temporarily for proper error handling
+        set +e
+        
+        # Configure prod environment with required reviewers
+        gh api -X PUT "repos/${GITHUB_ORG}/${repo}/environments/prod" \
+            --input - > /dev/null 2>&1 <<EOF
+{
+    "wait_timer": 0,
+    "prevent_self_review": false,
+    "reviewers": [
+        {
+            "type": "User",
+            "id": ${REVIEWER_ID}
+        }
+    ],
+    "deployment_branch_policy": null
+}
+EOF
+        
+        EXIT_CODE=$?
+        set -e  # Re-enable exit on error
+        
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo "   ✅ Protection configured (requires approval from: $REVIEWER_USERNAME)"
+            PROTECTION_SUCCESS=$((PROTECTION_SUCCESS + 1))
+        else
+            echo "   ❌ Failed to configure protection"
+            PROTECTION_FAILED=$((PROTECTION_FAILED + 1))
+        fi
+    done
+    
+    echo ""
+    echo "📊 Protection Rules Summary:"
+    echo "   Configured: ${PROTECTION_SUCCESS}"
+    echo "   Failed: ${PROTECTION_FAILED}"
+    echo ""
+fi
 
 # ============================================================================
 # Summary
@@ -138,6 +229,14 @@ echo "   Repositories processed: ${#REPOS[@]}"
 echo "   Environments created: ${SUCCESS_COUNT}"
 echo "   Skipped (repo not found): ${SKIP_COUNT}"
 echo "   Errors: ${ERROR_COUNT}"
+
+if [ -z "$PROTECTION_SKIPPED" ]; then
+    echo "   Protection rules configured: ${PROTECTION_SUCCESS:-0}"
+    if [ "${PROTECTION_FAILED:-0}" -gt 0 ]; then
+        echo "   Protection rules failed: ${PROTECTION_FAILED}"
+    fi
+fi
+
 echo ""
 
 if [ $ERROR_COUNT -gt 0 ]; then
@@ -151,12 +250,12 @@ echo "============================================"
 echo ""
 echo "Each repository now has 2 environments:"
 echo "   • dev  - Development environment (no protection)"
-echo "   • prod - Production environment (can add manual approval later)"
+echo "   • prod - Production environment (✅ manual approval required)"
 echo ""
 echo "These environments enable:"
 echo "   ✅ Azure OIDC authentication (required!)"
 echo "   ✅ Environment-specific secrets/variables"
-echo "   ✅ Deployment protection rules"
+echo "   ✅ Deployment protection rules (prod requires approval)"
 echo "   ✅ Environment-specific workflows"
 echo ""
 
@@ -186,13 +285,16 @@ echo "🚀 Next Steps"
 echo "============================================"
 echo ""
 echo "1. ✅ GitHub environments created"
-echo "2. ⏭️  Verify OIDC configuration (see above)"
-echo "3. ⏭️  Configure organization secrets if not done yet:"
+echo "2. ✅ Production environment protection configured"
+echo "3. ⏭️  Verify OIDC configuration (see above)"
+echo "4. ⏭️  Configure organization secrets if not done yet:"
 echo "   ./setup-github-secrets.sh"
-echo "4. ⏭️  Deploy platform infrastructure:"
+echo "5. ⏭️  Deploy platform infrastructure:"
 echo "   gh workflow run deploy-platform-infrastructure.yml"
-echo "5. ⏭️  Deploy microservices to each environment"
+echo "6. ⏭️  Deploy microservices to each environment"
 echo ""
-echo "To verify environments were created:"
-echo "   gh api repos/${GITHUB_ORG}/product-service/environments"
+echo "To verify environments and protection rules:"
+echo "   gh api repos/${GITHUB_ORG}/product-service/environments/prod"
+echo ""
+echo "Note: All prod deployments now require approval from: ${REVIEWER_USERNAME:-prasadhonrao}"
 echo ""

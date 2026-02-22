@@ -67,7 +67,7 @@ param rabbitmqUser string = 'admin'
 // Variables
 // =============================================================================
 
-var resourcePrefix = 'xshopai-${environment}-${suffix}'
+var resourcePrefix = 'xshopai-${suffix}'
 var nodeEnv = environment == 'prod' ? 'production' : 'development'
 var aspnetEnv = environment == 'prod' ? 'Production' : 'Development'
 

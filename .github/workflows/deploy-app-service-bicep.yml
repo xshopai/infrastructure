@@ -17,6 +17,10 @@ name: Deploy App Service Infrastructure (Bicep)
 # - AZURE_TENANT_ID: Azure AD tenant ID
 # - AZURE_SUBSCRIPTION_ID: Azure subscription ID
 #
+# REQUIRED GitHub Organization Variables:
+# - DEPLOY_SUFFIX_DEV: Suffix for dev environment (e.g., 'dev', 'as01')
+# - DEPLOY_SUFFIX_PROD: Suffix for prod environment (e.g., 'prod', 'prod01')
+#
 # REQUIRED GitHub Repository Secrets (infrastructure repo only):
 # - POSTGRES_ADMIN_PASSWORD, MYSQL_ADMIN_PASSWORD, SQL_ADMIN_PASSWORD
 # - RABBITMQ_PASSWORD, JWT_SECRET
@@ -27,6 +31,13 @@ name: Deploy App Service Infrastructure (Bicep)
 # =============================================================================
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app-service/bicep/**"
+      - "!.github/workflows/**"
+
   workflow_dispatch:
     inputs:
       environment:
@@ -38,9 +49,9 @@ on:
           - prod
         default: dev
       suffix:
-        description: "Resource suffix (e.g. as01, bicep)"
-        required: true
-        default: "bicep"
+        description: "Resource suffix (leave blank to use org default)"
+        required: false
+        default: ""
       location:
         description: "Azure region"
         required: false
@@ -60,11 +71,11 @@ jobs:
   # Job 1: Validate Bicep Templates
   # ===========================================================================
   validate:
-    name: Validate Bicep (${{ inputs.environment }})
+    name: Validate Bicep (${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }})
     runs-on: ubuntu-latest
 
     environment:
-      name: ${{ inputs.environment }}
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
 
     permissions:
       id-token: write
@@ -90,20 +101,59 @@ jobs:
       - name: Resolve configuration
         id: config
         run: |
-          ENV="${{ inputs.environment }}"
-          SUFFIX="${{ inputs.suffix }}"
-          RESOURCE_GROUP="rg-xshopai-${ENV}-${SUFFIX}"
+          # Determine environment: manual input or default to 'dev' for push events
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ inputs.environment }}"
+            INPUT_SUFFIX="${{ inputs.suffix }}"
+            LOCATION="${{ inputs.location }}"
+          else
+            ENV="dev"
+            INPUT_SUFFIX=""
+            LOCATION="francecentral"
+          fi
+
+          # Resolve suffix priority: manual input > org variable > error
+          if [ -n "$INPUT_SUFFIX" ]; then
+            SUFFIX="$INPUT_SUFFIX"
+            echo "📌 Using manual suffix: $SUFFIX"
+          elif [ "$ENV" = "prod" ]; then
+            SUFFIX="${{ vars.DEPLOY_SUFFIX_PROD }}"
+            echo "📌 Using org prod suffix: $SUFFIX"
+          else
+            SUFFIX="${{ vars.DEPLOY_SUFFIX_DEV }}"
+            echo "📌 Using org dev suffix: $SUFFIX"
+          fi
+
+          if [ -z "$SUFFIX" ]; then
+            echo "::error::No suffix resolved. Set DEPLOY_SUFFIX_DEV / DEPLOY_SUFFIX_PROD org variables or pass the suffix input."
+            exit 1
+          fi
+
+          RESOURCE_GROUP="rg-xshopai-${SUFFIX}"
 
           echo "environment=${ENV}" >> $GITHUB_OUTPUT
           echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
           echo "resource_group=${RESOURCE_GROUP}" >> $GITHUB_OUTPUT
-          echo "location=${{ inputs.location }}" >> $GITHUB_OUTPUT
+          echo "location=${LOCATION}" >> $GITHUB_OUTPUT
 
-          echo "✓ Configuration:"
+          echo ""
+          echo "### Deployment Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment (approval gate) | \`${ENV}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Suffix (azure resources) | \`${SUFFIX}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource Group | \`${RESOURCE_GROUP}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Location | \`${LOCATION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "✓ Configuration resolved:"
           echo "  Environment: ${ENV}"
           echo "  Suffix: ${SUFFIX}"
           echo "  Resource Group: ${RESOURCE_GROUP}"
-          echo "  Location: ${{ inputs.location }}"
+          echo "  Location: ${LOCATION}"
 
       - name: Upgrade Bicep CLI
         run: |
@@ -153,15 +203,16 @@ jobs:
           echo "✓ Validation successful"
 
   # ===========================================================================
-  # Job 2: What-If Analysis
+  # Job 2: What-If Analysis (Manual Dispatch Only)
   # ===========================================================================
   what-if:
-    name: What-If Analysis (${{ inputs.environment }})
+    name: What-If Analysis (${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }})
     runs-on: ubuntu-latest
     needs: validate
+    if: github.event_name == 'workflow_dispatch'
 
     environment:
-      name: ${{ inputs.environment }}
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
 
     permissions:
       id-token: write
@@ -221,13 +272,15 @@ jobs:
   # Job 3: Deploy Infrastructure
   # ===========================================================================
   deploy:
-    name: Deploy Infrastructure (${{ inputs.environment }})
+    name: Deploy Infrastructure (${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }})
     runs-on: ubuntu-latest
-    needs: [validate, what-if]
-    if: ${{ !inputs.what_if_only }}
+    needs: validate
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && !inputs.what_if_only && always() && needs.validate.result == 'success')
 
     environment:
-      name: ${{ inputs.environment }}
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
 
     permissions:
       id-token: write
@@ -295,20 +348,33 @@ jobs:
           echo "**Resource Group:** ${{ needs.validate.outputs.resource_group }}" >> $GITHUB_STEP_SUMMARY
           echo "**Location:** ${{ needs.validate.outputs.location }}" >> $GITHUB_STEP_SUMMARY
           echo "**Deployment:** ${{ steps.deploy.outputs.deployment_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit SHA:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed At:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "[View in Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${{ needs.validate.outputs.resource_group }}/overview)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Tag Azure resources with deployment metadata
+        run: |
+          az tag create --resource-id "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/${{ needs.validate.outputs.resource_group }}" \
+            --tags \
+              deployed-sha="${{ github.sha }}" \
+              deployed-at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+              deployed-by="github-actions" \
+              deployed-workflow="${{ github.workflow }}" \
+              deployed-run-id="${{ github.run_id }}" || true
+          echo "✓ Resource group tagged with deployment metadata"
 
   # ===========================================================================
   # Job 4: Verify Deployment
   # ===========================================================================
   verify:
-    name: Verify Deployment (${{ inputs.environment }})
+    name: Verify Deployment (${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }})
     runs-on: ubuntu-latest
     needs: [validate, deploy]
     if: ${{ !inputs.what_if_only }}
 
     environment:
-      name: ${{ inputs.environment }}
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
 
     permissions:
       id-token: write
