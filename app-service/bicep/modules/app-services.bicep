@@ -199,7 +199,7 @@ resource adminServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     PAYMENT_SERVICE_URL: '${serviceUrlPrefix}payment-service${serviceUrlSuffix}'
     AUDIT_SERVICE_URL: '${serviceUrlPrefix}audit-service${serviceUrlSuffix}'
     NOTIFICATION_SERVICE_URL: '${serviceUrlPrefix}notification-service${serviceUrlSuffix}'
-    USER_SERVICE_TOKEN: adminServiceToken
+    USER_SERVICE_TOKEN: userServiceToken
   }
 }
 
@@ -270,7 +270,7 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_AUDIENCE: jwtAudience
     JWT_EXPIRES_IN: jwtExpiresIn
     USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
-    USER_SERVICE_TOKEN: authServiceToken
+    USER_SERVICE_TOKEN: userServiceToken
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
@@ -279,8 +279,6 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     LOG_LEVEL: 'info'
     LOG_FORMAT: 'json'
     LOG_TO_CONSOLE: 'true'
-  }
-}
   }
 }
 
