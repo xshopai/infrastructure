@@ -350,7 +350,7 @@ resource chatServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
   parent: appServices[5]
   name: 'web'
   properties: {
-    appCommandLine: 'node dist/src/server.js'
+    appCommandLine: 'node dist/server.js'
   }
   dependsOn: [
     chatServiceConfig
