@@ -394,6 +394,9 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     ENABLE_ORYX_BUILD: 'true'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
+    SERVICE_NAME: 'inventory-service'
+    VERSION: '1.0.0'
+    SERVICE_INVOCATION_MODE: 'http'
     FLASK_APP: 'run.py'
     MYSQL_SERVER_CONNECTION: mysqlConnectionString
     DB_NAME: 'inventory_service_db'
