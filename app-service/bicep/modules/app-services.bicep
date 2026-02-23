@@ -264,6 +264,7 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'auth-service'
     VERSION: '1.0.0'
+    SERVICE_INVOCATION_MODE: 'http'
     JWT_SECRET: jwtSecret
     JWT_ALGORITHM: jwtAlgorithm
     JWT_ISSUER: jwtIssuer
