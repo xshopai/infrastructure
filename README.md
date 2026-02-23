@@ -300,7 +300,8 @@ az container show \
   --query "instanceView.state" -o tsv
 ```
 
-**Prevention**: 
+**Prevention**:
+
 - Azure Postgres Flexible Server doesn't auto-start - avoid manually stopping it
 - Use Azure Monitor alerts to notify when services go down
 - Run `ensure-services-running.sh` before deployments
@@ -308,6 +309,7 @@ az container show \
 ### Application Health Check Failing
 
 If App Service shows "unhealthy" in Azure Portal:
+
 1. Check infrastructure services are running (see above)
 2. Verify environment variables are set correctly
 3. Check application logs: `az webapp log tail --name <app-name> --resource-group <rg-name>`

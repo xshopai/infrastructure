@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Azure App Service - Admin UI</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .container {
+        background: white;
+        border-radius: 16px;
+        padding: 48px 32px;
+        max-width: 600px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        text-align: center;
+      }
+      .logo {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 24px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+        color: white;
+      }
+      h1 {
+        color: #1a202c;
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 16px;
+      }
+      .service-name {
+        color: #667eea;
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 24px;
+      }
+      p {
+        color: #4a5568;
+        font-size: 16px;
+        line-height: 1.6;
+        margin-bottom: 16px;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #48bb78;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 24px;
+        font-weight: 600;
+        margin: 24px 0;
+      }
+      .status::before {
+        content: '✓';
+        font-size: 18px;
+      }
+      .info {
+        background: #edf2f7;
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 24px;
+        text-align: left;
+      }
+      .info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #cbd5e0;
+      }
+      .info-item:last-child {
+        border-bottom: none;
+      }
+      .label {
+        color: #718096;
+        font-weight: 600;
+      }
+      .value {
+        color: #2d3748;
+        font-family: 'Courier New', monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="logo">🛡️</div>
+      <h1>Azure App Service</h1>
+      <div class="service-name">Admin UI</div>
+
+      <div class="status">Infrastructure Deployed</div>
+
+      <p>
+        The infrastructure for this service has been successfully deployed. The service is ready to receive application
+        code.
+      </p>
+
+      <div class="info">
+        <div class="info-item">
+          <span class="label">Service</span>
+          <span class="value">admin-ui</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Platform</span>
+          <span class="value">Azure App Service</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Runtime</span>
+          <span class="value">Node.js 24 LTS</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Status</span>
+          <span class="value">Awaiting Deployment</span>
+        </div>
+      </div>
+
+      <p style="margin-top: 24px; font-size: 14px; color: #a0aec0">
+        Deploy your application code to activate this service.
+      </p>
+    </div>
+  </body>
+</html>

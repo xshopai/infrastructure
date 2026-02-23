@@ -467,6 +467,9 @@ resource orderProcessorServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
+    SERVICE_INVOCATION_MODE: 'http'
+    SERVICE_NAME: 'order-processor-service'
+    VERSION: '1.0.0'
     SERVER_PORT: '8080'
     SPRING_DATASOURCE_URL: 'jdbc:postgresql://${postgresHost}:5432/order_processor_db?sslmode=require'
     SPRING_DATASOURCE_USERNAME: postgresAdminUser
