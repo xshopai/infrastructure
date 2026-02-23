@@ -498,6 +498,9 @@ resource orderServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
+    SERVICE_INVOCATION_MODE: 'http'
+    SERVICE_NAME: 'order-service'
+    VERSION: '1.0.0'
     ASPNETCORE_ENVIRONMENT: aspnetEnv
     ASPNETCORE_URLS: 'http://0.0.0.0:8080'
     DATABASE_CONNECTION_STRING: sqlOrderConnectionString
@@ -522,6 +525,9 @@ resource paymentServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
+    SERVICE_INVOCATION_MODE: 'http'
+    SERVICE_NAME: 'payment-service'
+    VERSION: '1.0.0'
     ASPNETCORE_ENVIRONMENT: aspnetEnv
     ASPNETCORE_URLS: 'http://0.0.0.0:8080'
     ConnectionStrings__DefaultConnection: sqlPaymentConnectionString
