@@ -262,6 +262,58 @@ uses: xshopai/infrastructure/.github/workflows/...
 
 ---
 
+## 🔧 Troubleshooting
+
+### Services Not Responding After Deployment
+
+**Problem**: Application services fail to start or show "Application Error"
+
+**Common Cause**: Critical infrastructure services (PostgreSQL, RabbitMQ) may be stopped
+
+**Solution**:
+
+```bash
+# Check and start all infrastructure services
+cd scripts
+chmod +x ensure-services-running.sh
+./ensure-services-running.sh rg-xshopai-development development
+```
+
+Or manually check:
+
+```bash
+# Check PostgreSQL state
+az postgres flexible-server show \
+  --name psql-xshopai-development \
+  --resource-group rg-xshopai-development \
+  --query "state" -o tsv
+
+# Start if stopped
+az postgres flexible-server start \
+  --name psql-xshopai-development \
+  --resource-group rg-xshopai-development
+
+# Check RabbitMQ state
+az container show \
+  --name aci-rabbitmq-development \
+  --resource-group rg-xshopai-development \
+  --query "instanceView.state" -o tsv
+```
+
+**Prevention**: 
+- Azure Postgres Flexible Server doesn't auto-start - avoid manually stopping it
+- Use Azure Monitor alerts to notify when services go down
+- Run `ensure-services-running.sh` before deployments
+
+### Application Health Check Failing
+
+If App Service shows "unhealthy" in Azure Portal:
+1. Check infrastructure services are running (see above)
+2. Verify environment variables are set correctly
+3. Check application logs: `az webapp log tail --name <app-name> --resource-group <rg-name>`
+
+---
+
 ## 🆘 Support
 
 - **Issues**: [GitHub Issues](https://github.com/xshopai/infrastructure/issues)
