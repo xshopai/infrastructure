@@ -183,6 +183,7 @@ resource adminServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'admin-service'
     VERSION: '1.0.0'
+    SERVICE_INVOCATION_MODE: 'http'
     JWT_SECRET: jwtSecret
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
