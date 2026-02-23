@@ -96,7 +96,8 @@ var reviewMongoUri = replace(cosmosConnectionString, '/?', '/review_service_db?'
 // Build database connection strings
 var auditPostgresUrl = 'postgresql://${postgresAdminUser}:${postgresAdminPassword}@${postgresHost}:5432/audit_service_db?sslmode=require'
 var orderProcessorPostgresUrl = 'postgresql://${postgresAdminUser}:${postgresAdminPassword}@${postgresHost}:5432/order_processor_db?sslmode=require'
-var inventoryMysqlConnection = 'Server=${mysqlHost};Database=inventory_service_db;Uid=${mysqlAdminUser};Pwd=${mysqlAdminPassword};SslMode=Required;'
+// SQLAlchemy URL format for Flask app (mysql+pymysql://user:pass@host/db?ssl_mode=REQUIRED)
+var inventoryMysqlConnection = 'mysql+pymysql://${mysqlAdminUser}:${mysqlAdminPassword}@${mysqlHost}/inventory_service_db?ssl_mode=REQUIRED'
 var orderSqlConnection = 'Server=tcp:${sqlHost},1433;Database=order_service_db;User ID=${sqlAdminUser};Password=${sqlAdminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 var paymentSqlConnection = 'Server=tcp:${sqlHost},1433;Database=payment_service_db;User ID=${sqlAdminUser};Password=${sqlAdminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
 var rabbitmqUrl = 'amqp://${rabbitmqUser}:${rabbitmqPassword}@${rabbitmqHost}:5672'
@@ -291,7 +292,7 @@ resource secretUserMongoUri 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
     value: userMongoUri
   }
   tags: {
-    'updated': '2026-02-23-fix-uri-format'
+    updated: '2026-02-23-fix-uri-format'
   }
 }
 
@@ -302,7 +303,7 @@ resource secretProductMongoUri 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = 
     value: productMongoUri
   }
   tags: {
-    'updated': '2026-02-23-fix-uri-format'
+    updated: '2026-02-23-fix-uri-format'
   }
 }
 
@@ -313,7 +314,7 @@ resource secretReviewMongoUri 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
     value: reviewMongoUri
   }
   tags: {
-    'updated': '2026-02-23-fix-uri-format'
+    updated: '2026-02-23-fix-uri-format'
   }
 }
 
