@@ -294,6 +294,9 @@ resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
+    SERVICE_NAME: 'cart-service'
+    VERSION: '1.0.0'
+    SERVICE_INVOCATION_MODE: 'http'
     QUARKUS_HTTP_PORT: '8080'
     REDIS_HOST: redisHost
     REDIS_PORT: '6380'
