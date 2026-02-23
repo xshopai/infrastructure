@@ -213,16 +213,26 @@ resource adminUiConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-    ENABLE_ORYX_BUILD: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
     BFF_URL: '${serviceUrlPrefix}web-bff${serviceUrlSuffix}'
+    WEBSITE_RUN_FROM_PACKAGE: '1'
   }
 }
 
-// Note: startup command will be set during deployment, not during infra provisioning
+// Set admin-ui startup command to serve static files
+resource adminUiStartup 'Microsoft.Web/sites/config@2022-09-01' = {
+  parent: appServices[1]
+  name: 'web'
+  properties: {
+    appCommandLine: 'npx serve -s . -l 8080'
+  }
+  dependsOn: [
+    adminUiConfig
+  ]
+}
 
 // 3. audit-service
 resource auditServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
@@ -375,16 +385,26 @@ resource customerUiConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-    ENABLE_ORYX_BUILD: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
     BFF_URL: '${serviceUrlPrefix}web-bff${serviceUrlSuffix}'
+    WEBSITE_RUN_FROM_PACKAGE: '1'
   }
 }
 
-// Note: startup command will be set during deployment, not during infra provisioning
+// Set customer-ui startup command to serve static files
+resource customerUiStartup 'Microsoft.Web/sites/config@2022-09-01' = {
+  parent: appServices[6]
+  name: 'web'
+  properties: {
+    appCommandLine: 'npx serve -s . -l 8080'
+  }
+  dependsOn: [
+    customerUiConfig
+  ]
+}
 
 // 8. inventory-service
 resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
