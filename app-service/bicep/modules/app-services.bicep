@@ -597,6 +597,7 @@ resource userServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'user-service'
     VERSION: '1.0.0'
+    SERVICE_INVOCATION_MODE: 'http'
     MONGODB_URI: userMongodbUri
     MONGODB_DB_NAME: 'user_service_db'
     JWT_SECRET: jwtSecret
