@@ -540,6 +540,7 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NAME: 'product-service'
     API_VERSION: '1.0.0'
+    SERVICE_INVOCATION_MODE: 'http'
     MONGODB_URI: productMongodbUri
     MONGODB_DB_NAME: 'product_service_db'
     RABBITMQ_URL: rabbitmqUrl
