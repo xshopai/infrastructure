@@ -445,16 +445,8 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-resource inventoryServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
-  parent: appServices[7]
-  name: 'web'
-  properties: {
-    appCommandLine: 'gunicorn --bind=0.0.0.0:8080 --workers=2 --timeout=600 run:app'
-  }
-  dependsOn: [
-    inventoryServiceConfig
-  ]
-}
+// NOTE: Startup command for inventory-service is set by service deployment workflow
+// to avoid errors when infra runs before code is deployed
 
 // 9. notification-service
 resource notificationServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
@@ -604,16 +596,8 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-resource productServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
-  parent: appServices[12]
-  name: 'web'
-  properties: {
-    appCommandLine: 'gunicorn -k uvicorn.workers.UvicornWorker --bind=0.0.0.0:8080 --workers=2 --timeout=600 main:app'
-  }
-  dependsOn: [
-    productServiceConfig
-  ]
-}
+// NOTE: Startup command for product-service is set by service deployment workflow
+// to avoid errors when infra runs before code is deployed
 
 // 14. review-service
 resource reviewServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
