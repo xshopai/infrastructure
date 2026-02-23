@@ -35,6 +35,9 @@ param skuTier string = 'Burstable'
 @description('Storage size in GB')
 param storageSizeGB int = 32
 
+@description('Availability zone for the server (prevents auto-pause)')
+param availabilityZone string = '1'
+
 // =============================================================================
 // Variables
 // =============================================================================
@@ -44,6 +47,20 @@ var databases = [
   'audit_service_db'
   'order_processor_db'
 ]
+
+// =============================================================================
+// IMPORTANT: Auto-Pause Behavior
+// =============================================================================
+// Burstable tier (B-series) has auto-pause enabled by default to save costs.
+// Server pauses after 1 hour of inactivity and resumes on next connection.
+// 
+// To DISABLE auto-pause, you have two options:
+// 1. Set availabilityZone (deployed to specific zone, prevents auto-pause)
+// 2. Upgrade to GeneralPurpose tier (significantly more expensive)
+//
+// Current config: Using availabilityZone='1' to prevent auto-pause while
+// keeping cost-effective Burstable tier.
+// =============================================================================
 
 // =============================================================================
 // Resources
@@ -71,6 +88,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-pr
     highAvailability: {
       mode: 'Disabled'
     }
+    availabilityZone: availabilityZone
   }
 }
 
