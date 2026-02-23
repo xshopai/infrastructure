@@ -11,9 +11,6 @@ param location string
 @description('Resource naming prefix (xshopai-{env}-{suffix})')
 param resourcePrefix string
 
-@description('Environment (dev, prod) - determines SKU tier')
-param environment string = 'dev'
-
 @description('Administrator username')
 param adminUser string
 
