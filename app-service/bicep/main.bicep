@@ -129,7 +129,6 @@ module postgresql './modules/postgresql.bicep' = {
   params: {
     location: location
     resourcePrefix: resourcePrefix
-    environment: environment
     adminUser: postgresAdminUser
     adminPassword: postgresAdminPassword
     tags: tags
