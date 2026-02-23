@@ -130,10 +130,12 @@ var serviceUrlSuffix = '-xshopai-${suffix}.azurewebsites.net'
 // Build RabbitMQ URL
 var rabbitmqUrl = 'amqp://${rabbitmqUser}:${rabbitmqPassword}@${rabbitmqHost}:5672'
 
-// Build MongoDB URIs
-var userMongodbUri = '${cosmosConnectionString}user_service_db?retryWrites=true&w=majority'
-var productMongodbUri = '${cosmosConnectionString}product_service_db?retryWrites=true&w=majority'
-var reviewMongodbUri = '${cosmosConnectionString}review_service_db?retryWrites=true&w=majority'
+// Build MongoDB URIs - use replace() to insert database name in correct position
+// Cosmos connection string format: mongodb://...@host:10255/?ssl=true&...
+// Need to insert database name between port and query params: /database_name?
+var userMongodbUri = replace(cosmosConnectionString, '/?', '/user_service_db?')
+var productMongodbUri = replace(cosmosConnectionString, '/?', '/product_service_db?')
+var reviewMongodbUri = replace(cosmosConnectionString, '/?', '/review_service_db?')
 
 // =============================================================================
 // App Services
