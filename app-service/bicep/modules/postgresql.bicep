@@ -11,6 +11,9 @@ param location string
 @description('Resource naming prefix (xshopai-{env}-{suffix})')
 param resourcePrefix string
 
+@description('Environment (dev, prod) - determines SKU tier')
+param environment string = 'dev'
+
 @description('Administrator username')
 param adminUser string
 
@@ -25,15 +28,21 @@ param tags object
 @allowed(['11', '12', '13', '14', '15', '16'])
 param serverVersion string = '15'
 
-@description('Compute SKU')
-param skuName string = 'Standard_B1ms'
+// =============================================================================
+// Environment-based SKU Configuration
+// =============================================================================
+// Dev/Test: Burstable tier (cost-optimized)
+// Prod: General Purpose tier (production-grade performance and reliability)
 
-@description('Compute tier')
-@allowed(['Burstable', 'GeneralPurpose', 'MemoryOptimized'])
-param skuTier string = 'Burstable'
-
-@description('Storage size in GB')
-param storageSizeGB int = 32
+var skuConfig = environment == 'prod' ? {
+  name: 'Standard_D2ds_v4'
+  tier: 'GeneralPurpose'
+  storageSizeGB: 128
+} : {
+  name: 'Standard_B1ms'
+  tier: 'Burstable'
+  storageSizeGB: 32
+}
 
 @description('Availability zone for the server (prevents auto-pause)')
 param availabilityZone string = '1'
@@ -71,15 +80,15 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-pr
   location: location
   tags: tags
   sku: {
-    name: skuName
-    tier: skuTier
+    name: skuConfig.name
+    tier: skuConfig.tier
   }
   properties: {
     administratorLogin: adminUser
     administratorLoginPassword: adminPassword
     version: serverVersion
     storage: {
-      storageSizeGB: storageSizeGB
+      storageSizeGB: skuConfig.storageSizeGB
     }
     backup: {
       backupRetentionDays: 7
