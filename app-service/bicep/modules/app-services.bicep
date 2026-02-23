@@ -114,7 +114,7 @@ var services = [
   { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health' }
   { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live' }
   { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'order-processor-service', runtime: 'JAVA|17-java17', health: '/health/live' }
+  { name: 'order-processor-service', runtime: 'JAVA|17-java17', health: '/actuator/health' }
   { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live' }
   { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live' }
   { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live' }
