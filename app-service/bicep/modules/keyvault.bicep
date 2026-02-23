@@ -88,9 +88,10 @@ param keyVaultAdminObjectId string = ''
 var keyVaultName = 'kv-${resourcePrefix}'
 
 // Build database connection strings from Cosmos
-var userMongoUri = '${cosmosConnectionString}user_service_db?retryWrites=true&w=majority'
-var productMongoUri = '${cosmosConnectionString}product_service_db?retryWrites=true&w=majority'
-var reviewMongoUri = '${cosmosConnectionString}review_service_db?retryWrites=true&w=majority'
+// Replace /? with /database_name? to insert database name in the correct position
+var userMongoUri = replace(cosmosConnectionString, '/?', '/user_service_db?')
+var productMongoUri = replace(cosmosConnectionString, '/?', '/product_service_db?')
+var reviewMongoUri = replace(cosmosConnectionString, '/?', '/review_service_db?')
 
 // Build database connection strings
 var auditPostgresUrl = 'postgresql://${postgresAdminUser}:${postgresAdminPassword}@${postgresHost}:5432/audit_service_db?sslmode=require'
