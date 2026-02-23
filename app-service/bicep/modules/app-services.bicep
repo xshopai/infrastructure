@@ -568,6 +568,7 @@ resource reviewServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'review-service'
     VERSION: '1.0.0'
+    SERVICE_INVOCATION_MODE: 'http'
     MONGODB_URI: reviewMongodbUri
     MONGODB_DB_NAME: 'review_service_db'
     JWT_SECRET: jwtSecret
