@@ -287,19 +287,34 @@ resource secretAppInsightsKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
 resource secretUserMongoUri 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'user-service-mongodb-uri'
-  properties: { value: userMongoUri }
+  properties: { 
+    value: userMongoUri
+  }
+  tags: {
+    'updated': '2026-02-23-fix-uri-format'
+  }
 }
 
 resource secretProductMongoUri 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'product-service-mongodb-uri'
-  properties: { value: productMongoUri }
+  properties: { 
+    value: productMongoUri
+  }
+  tags: {
+    'updated': '2026-02-23-fix-uri-format'
+  }
 }
 
 resource secretReviewMongoUri 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'review-service-mongodb-uri'
-  properties: { value: reviewMongoUri }
+  properties: { 
+    value: reviewMongoUri
+  }
+  tags: {
+    'updated': '2026-02-23-fix-uri-format'
+  }
 }
 
 resource secretAuditPostgresUrl 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
