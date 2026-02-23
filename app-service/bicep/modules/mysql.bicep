@@ -103,5 +103,6 @@ output mysqlServerId string = mysqlServer.id
 output mysqlServerName string = mysqlServer.name
 output mysqlHost string = mysqlServer.properties.fullyQualifiedDomainName
 output mysqlDatabaseName string = databaseName
+// SQLAlchemy URL format for Flask/Python apps (mysql+pymysql://user:pass@host/db?ssl_mode=REQUIRED)
 #disable-next-line outputs-should-not-contain-secrets
-output mysqlConnectionString string = 'Server=${mysqlServer.properties.fullyQualifiedDomainName};Database=${databaseName};Uid=${adminUser};Pwd=${adminPassword};SslMode=Required;'
+output mysqlConnectionString string = 'mysql+pymysql://${adminUser}:${adminPassword}@${mysqlServer.properties.fullyQualifiedDomainName}/${databaseName}?ssl_mode=REQUIRED'
