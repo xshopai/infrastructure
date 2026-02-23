@@ -321,14 +321,33 @@ resource chatServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
+    SERVICE_NAME: 'chat-service'
+    VERSION: '1.0.0'
     AZURE_OPENAI_ENDPOINT: openaiEndpoint
     AZURE_OPENAI_DEPLOYMENT_NAME: openaiDeployment
     AZURE_OPENAI_API_VERSION: '2024-10-21'
     AZURE_USE_MANAGED_IDENTITY: 'true'
-    MESSAGING_PROVIDER: 'rabbitmq'
+    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
+    ORDER_SERVICE_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'chat-service'
+    LOG_LEVEL: 'info'
+    LOG_FORMAT: 'json'
+    LOG_TO_CONSOLE: 'true'
+    WEBSITE_RUN_FROM_PACKAGE: '1'
   }
+}
+
+// Set chat-service startup command
+resource chatServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
+  parent: appServices[5]
+  name: 'web'
+  properties: {
+    appCommandLine: 'node dist/src/server.js'
+  }
+  dependsOn: [
+    chatServiceConfig
+  ]
 }
 
 // Grant chat-service Managed Identity access to Azure OpenAI
