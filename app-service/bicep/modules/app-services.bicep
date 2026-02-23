@@ -230,8 +230,7 @@ resource auditServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-    ENABLE_ORYX_BUILD: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
