@@ -29,19 +29,15 @@ param tags object
 param serverVersion string = '15'
 
 // =============================================================================
-// Environment-based SKU Configuration
+// SKU Configuration - Production Level
 // =============================================================================
-// Dev/Test: Burstable tier (cost-optimized)
-// Prod: General Purpose tier (production-grade performance and reliability)
+// Using GeneralPurpose tier for all environments (no auto-pause, production-grade)
+// D2ds_v4: 2 vCores, 8 GB RAM - suitable for production workloads
 
-var skuConfig = environment == 'prod' ? {
+var skuConfig = {
   name: 'Standard_D2ds_v4'
   tier: 'GeneralPurpose'
   storageSizeGB: 128
-} : {
-  name: 'Standard_B1ms'
-  tier: 'Burstable'
-  storageSizeGB: 32
 }
 
 @description('Availability zone for the server (prevents auto-pause)')

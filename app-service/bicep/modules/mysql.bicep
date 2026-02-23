@@ -25,15 +25,15 @@ param tags object
 @allowed(['5.7', '8.0.21'])
 param serverVersion string = '8.0.21'
 
-@description('Compute SKU')
-param skuName string = 'Standard_B1ms'
+@description('Compute SKU - Production Level')
+param skuName string = 'Standard_D2ds_v4'
 
 @description('Compute tier')
 @allowed(['Burstable', 'GeneralPurpose', 'MemoryOptimized'])
-param skuTier string = 'Burstable'
+param skuTier string = 'GeneralPurpose'
 
 @description('Storage size in GB')
-param storageSizeGB int = 32
+param storageSizeGB int = 128
 
 // =============================================================================
 // Variables

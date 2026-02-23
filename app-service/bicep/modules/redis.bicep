@@ -13,13 +13,13 @@ param resourcePrefix string
 @description('Resource tags')
 param tags object
 
-@description('Redis SKU')
+@description('Redis SKU - Production Level')
 @allowed(['Basic', 'Standard', 'Premium'])
-param sku string = 'Basic'
+param sku string = 'Standard'
 
 @description('Redis cache size (C0-C6 for Basic/Standard)')
 @allowed(['C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6'])
-param vmSize string = 'C0'
+param vmSize string = 'C1'
 
 // =============================================================================
 // Variables

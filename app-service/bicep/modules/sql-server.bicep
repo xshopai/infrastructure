@@ -78,7 +78,7 @@ resource sqlDatabases 'Microsoft.Sql/servers/databases@2023-05-01-preview' = [fo
     catalogCollation: 'SQL_Latin1_General_CP1_CI_AS'
     zoneRedundant: false
     readScale: 'Disabled'
-    autoPauseDelay: 60 // Auto-pause after 60 minutes
+    autoPauseDelay: -1 // Disabled - always on for production
     minCapacity: 1
     requestedBackupStorageRedundancy: 'Local'
   }
