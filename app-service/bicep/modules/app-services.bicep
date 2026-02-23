@@ -237,6 +237,7 @@ resource auditServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'audit-service'
     VERSION: '1.0.0'
+    SERVICE_INVOCATION_MODE: 'http'
     POSTGRES_HOST: postgresHost
     POSTGRES_PORT: '5432'
     POSTGRES_DB: 'audit_service_db'
