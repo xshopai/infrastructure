@@ -109,7 +109,7 @@ var services = [
   { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health' }
   { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live' }
   { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'cart-service', runtime: 'JAVA|17-java17', health: '/health/live' }
+  { name: 'cart-service', runtime: 'JAVA|21-java21', health: '/health/live' }
   { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live' }
   { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health' }
   { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live' }
