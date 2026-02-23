@@ -230,10 +230,13 @@ resource auditServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    ENABLE_ORYX_BUILD: 'true'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NODE_ENV: nodeEnv
+    SERVICE_NAME: 'audit-service'
+    VERSION: '1.0.0'
     POSTGRES_HOST: postgresHost
     POSTGRES_PORT: '5432'
     POSTGRES_DB: 'audit_service_db'
