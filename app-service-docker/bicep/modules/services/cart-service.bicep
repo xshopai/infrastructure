@@ -54,7 +54,7 @@ resource cartService 'Microsoft.Web/sites@2023-01-01' = {
       http20Enabled: true
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
-      healthCheckPath: '/health'
+      healthCheckPath: '/health/live'
       appSettings: [
         // Common settings
         { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
