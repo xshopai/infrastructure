@@ -702,7 +702,7 @@ resource webBffConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_SECRET: jwtSecret
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
-    ALLOWED_ORIGINS: '${serviceUrlPrefix}customer-ui${serviceUrlSuffix}'
+    ALLOWED_ORIGINS: '${serviceUrlPrefix}customer-ui${serviceUrlSuffix},${serviceUrlPrefix}admin-ui${serviceUrlSuffix}'
     AUTH_SERVICE_URL: '${serviceUrlPrefix}auth-service${serviceUrlSuffix}'
     USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
     PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
