@@ -109,7 +109,7 @@ var services = [
   { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health' }
   { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live' }
   { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'cart-service', runtime: 'JAVA|21-java21', health: '/health/live' }
+  { name: 'cart-service', runtime: 'NODE|24-lts', health: '/health' }
   { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live' }
   { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health' }
   { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live' }
@@ -296,30 +296,31 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-// 5. cart-service (Quarkus)
+// 5. cart-service (Node.js/TypeScript)
 resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   parent: appServices[4]
   name: 'appsettings'
   properties: {
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
-    ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
     SERVICE_NAME: 'cart-service'
-    VERSION: '1.0.0'
+    SERVICE_VERSION: '1.0.0'
     SERVICE_INVOCATION_MODE: 'http'
-    // Quarkus-specific settings
-    QUARKUS_HTTP_PORT: '8080'
-    QUARKUS_HTTP_HOST: '0.0.0.0'
+    // Node.js settings
+    PORT: '8080'
+    HOST: '0.0.0.0'
+    NODE_ENV: nodeEnv
     // Redis configuration (Azure Redis uses SSL on port 6380)
-    QUARKUS_REDIS_HOSTS: 'rediss://:${redisKey}@${redisHost}:6380'
+    REDIS_URL: 'rediss://${redisHost}:6380'
     REDIS_HOST: redisHost
     REDIS_PORT: '6380'
     REDIS_PASSWORD: redisKey
-    CART_STORAGE_PROVIDER: 'redis'
+    REDIS_TLS: 'true'
     // Messaging configuration
     MESSAGING_PROVIDER: 'rabbitmq'
+    RABBITMQ_URL: 'amqp://${rabbitmqUser}:${rabbitmqPassword}@${rabbitmqHost}:5672'
     RABBITMQ_HOST: rabbitmqHost
     RABBITMQ_PORT: '5672'
     RABBITMQ_USERNAME: rabbitmqUser
@@ -329,25 +330,21 @@ resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_SECRET: jwtSecret
     SERVICE_TOKEN: cartServiceToken
     SERVICE_TOKEN_ENABLED: 'true'
-    // Service URLs
-    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
-    INVENTORY_SERVICE_URL: '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
+    // CORS
+    CORS_ALLOWED_ORIGINS: '*'
     // Telemetry
-    QUARKUS_OTEL_ENABLED: 'false'
     OTEL_SERVICE_NAME: 'cart-service'
+    ENABLE_TRACING: 'true'
+    // Cart-specific settings
+    CART_TTL_DAYS: '30'
+    GUEST_CART_TTL_DAYS: '7'
+    CART_MAX_ITEMS: '50'
+    CART_MAX_ITEM_QUANTITY: '99'
+    // Logging
+    LOG_LEVEL: environment == 'production' ? 'info' : 'debug'
+    LOG_FORMAT: 'json'
+    LOG_TO_CONSOLE: 'true'
   }
-}
-
-// Set cart-service startup command for Quarkus fast-jar
-resource cartServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
-  parent: appServices[4]
-  name: 'web'
-  properties: {
-    appCommandLine: 'java -Dquarkus.http.host=0.0.0.0 -Dquarkus.http.port=8080 -jar quarkus-run.jar'
-  }
-  dependsOn: [
-    cartServiceConfig
-  ]
 }
 
 // 6. chat-service

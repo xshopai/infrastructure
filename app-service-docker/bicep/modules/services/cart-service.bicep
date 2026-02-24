@@ -1,6 +1,6 @@
 // Cart Service - Shopping cart management
 // Database: Redis (in-memory state store)
-// Runtime: Java 21 (Quarkus)
+// Runtime: Node.js 20 (TypeScript/Express)
 
 @description('Azure region')
 param location string
@@ -34,7 +34,7 @@ param tags object
 
 // Service-specific configuration
 var serviceName = 'cart-service'
-var port = 8080
+var port = 8008
 
 resource cartService 'Microsoft.Web/sites@2023-01-01' = {
   name: 'app-${serviceName}-${shortEnv}'
@@ -54,7 +54,7 @@ resource cartService 'Microsoft.Web/sites@2023-01-01' = {
       http20Enabled: true
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
-      healthCheckPath: '/health/live'
+      healthCheckPath: '/health'
       appSettings: [
         // Common settings
         { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
@@ -63,21 +63,26 @@ resource cartService 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'ENVIRONMENT', value: environment }
         { name: 'SERVICE_NAME', value: serviceName }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: 'InstrumentationKey=${applicationInsightsKey}' }
-        { name: 'ApplicationInsightsAgent_EXTENSION_VERSION', value: '~3' }
         
-        // Quarkus settings
-        { name: 'QUARKUS_HTTP_PORT', value: string(port) }
-        { name: 'QUARKUS_HTTP_HOST', value: '0.0.0.0' }
+        // Node.js settings
+        { name: 'PORT', value: string(port) }
+        { name: 'HOST', value: '0.0.0.0' }
+        { name: 'NODE_ENV', value: environment == 'production' ? 'production' : 'development' }
+        { name: 'SERVICE_VERSION', value: '1.0.0' }
+        
+        // Service Invocation Mode (http for Azure without Dapr)
+        { name: 'SERVICE_INVOCATION_MODE', value: 'http' }
         
         // Redis configuration (Azure Redis uses SSL on port 6380)
-        { name: 'QUARKUS_REDIS_HOSTS', value: 'rediss://:@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/redis-key/)@${redisHost}:6380' }
+        { name: 'REDIS_URL', value: 'rediss://${redisHost}:6380' }
         { name: 'REDIS_HOST', value: redisHost }
         { name: 'REDIS_PORT', value: '6380' }
         { name: 'REDIS_PASSWORD', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/redis-key/)' }
-        { name: 'CART_STORAGE_PROVIDER', value: 'redis' }
+        { name: 'REDIS_TLS', value: 'true' }
         
         // Messaging configuration
         { name: 'MESSAGING_PROVIDER', value: 'rabbitmq' }
+        { name: 'RABBITMQ_URL', value: 'amqp://${rabbitMQHost}:5672' }
         { name: 'RABBITMQ_HOST', value: rabbitMQHost }
         { name: 'RABBITMQ_PORT', value: '5672' }
         { name: 'RABBITMQ_USERNAME', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/rabbitmq-user/)' }
@@ -91,18 +96,23 @@ resource cartService 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'SERVICE_TOKEN', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/cart-service-token/)' }
         { name: 'SERVICE_TOKEN_ENABLED', value: 'true' }
         
-        // Service URLs
-        { name: 'PRODUCT_SERVICE_URL', value: 'https://app-product-service-${shortEnv}.azurewebsites.net' }
-        { name: 'INVENTORY_SERVICE_URL', value: 'https://app-inventory-service-${shortEnv}.azurewebsites.net' }
+        // CORS configuration
+        { name: 'CORS_ALLOWED_ORIGINS', value: '*' }
         
         // Telemetry
-        { name: 'QUARKUS_OTEL_ENABLED', value: 'false' }
+        { name: 'OTEL_TRACES_EXPORTER', value: 'azure' }
         { name: 'OTEL_SERVICE_NAME', value: serviceName }
+        { name: 'ENABLE_TRACING', value: 'true' }
         
         // Cart-specific settings
-        { name: 'CART_DEFAULT_TTL', value: '720h' }
-        { name: 'CART_GUEST_TTL', value: '72h' }
-        { name: 'CART_MAX_ITEMS', value: '100' }
+        { name: 'CART_TTL_DAYS', value: '30' }
+        { name: 'GUEST_CART_TTL_DAYS', value: '7' }
+        { name: 'CART_MAX_ITEMS', value: '50' }
+        { name: 'CART_MAX_ITEM_QUANTITY', value: '99' }
+        
+        // Logging
+        { name: 'LOG_LEVEL', value: environment == 'production' ? 'info' : 'debug' }
+        { name: 'LOG_FORMAT', value: 'json' }
       ]
     }
   }
