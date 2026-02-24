@@ -1,6 +1,6 @@
 // Cart Service - Shopping cart management
-// Database: SQL Server
-// Runtime: Java (Spring Boot)
+// Database: Redis (in-memory state store)
+// Runtime: Java 21 (Quarkus)
 
 @description('Azure region')
 param location string
@@ -23,9 +23,6 @@ param keyVaultName string
 @description('Application Insights instrumentation key')
 param applicationInsightsKey string
 
-@description('SQL Server host')
-param sqlServerHost string
-
 @description('Redis host')
 param redisHost string
 
@@ -37,13 +34,12 @@ param tags object
 
 // Service-specific configuration
 var serviceName = 'cart-service'
-var port = 8004
-var dbName = 'cart-db'
+var port = 8080
 
 resource cartService 'Microsoft.Web/sites@2023-01-01' = {
   name: 'app-${serviceName}-${shortEnv}'
   location: location
-  tags: union(tags, { Service: serviceName, Database: 'sqlserver' })
+  tags: union(tags, { Service: serviceName, Database: 'redis' })
   kind: 'app,linux,container'
   identity: {
     type: 'SystemAssigned'
@@ -58,39 +54,55 @@ resource cartService 'Microsoft.Web/sites@2023-01-01' = {
       http20Enabled: true
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
+      healthCheckPath: '/health/live'
       appSettings: [
         // Common settings
         { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
         { name: 'DOCKER_REGISTRY_SERVER_URL', value: 'https://${acrLoginServer}' }
         { name: 'DOCKER_ENABLE_CI', value: 'true' }
         { name: 'ENVIRONMENT', value: environment }
-        { name: 'SPRING_PROFILES_ACTIVE', value: environment == 'production' ? 'prod' : 'dev' }
-        { name: 'SERVER_PORT', value: string(port) }
         { name: 'SERVICE_NAME', value: serviceName }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: 'InstrumentationKey=${applicationInsightsKey}' }
+        { name: 'ApplicationInsightsAgent_EXTENSION_VERSION', value: '~3' }
         
-        // SQL Server settings (Spring format)
-        { name: 'SPRING_DATASOURCE_URL', value: 'jdbc:sqlserver://${sqlServerHost}:1433;database=${dbName};encrypt=true;trustServerCertificate=false' }
-        { name: 'SPRING_DATASOURCE_USERNAME', value: 'xshopadmin' }
-        { name: 'SPRING_DATASOURCE_PASSWORD', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/sqlserver-password/)' }
-        { name: 'SPRING_DATASOURCE_DRIVER_CLASS_NAME', value: 'com.microsoft.sqlserver.jdbc.SQLServerDriver' }
-        { name: 'SPRING_JPA_DATABASE_PLATFORM', value: 'org.hibernate.dialect.SQLServerDialect' }
+        // Quarkus settings
+        { name: 'QUARKUS_HTTP_PORT', value: string(port) }
+        { name: 'QUARKUS_HTTP_HOST', value: '0.0.0.0' }
         
-        // Messaging (Spring format)
-        { name: 'SPRING_RABBITMQ_HOST', value: rabbitMQHost }
-        { name: 'SPRING_RABBITMQ_PORT', value: '5672' }
-        { name: 'SPRING_DATA_REDIS_HOST', value: redisHost }
-        { name: 'SPRING_DATA_REDIS_PORT', value: '6380' }
-        { name: 'SPRING_DATA_REDIS_SSL_ENABLED', value: 'true' }
+        // Redis configuration (Azure Redis uses SSL on port 6380)
+        { name: 'QUARKUS_REDIS_HOSTS', value: 'rediss://:@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/redis-key/)@${redisHost}:6380' }
+        { name: 'REDIS_HOST', value: redisHost }
+        { name: 'REDIS_PORT', value: '6380' }
+        { name: 'REDIS_PASSWORD', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/redis-key/)' }
+        { name: 'CART_STORAGE_PROVIDER', value: 'redis' }
         
-        // JWT
-        { name: 'JWT_PUBLIC_KEY', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/jwt-public-key/)' }
-        { name: 'JWT_ALGORITHM', value: 'RS256' }
+        // Messaging configuration
+        { name: 'MESSAGING_PROVIDER', value: 'rabbitmq' }
+        { name: 'RABBITMQ_HOST', value: rabbitMQHost }
+        { name: 'RABBITMQ_PORT', value: '5672' }
+        { name: 'RABBITMQ_USERNAME', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/rabbitmq-user/)' }
+        { name: 'RABBITMQ_PASSWORD', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/rabbitmq-password/)' }
+        { name: 'RABBITMQ_EXCHANGE', value: 'xshopai.events' }
+        
+        // JWT Authentication (HS256)
+        { name: 'JWT_SECRET', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/jwt-secret/)' }
+        
+        // Service tokens
+        { name: 'SERVICE_TOKEN', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/cart-service-token/)' }
+        { name: 'SERVICE_TOKEN_ENABLED', value: 'true' }
+        
+        // Service URLs
+        { name: 'PRODUCT_SERVICE_URL', value: 'https://app-product-service-${shortEnv}.azurewebsites.net' }
+        { name: 'INVENTORY_SERVICE_URL', value: 'https://app-inventory-service-${shortEnv}.azurewebsites.net' }
+        
+        // Telemetry
+        { name: 'QUARKUS_OTEL_ENABLED', value: 'false' }
+        { name: 'OTEL_SERVICE_NAME', value: serviceName }
         
         // Cart-specific settings
-        { name: 'CART_EXPIRATION_HOURS', value: '72' }
+        { name: 'CART_DEFAULT_TTL', value: '720h' }
+        { name: 'CART_GUEST_TTL', value: '72h' }
         { name: 'CART_MAX_ITEMS', value: '100' }
-        { name: 'CART_SESSION_ENABLED', value: 'true' }
       ]
     }
   }

@@ -352,7 +352,7 @@ module adminServiceModule './modules/services/admin-service.bicep' = {
   dependsOn: [mysql, redis, rabbitmq]
 }
 
-// ---------- SQL Server Services ----------
+// ---------- Redis Services ----------
 
 module cartService './modules/services/cart-service.bicep' = {
   name: 'cart-service-deployment'
@@ -366,12 +366,13 @@ module cartService './modules/services/cart-service.bicep' = {
     keyVaultName: keyVault.outputs.keyVaultName
     applicationInsightsKey: monitoring.outputs.instrumentationKey
     tags: tags
-    sqlServerHost: sqlserver.outputs.sqlServerHost
     redisHost: redis.outputs.redisHost
     rabbitMQHost: rabbitmq.outputs.rabbitMQHost
   }
-  dependsOn: [sqlserver, redis, rabbitmq]
+  dependsOn: [redis, rabbitmq]
 }
+
+// ---------- SQL Server Services ----------
 
 module paymentService './modules/services/payment-service.bicep' = {
   name: 'payment-service-deployment'

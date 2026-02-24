@@ -885,12 +885,12 @@ jobs:
             "admin-ui NODE:24-lts /health"
             "audit-service NODE:24-lts /health/live"
             "auth-service NODE:24-lts /health/live"
-            "cart-service JAVA:17-java17 /health/live"
+            "cart-service JAVA:21-java21 /health/live"
             "chat-service NODE:24-lts /health/live"
             "customer-ui NODE:24-lts /health"
             "inventory-service PYTHON:3.11 /health/live"
             "notification-service NODE:24-lts /health/live"
-            "order-processor-service JAVA:17-java17 /health/live"
+            "order-processor-service JAVA:21-java21 /health/live"
             "order-service DOTNETCORE:8.0 /health/live"
             "payment-service DOTNETCORE:8.0 /health/live"
             "product-service PYTHON:3.11 /health/live"
@@ -1025,7 +1025,7 @@ jobs:
             "LOG_FORMAT=json" \
             "LOG_TO_CONSOLE=true"
 
-          # ---- 5. cart-service ----
+          # ---- 5. cart-service (Quarkus) ----
           configure "app-cart-service-xshopai-${ENV}-${SUFFIX}" \
             "PORT=8080" \
             "ENVIRONMENT=$ENV" \
@@ -1034,10 +1034,13 @@ jobs:
             "APPINSIGHTS_INSTRUMENTATIONKEY=$APPINSIGHTS_KEY" \
             "ApplicationInsightsAgent_EXTENSION_VERSION=~3" \
             "QUARKUS_HTTP_PORT=8080" \
+            "QUARKUS_HTTP_HOST=0.0.0.0" \
             "QUARKUS_REDIS_HOSTS=rediss://:${REDIS_KEY}@${REDIS_HOST}:6380" \
             "REDIS_HOST=$REDIS_HOST" \
             "REDIS_PORT=6380" \
             "REDIS_PASSWORD=$REDIS_KEY" \
+            "CART_STORAGE_PROVIDER=redis" \
+            "MESSAGING_PROVIDER=rabbitmq" \
             "RABBITMQ_HOST=$RABBITMQ_HOST" \
             "RABBITMQ_PORT=5672" \
             "RABBITMQ_USERNAME=$RABBITMQ_USER" \
@@ -1490,12 +1493,12 @@ jobs:
             echo "| 2 | admin-ui | NODE\|24-lts | /health | \`app-admin-ui-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 3 | audit-service | NODE\|24-lts | /health/live | \`app-audit-service-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 4 | auth-service | NODE\|24-lts | /health/live | \`app-auth-service-xshopai-${ENV}-${SUFFIX}\` |"
-            echo "| 5 | cart-service | JAVA\|17-java17 | /health/live | \`app-cart-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 5 | cart-service | JAVA\|21-java21 | /health/live | \`app-cart-service-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 6 | chat-service | NODE\|24-lts | /health/live | \`app-chat-service-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 7 | customer-ui | NODE\|24-lts | /health | \`app-customer-ui-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 8 | inventory-service | PYTHON\|3.11 | /health/live | \`app-inventory-service-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 9 | notification-service | NODE\|24-lts | /health/live | \`app-notification-service-xshopai-${ENV}-${SUFFIX}\` |"
-            echo "| 10 | order-processor-service | JAVA\|17-java17 | /health/live | \`app-order-processor-service-xshopai-${ENV}-${SUFFIX}\` |"
+            echo "| 10 | order-processor-service | JAVA\|21-java21 | /health/live | \`app-order-processor-service-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 11 | order-service | DOTNETCORE\|8.0 | /health/live | \`app-order-service-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 12 | payment-service | DOTNETCORE\|8.0 | /health/live | \`app-payment-service-xshopai-${ENV}-${SUFFIX}\` |"
             echo "| 13 | product-service | PYTHON\|3.11 | /health/live | \`app-product-service-xshopai-${ENV}-${SUFFIX}\` |"
