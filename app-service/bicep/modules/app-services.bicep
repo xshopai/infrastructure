@@ -302,7 +302,7 @@ resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   name: 'appsettings'
   properties: {
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     SERVICE_NAME: 'cart-service'
