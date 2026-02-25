@@ -434,8 +434,8 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-    ENABLE_ORYX_BUILD: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+    PYTHONPATH: '/home/site/wwwroot/.python_packages/lib/site-packages'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     SERVICE_NAME: 'inventory-service'
@@ -591,8 +591,8 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   properties: {
     PORT: '8080'
     ENVIRONMENT: environment
-    SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-    ENABLE_ORYX_BUILD: 'true'
+    SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+    PYTHONPATH: '/home/site/wwwroot/.python_packages/lib/site-packages'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NAME: 'product-service'
