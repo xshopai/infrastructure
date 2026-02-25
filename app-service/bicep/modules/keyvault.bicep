@@ -78,6 +78,10 @@ param webBffToken string
 param openaiEndpoint string
 param openaiDeployment string
 
+// SMTP (Mailpit for dev/test)
+param smtpHost string
+param smtpPort string
+
 @description('Azure AD Object ID of user/service principal to grant Key Vault Secrets Officer access (optional)')
 param keyVaultAdminObjectId string = ''
 
@@ -402,6 +406,19 @@ resource secretOpenaiDeployment 'Microsoft.KeyVault/vaults/secrets@2023-07-01' =
   parent: keyVault
   name: 'chat-service-openai-deployment'
   properties: { value: openaiDeployment }
+}
+
+// SMTP (Mailpit)
+resource secretSmtpHost 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'smtp-host'
+  properties: { value: smtpHost }
+}
+
+resource secretSmtpPort 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'smtp-port'
+  properties: { value: smtpPort }
 }
 
 // =============================================================================

@@ -73,6 +73,10 @@ param openaiEndpoint string
 param openaiDeployment string
 param openaiResourceId string
 
+// SMTP (Mailpit for dev/test)
+param smtpHost string
+param smtpPort string
+
 // Service Tokens
 @secure()
 param adminServiceToken string
@@ -480,14 +484,14 @@ resource notificationServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
-    SMTP_HOST: ''
-    SMTP_PORT: '587'
+    SMTP_HOST: smtpHost
+    SMTP_PORT: smtpPort
     SMTP_USER: ''
     SMTP_PASS: ''
     SMTP_SECURE: 'false'
     EMAIL_FROM_ADDRESS: 'noreply@xshopai.com'
     EMAIL_FROM_NAME: 'xShopAI'
-    EMAIL_ENABLED: 'false'
+    EMAIL_ENABLED: 'true'
     EMAIL_PROVIDER: 'smtp'
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'notification-service'

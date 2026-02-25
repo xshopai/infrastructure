@@ -169,6 +169,15 @@ module rabbitmq './modules/rabbitmq.bicep' = {
   }
 }
 
+module mailpit './modules/mailpit.bicep' = {
+  name: 'deploy-mailpit'
+  params: {
+    location: location
+    resourcePrefix: resourcePrefix
+    tags: tags
+  }
+}
+
 // 4. Azure OpenAI (no dependencies)
 module openai './modules/openai.bicep' = {
   name: 'deploy-openai'
@@ -226,6 +235,9 @@ module keyvault './modules/keyvault.bicep' = {
     // Azure OpenAI
     openaiEndpoint: openai.outputs.openaiEndpoint
     openaiDeployment: openai.outputs.deploymentName
+    // SMTP (Mailpit)
+    smtpHost: mailpit.outputs.smtpHost
+    smtpPort: string(mailpit.outputs.smtpPort)
     // RBAC
     keyVaultAdminObjectId: keyVaultAdminObjectId
   }
@@ -270,6 +282,9 @@ module appServices './modules/app-services.bicep' = {
     openaiEndpoint: openai.outputs.openaiEndpoint
     openaiDeployment: openai.outputs.deploymentName
     openaiResourceId: openai.outputs.openaiResourceId
+    // SMTP (Mailpit)
+    smtpHost: mailpit.outputs.smtpHost
+    smtpPort: string(mailpit.outputs.smtpPort)
     // Service tokens
     adminServiceToken: adminServiceToken
     authServiceToken: authServiceToken
@@ -314,6 +329,8 @@ output cosmosAccountName string = cosmos.outputs.cosmosAccountName
 // Messaging & Cache
 output redisHost string = redis.outputs.redisHost
 output rabbitmqHost string = rabbitmq.outputs.rabbitmqHost
+output mailpitHost string = mailpit.outputs.smtpHost
+output mailpitWebUrl string = mailpit.outputs.webUiUrl
 
 // AI Services
 output openaiEndpoint string = openai.outputs.openaiEndpoint
