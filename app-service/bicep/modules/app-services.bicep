@@ -288,6 +288,7 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_EXPIRES_IN: jwtExpiresIn
     USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
     USER_SERVICE_TOKEN: userServiceToken
+    WEB_UI_BASE_URL: '${serviceUrlPrefix}customer-ui${serviceUrlSuffix}'
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'

@@ -65,7 +65,8 @@ resource mailpitContainer 'Microsoft.ContainerInstance/containerGroups@2023-05-0
       {
         name: 'mailpit'
         properties: {
-          image: 'axllent/mailpit:latest'
+          // Use ghcr.io to avoid Docker Hub rate limits
+          image: 'ghcr.io/axllent/mailpit:latest'
           resources: {
             requests: {
               cpu: cpuCores
@@ -84,13 +85,16 @@ resource mailpitContainer 'Microsoft.ContainerInstance/containerGroups@2023-05-0
           ]
           environmentVariables: [
             {
-              // Mailpit configuration
-              name: 'MP_SMTP_AUTH_ACCEPT_ANY'
-              value: '1'  // Accept any authentication (for testing)
+              name: 'MP_SMTP_BIND_ADDR'
+              value: '0.0.0.0:1025'
+            }
+            {
+              name: 'MP_UI_BIND_ADDR'
+              value: '0.0.0.0:8025'
             }
             {
               name: 'MP_MAX_MESSAGES'
-              value: '500'  // Limit stored messages
+              value: '500'
             }
             {
               name: 'TZ'
