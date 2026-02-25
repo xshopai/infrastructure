@@ -316,7 +316,6 @@ resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     HOST: '0.0.0.0'
     NODE_ENV: nodeEnv
     // Redis configuration (Azure Redis uses SSL on port 6380)
-    REDIS_URL: 'rediss://${redisHost}:6380'
     REDIS_HOST: redisHost
     REDIS_PORT: '6380'
     REDIS_PASSWORD: redisKey

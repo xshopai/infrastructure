@@ -74,7 +74,6 @@ resource cartService 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'SERVICE_INVOCATION_MODE', value: 'http' }
         
         // Redis configuration (Azure Redis uses SSL on port 6380)
-        { name: 'REDIS_URL', value: 'rediss://${redisHost}:6380' }
         { name: 'REDIS_HOST', value: redisHost }
         { name: 'REDIS_PORT', value: '6380' }
         { name: 'REDIS_PASSWORD', value: '@Microsoft.KeyVault(SecretUri=https://${keyVaultName}.vault.azure.net/secrets/redis-key/)' }
