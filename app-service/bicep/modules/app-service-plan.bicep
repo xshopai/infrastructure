@@ -1,5 +1,8 @@
 // =============================================================================
-// App Service Plan - P3V3 Linux (supports all runtimes)
+// App Service Plan - P3V3 Linux (Production Grade)
+// =============================================================================
+// P3V3: 8 vCPU, 32 GB RAM, 99.95% SLA, auto-scale capable
+// IMPORTANT: Do not use B1/S1 for this workload - 14 apps need Premium tier
 // =============================================================================
 
 targetScope = 'resourceGroup'

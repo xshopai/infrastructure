@@ -101,26 +101,26 @@ param tags object
 
 var suffix = split(resourcePrefix, '-')[1]
 
-// Service definitions: name, runtime, health path
-// Note: No startup commands - Azure will show default shell page until code is deployed
-// Azure auto-detects startup from package.json, requirements.txt, etc. when code is deployed
+// Service definitions: name, runtime, health path, startup command
+// startupCommand: empty string = Azure auto-detects; explicit = use that command
+// Python services use --pythonpath to load pre-built manylinux wheels from .python_packages
 var services = [
-  { name: 'admin-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health' }
-  { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'cart-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health' }
-  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live' }
-  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'order-processor-service', runtime: 'JAVA|21-java21', health: '/actuator/health' }
-  { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live' }
-  { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live' }
-  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live' }
-  { name: 'review-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'user-service', runtime: 'NODE|24-lts', health: '/health/live' }
-  { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live' }
+  { name: 'admin-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
+  { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health', startupCommand: '' }
+  { name: 'audit-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
+  { name: 'auth-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
+  { name: 'cart-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
+  { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
+  { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health', startupCommand: '' }
+  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live', startupCommand: 'gunicorn --bind=0.0.0.0:8080 --workers=2 --timeout=600 --pythonpath /home/site/wwwroot/.python_packages/lib/site-packages run:app' }
+  { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
+  { name: 'order-processor-service', runtime: 'JAVA|21-java21', health: '/actuator/health', startupCommand: '' }
+  { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startupCommand: '' }
+  { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startupCommand: '' }
+  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live', startupCommand: 'gunicorn -k uvicorn.workers.UvicornWorker --bind=0.0.0.0:8080 --workers=2 --timeout=600 --pythonpath /home/site/wwwroot/.python_packages/lib/site-packages main:app' }
+  { name: 'review-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
+  { name: 'user-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
+  { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
 ]
 
 // Helper function for service URLs
@@ -156,7 +156,7 @@ resource appServices 'Microsoft.Web/sites@2022-09-01' = [for svc in services: {
     clientAffinityEnabled: false
     siteConfig: {
       linuxFxVersion: svc.runtime
-      // appCommandLine not set - allows Azure to show default shell page until code deployed
+      appCommandLine: svc.startupCommand
       alwaysOn: true
       healthCheckPath: svc.health
       http20Enabled: true
@@ -464,9 +464,6 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   }
 }
 
-// NOTE: Startup command for inventory-service is set by service deployment workflow
-// to avoid errors when infra runs before code is deployed
-
 // 9. notification-service
 resource notificationServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
   parent: appServices[8]
@@ -614,9 +611,6 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     LOG_TO_CONSOLE: 'true'
   }
 }
-
-// NOTE: Startup command for product-service is set by service deployment workflow
-// to avoid errors when infra runs before code is deployed
 
 // 14. review-service
 resource reviewServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {

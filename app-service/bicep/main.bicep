@@ -95,13 +95,14 @@ module monitoring './modules/monitoring.bicep' = {
   }
 }
 
-// 2. App Service Plan (no dependencies)
+// 2. App Service Plan (P3V3 Premium - production grade for all environments)
 module appServicePlan './modules/app-service-plan.bicep' = {
   name: 'deploy-app-service-plan'
   params: {
     location: location
     resourcePrefix: resourcePrefix
     tags: tags
+    sku: 'P3V3' // Explicitly set - do not change without team approval
   }
 }
 
