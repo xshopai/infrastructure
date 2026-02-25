@@ -102,8 +102,8 @@ param tags object
 var suffix = split(resourcePrefix, '-')[1]
 
 // Service definitions: name, runtime, health path, startup command
-// startupCommand: empty string = Azure auto-detects; explicit = use that command
-// Python services use --pythonpath to load pre-built manylinux wheels from .python_packages
+// startupCommand: empty string = Azure auto-detects (shows default page until code deployed)
+// Python services get their startup command set by CI workflow AFTER code deployment
 var services = [
   { name: 'admin-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
   { name: 'admin-ui', runtime: 'NODE|24-lts', health: '/health', startupCommand: '' }
@@ -112,12 +112,12 @@ var services = [
   { name: 'cart-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
   { name: 'chat-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
   { name: 'customer-ui', runtime: 'NODE|24-lts', health: '/health', startupCommand: '' }
-  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live', startupCommand: 'gunicorn --bind=0.0.0.0:8080 --workers=2 --timeout=600 --pythonpath /home/site/wwwroot/.python_packages/lib/site-packages run:app' }
+  { name: 'inventory-service', runtime: 'PYTHON|3.11', health: '/health/live', startupCommand: '' }
   { name: 'notification-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
   { name: 'order-processor-service', runtime: 'JAVA|21-java21', health: '/actuator/health', startupCommand: '' }
   { name: 'order-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startupCommand: '' }
   { name: 'payment-service', runtime: 'DOTNETCORE|8.0', health: '/health/live', startupCommand: '' }
-  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live', startupCommand: 'gunicorn -k uvicorn.workers.UvicornWorker --bind=0.0.0.0:8080 --workers=2 --timeout=600 --pythonpath /home/site/wwwroot/.python_packages/lib/site-packages main:app' }
+  { name: 'product-service', runtime: 'PYTHON|3.11', health: '/health/live', startupCommand: '' }
   { name: 'review-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
   { name: 'user-service', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
   { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live', startupCommand: '' }
