@@ -96,6 +96,9 @@ param webBffToken string
 // Diagnostics
 param logAnalyticsWorkspaceId string
 
+@description('Key Vault name for secret references')
+param keyVaultName string
+
 @description('Resource tags')
 param tags object
 
@@ -319,7 +322,7 @@ resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     // Redis configuration (Azure Redis uses SSL on port 6380)
     REDIS_HOST: redisHost
     REDIS_PORT: '6380'
-    REDIS_PASSWORD: redisKey
+    REDIS_PASSWORD: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=redis-key)'
     REDIS_TLS: 'true'
     // Messaging configuration
     MESSAGING_PROVIDER: 'rabbitmq'
@@ -347,6 +350,22 @@ resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     LOG_LEVEL: environment == 'production' ? 'info' : 'debug'
     LOG_FORMAT: 'json'
     LOG_TO_CONSOLE: 'true'
+  }
+}
+
+// Grant cart-service managed identity Key Vault Secrets User role so the
+// @Microsoft.KeyVault() app setting reference for REDIS_PASSWORD can be resolved.
+resource cartServiceKvRef 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+}
+
+resource cartServiceKvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(appServices[4].id, cartServiceKvRef.id, '4633458b-17de-408a-b874-0445c86b69e0')
+  scope: cartServiceKvRef
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e0') // Key Vault Secrets User
+    principalId: appServices[4].identity.principalId
+    principalType: 'ServicePrincipal'
   }
 }
 

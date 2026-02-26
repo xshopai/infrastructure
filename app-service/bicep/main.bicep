@@ -270,6 +270,7 @@ module appServices './modules/app-services.bicep' = {
     // Redis
     redisHost: redis.outputs.redisHost
     redisKey: redis.outputs.redisPrimaryKey
+    keyVaultName: keyvault.outputs.keyVaultName
     // Databases
     postgresHost: postgresql.outputs.postgresHost
     postgresAdminUser: postgresAdminUser
