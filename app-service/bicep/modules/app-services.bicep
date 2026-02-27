@@ -465,7 +465,6 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     SERVICE_INVOCATION_MODE: 'http'
     FLASK_APP: 'run.py'
     MYSQL_SERVER_CONNECTION: mysqlConnectionString
-    DB_NAME: 'inventory_service_db'
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
