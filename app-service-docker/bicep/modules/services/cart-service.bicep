@@ -70,8 +70,8 @@ resource cartService 'Microsoft.Web/sites@2023-01-01' = {
         { name: 'NODE_ENV', value: environment == 'production' ? 'production' : 'development' }
         { name: 'SERVICE_VERSION', value: '1.0.0' }
         
-        // Service Invocation Mode (http for Azure without Dapr)
-        { name: 'SERVICE_INVOCATION_MODE', value: 'http' }
+        // Platform Mode (direct for Azure without Dapr)
+        { name: 'PLATFORM_MODE', value: 'direct' }
         
         // Redis configuration (Azure Redis uses SSL on port 6380)
         { name: 'REDIS_HOST', value: redisHost }

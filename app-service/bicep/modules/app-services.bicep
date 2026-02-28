@@ -191,7 +191,7 @@ resource adminServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'admin-service'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     JWT_SECRET: jwtSecret
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
@@ -255,7 +255,7 @@ resource auditServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'audit-service'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     POSTGRES_HOST: postgresHost
     POSTGRES_PORT: '5432'
     POSTGRES_DB: 'audit_service_db'
@@ -283,7 +283,7 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'auth-service'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     JWT_SECRET: jwtSecret
     JWT_ALGORITHM: jwtAlgorithm
     JWT_ISSUER: jwtIssuer
@@ -314,7 +314,7 @@ resource cartServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     SERVICE_NAME: 'cart-service'
     SERVICE_VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     // Node.js settings
     PORT: '8080'
     HOST: '0.0.0.0'
@@ -382,7 +382,7 @@ resource chatServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'chat-service'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
     ORDER_SERVICE_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
     AZURE_OPENAI_ENDPOINT: openaiEndpoint
@@ -462,7 +462,7 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     SERVICE_NAME: 'inventory-service'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     FLASK_APP: 'run.py'
     MYSQL_SERVER_CONNECTION: mysqlConnectionString
     RABBITMQ_URL: rabbitmqUrl
@@ -498,7 +498,7 @@ resource notificationServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'notification-service'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
@@ -527,7 +527,7 @@ resource orderProcessorServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     SERVICE_NAME: 'order-processor-service'
     VERSION: '1.0.0'
     SERVER_PORT: '8080'
@@ -558,7 +558,7 @@ resource orderServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     SERVICE_NAME: 'order-service'
     VERSION: '1.0.0'
     ASPNETCORE_ENVIRONMENT: aspnetEnv
@@ -585,7 +585,7 @@ resource paymentServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     SERVICE_NAME: 'payment-service'
     VERSION: '1.0.0'
     ASPNETCORE_ENVIRONMENT: aspnetEnv
@@ -615,7 +615,7 @@ resource productServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsKey
     NAME: 'product-service'
     API_VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     MONGODB_URI: productMongodbUri
     MONGODB_DB_NAME: 'product_service_db'
     RABBITMQ_URL: rabbitmqUrl
@@ -646,7 +646,7 @@ resource reviewServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'review-service'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     MONGODB_URI: reviewMongodbUri
     MONGODB_DB_NAME: 'review_service_db'
     JWT_SECRET: jwtSecret
@@ -676,7 +676,7 @@ resource userServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'user-service'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     MONGODB_URI: userMongodbUri
     MONGODB_DB_NAME: 'user_service_db'
     JWT_SECRET: jwtSecret
@@ -712,7 +712,7 @@ resource webBffConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     NODE_ENV: nodeEnv
     SERVICE_NAME: 'web-bff'
     VERSION: '1.0.0'
-    SERVICE_INVOCATION_MODE: 'http'
+    PLATFORM_MODE: 'direct'
     MESSAGING_PROVIDER: 'rabbitmq'
     JWT_SECRET: jwtSecret
     JWT_ISSUER: jwtIssuer
