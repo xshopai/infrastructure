@@ -4,6 +4,7 @@
 # This file contains SHARED infrastructure services needed for local development.
 #
 # Included Services:
+#   - Consul (Service Discovery)     - Port 8500 (HTTP API + Web UI)
 #   - RabbitMQ (Message Broker)      - Port 5672 (AMQP), 15672 (Management UI)
 #   - Zipkin (Distributed Tracing)   - Port 9411 (UI & API)
 #   - Mailpit (Email Testing)        - Port 1025 (SMTP), 8025 (Web UI)
@@ -27,11 +28,35 @@
 #   docker-compose -f docker-compose.infrastructure.yml ps
 #
 # Access Points:
+#   - Consul UI:    http://localhost:8500
 #   - RabbitMQ UI:  http://localhost:15672 (admin/admin123)
 #   - Zipkin UI:    http://localhost:9411
 #   - Mailpit UI:   http://localhost:8025
 
 services:
+  # ============================================================================
+  # Service Discovery
+  # ============================================================================
+
+  # Consul (Service Discovery & Health Checking)
+  consul:
+    image: hashicorp/consul:1.17
+    container_name: consul
+    restart: unless-stopped
+    ports:
+      - "8500:8500" # HTTP API + Web UI
+      - "8600:8600/udp" # DNS
+    command: agent -server -bootstrap-expect=1 -ui -client=0.0.0.0 -bind=127.0.0.1
+    volumes:
+      - consul_data:/consul/data
+    networks:
+      - xshopai-network
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # ============================================================================
   # Message Broker & Middleware
   # ============================================================================
@@ -116,6 +141,8 @@ services:
 # Volumes
 # ============================================================================
 volumes:
+  consul_data:
+    name: consul_data
   rabbitmq_data:
     name: rabbitmq_data
 
