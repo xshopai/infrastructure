@@ -129,7 +129,10 @@ var services = [
   { name: 'web-bff', runtime: 'NODE|24-lts', health: '/health/live' }
 ]
 
-// Helper function for service URLs
+// Convention-based service URL template (replaces per-service URL vars)
+var serviceBaseUrl = 'https://app-{name}-xshopai-${suffix}.azurewebsites.net'
+
+// Per-service URL helper (for non-resolver references like BFF_URL, WEB_UI_BASE_URL, ALLOWED_ORIGINS)
 var serviceUrlPrefix = 'https://app-'
 var serviceUrlSuffix = '-xshopai-${suffix}.azurewebsites.net'
 
@@ -203,13 +206,7 @@ resource adminServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     LOG_LEVEL: 'info'
     LOG_FORMAT: 'json'
     LOG_TO_CONSOLE: 'true'
-    AUTH_SERVICE_URL: '${serviceUrlPrefix}auth-service${serviceUrlSuffix}'
-    USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
-    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
-    ORDER_SERVICE_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
-    PAYMENT_SERVICE_URL: '${serviceUrlPrefix}payment-service${serviceUrlSuffix}'
-    AUDIT_SERVICE_URL: '${serviceUrlPrefix}audit-service${serviceUrlSuffix}'
-    NOTIFICATION_SERVICE_URL: '${serviceUrlPrefix}notification-service${serviceUrlSuffix}'
+    SERVICE_BASE_URL: serviceBaseUrl
     USER_SERVICE_TOKEN: userServiceToken
   }
 }
@@ -289,7 +286,7 @@ resource authServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
     JWT_EXPIRES_IN: jwtExpiresIn
-    USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
+    SERVICE_BASE_URL: serviceBaseUrl
     USER_SERVICE_TOKEN: userServiceToken
     WEB_UI_BASE_URL: '${serviceUrlPrefix}customer-ui${serviceUrlSuffix}'
     RABBITMQ_URL: rabbitmqUrl
@@ -383,8 +380,7 @@ resource chatServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     SERVICE_NAME: 'chat-service'
     VERSION: '1.0.0'
     PLATFORM_MODE: 'direct'
-    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
-    ORDER_SERVICE_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
+    SERVICE_BASE_URL: serviceBaseUrl
     AZURE_OPENAI_ENDPOINT: openaiEndpoint
     AZURE_OPENAI_DEPLOYMENT_NAME: openaiDeployment
     AZURE_OPENAI_API_VERSION: '2024-10-21'
@@ -472,7 +468,7 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_ALGORITHM: jwtAlgorithm
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
-    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
+    SERVICE_BASE_URL: serviceBaseUrl
     PRODUCT_SERVICE_TOKEN: productServiceToken
     ORDER_SERVICE_TOKEN: orderServiceToken
     CART_SERVICE_TOKEN: cartServiceToken
@@ -718,16 +714,7 @@ resource webBffConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
     ALLOWED_ORIGINS: '${serviceUrlPrefix}customer-ui${serviceUrlSuffix},${serviceUrlPrefix}admin-ui${serviceUrlSuffix}'
-    AUTH_SERVICE_URL: '${serviceUrlPrefix}auth-service${serviceUrlSuffix}'
-    USER_SERVICE_URL: '${serviceUrlPrefix}user-service${serviceUrlSuffix}'
-    PRODUCT_SERVICE_URL: '${serviceUrlPrefix}product-service${serviceUrlSuffix}'
-    CART_SERVICE_URL: '${serviceUrlPrefix}cart-service${serviceUrlSuffix}'
-    ORDER_SERVICE_URL: '${serviceUrlPrefix}order-service${serviceUrlSuffix}'
-    PAYMENT_SERVICE_URL: '${serviceUrlPrefix}payment-service${serviceUrlSuffix}'
-    REVIEW_SERVICE_URL: '${serviceUrlPrefix}review-service${serviceUrlSuffix}'
-    INVENTORY_SERVICE_URL: '${serviceUrlPrefix}inventory-service${serviceUrlSuffix}'
-    ADMIN_SERVICE_URL: '${serviceUrlPrefix}admin-service${serviceUrlSuffix}'
-    CHAT_SERVICE_URL: '${serviceUrlPrefix}chat-service${serviceUrlSuffix}'
+    SERVICE_BASE_URL: serviceBaseUrl
     OTEL_TRACES_EXPORTER: 'azure'
     OTEL_SERVICE_NAME: 'web-bff'
     LOG_LEVEL: 'info'
