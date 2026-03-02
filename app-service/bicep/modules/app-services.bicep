@@ -131,7 +131,7 @@ var services = [
 var serviceBaseUrl = 'https://app-{name}-xshopai-${suffix}.azurewebsites.net'
 
 // Built-in RBAC role definition IDs
-var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e0'
+var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 var cognitiveServicesOpenAIUserRoleId = '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
 
 // Per-service URL helper (for non-resolver references like BFF_URL, WEB_UI_BASE_URL, ALLOWED_ORIGINS)

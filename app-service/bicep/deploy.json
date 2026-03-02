@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "9215750546791608012"
+      "templateHash": "10912938747264059046"
     }
   },
   "parameters": {
@@ -215,7 +215,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "15667876176311395957"
+              "templateHash": "3834781848717226267"
             }
           },
           "parameters": {
@@ -2822,7 +2822,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "7681656662128688179"
+                      "templateHash": "4361199660657113174"
                     }
                   },
                   "parameters": {
@@ -3059,7 +3059,7 @@
                       }
                     ],
                     "serviceBaseUrl": "[format('https://app-{{name}}-xshopai-{0}.azurewebsites.net', variables('suffix'))]",
-                    "keyVaultSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e0",
+                    "keyVaultSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6",
                     "cognitiveServicesOpenAIUserRoleId": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd",
                     "serviceUrlPrefix": "https://app-",
                     "serviceUrlSuffix": "[format('-xshopai-{0}.azurewebsites.net', variables('suffix'))]",
