@@ -44,6 +44,7 @@ resource redis 'Microsoft.Cache/redis@2023-08-01' = {
     enableNonSslPort: false
     minimumTlsVersion: '1.2'
     publicNetworkAccess: 'Enabled'
+    disableAccessKeyAuthentication: false
     redisConfiguration: {
       'maxmemory-policy': 'allkeys-lru'
     }

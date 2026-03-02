@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "10912938747264059046"
+      "templateHash": "578194933609235759"
     }
   },
   "parameters": {
@@ -215,7 +215,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "3834781848717226267"
+              "templateHash": "11961843495324338044"
             }
           },
           "parameters": {
@@ -609,7 +609,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "10928589222327057698"
+                      "templateHash": "5977087216920739192"
                     }
                   },
                   "parameters": {
@@ -679,6 +679,7 @@
                         "enableNonSslPort": false,
                         "minimumTlsVersion": "1.2",
                         "publicNetworkAccess": "Enabled",
+                        "disableAccessKeyAuthentication": false,
                         "redisConfiguration": {
                           "maxmemory-policy": "allkeys-lru"
                         }
