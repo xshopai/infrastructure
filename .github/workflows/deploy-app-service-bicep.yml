@@ -90,7 +90,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2.3.0
@@ -241,7 +241,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2.3.0
@@ -310,7 +310,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2.3.0
@@ -432,14 +432,14 @@ jobs:
           echo "Checking App Service status..."
 
           for svc in admin-service admin-ui audit-service auth-service cart-service chat-service customer-ui inventory-service notification-service order-processor-service order-service payment-service product-service review-service user-service web-bff; do
-            APP="app-${svc}-xshopai-${{ needs.validate.outputs.environment }}-${{ needs.validate.outputs.suffix }}"
+            APP="app-${svc}-xshopai-${{ needs.validate.outputs.suffix }}"
             STATE=$(az webapp show --name "$APP" --resource-group ${{ needs.validate.outputs.resource_group }} --query state -o tsv 2>/dev/null || echo "NotFound")
             echo "  ${svc}: ${STATE}"
           done
 
       - name: Verify Key Vault
         run: |
-          KV="kv-xshopai-${{ needs.validate.outputs.environment }}-${{ needs.validate.outputs.suffix }}"
+          KV="kv-xshopai-${{ needs.validate.outputs.suffix }}"
           SECRET_COUNT=$(az keyvault secret list --vault-name "$KV" --query 'length(@)' -o tsv 2>/dev/null || echo "0")
           echo "✓ Key Vault has ${SECRET_COUNT} secrets"
 
