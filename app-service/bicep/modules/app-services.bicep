@@ -498,6 +498,7 @@ resource notificationServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     RABBITMQ_URL: rabbitmqUrl
     RABBITMQ_EXCHANGE: 'xshopai.events'
     MESSAGING_PROVIDER: 'rabbitmq'
+    SERVICE_BASE_URL: serviceBaseUrl
     SMTP_HOST: smtpHost
     SMTP_PORT: smtpPort
     SMTP_USER: ''
