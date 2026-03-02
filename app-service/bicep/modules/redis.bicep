@@ -31,7 +31,7 @@ var redisName = 'redis-${resourcePrefix}'
 // Resources
 // =============================================================================
 
-resource redis 'Microsoft.Cache/redis@2023-08-01' = {
+resource redis 'Microsoft.Cache/redis@2024-03-01' = {
   name: redisName
   location: location
   tags: tags

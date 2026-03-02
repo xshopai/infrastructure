@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "578194933609235759"
+      "templateHash": "10401801230101227922"
     }
   },
   "parameters": {
@@ -215,7 +215,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "11961843495324338044"
+              "templateHash": "12135693354169826836"
             }
           },
           "parameters": {
@@ -609,7 +609,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "5977087216920739192"
+                      "templateHash": "1939091037819667068"
                     }
                   },
                   "parameters": {
@@ -666,7 +666,7 @@
                   "resources": [
                     {
                       "type": "Microsoft.Cache/redis",
-                      "apiVersion": "2023-08-01",
+                      "apiVersion": "2024-03-01",
                       "name": "[variables('redisName')]",
                       "location": "[parameters('location')]",
                       "tags": "[parameters('tags')]",
@@ -697,23 +697,23 @@
                     },
                     "redisHost": {
                       "type": "string",
-                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName]"
+                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2024-03-01').hostName]"
                     },
                     "redisPrimaryKey": {
                       "type": "string",
-                      "value": "[listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey]"
+                      "value": "[listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2024-03-01').primaryKey]"
                     },
                     "redisSecondaryKey": {
                       "type": "string",
-                      "value": "[listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').secondaryKey]"
+                      "value": "[listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2024-03-01').secondaryKey]"
                     },
                     "redisSslPort": {
                       "type": "int",
-                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort]"
+                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2024-03-01').sslPort]"
                     },
                     "redisPort": {
                       "type": "int",
-                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').port]"
+                      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2024-03-01').port]"
                     }
                   }
                 }
