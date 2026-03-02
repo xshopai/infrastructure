@@ -425,6 +425,62 @@ jobs:
 
           echo "✓ All database servers are in Ready state — proceeding with Bicep deployment"
 
+      # -----------------------------------------------------------------
+      # Clean up stale role assignments before Bicep runs.
+      # Role assignments are immutable — if a managed identity was
+      # regenerated (app service recreated), the old assignment blocks
+      # creation of a new one with the same deterministic GUID name.
+      # Deleting stale assignments lets Bicep create fresh ones.
+      # -----------------------------------------------------------------
+      - name: Clean up stale role assignments
+        run: |
+          RG="${{ needs.validate.outputs.resource_group }}"
+          SUFFIX="${{ needs.validate.outputs.suffix }}"
+
+          if ! az group show --name "$RG" &>/dev/null; then
+            echo "Resource group $RG does not exist yet — skipping (first deploy)"
+            exit 0
+          fi
+
+          KV_NAME="kv-xshopai-${SUFFIX}"
+          SUB_ID=$(az account show --query id -o tsv)
+
+          # Key Vault Secrets User role on the Key Vault (for cart-service)
+          KV_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.KeyVault/vaults/${KV_NAME}"
+          echo "Checking Key Vault role assignments at: $KV_NAME"
+          STALE_KV=$(az role assignment list \
+            --scope "$KV_SCOPE" \
+            --role "Key Vault Secrets User" \
+            --query "[].id" -o tsv 2>/dev/null || true)
+          if [ -n "$STALE_KV" ]; then
+            echo "  Deleting $(echo "$STALE_KV" | wc -l) Key Vault Secrets User assignment(s)..."
+            echo "$STALE_KV" | while read -r ID; do
+              az role assignment delete --ids "$ID" 2>/dev/null || true
+            done
+            echo "  ✓ Cleaned up"
+          else
+            echo "  No stale Key Vault role assignments found"
+          fi
+
+          # Cognitive Services OpenAI User role on the resource group (for chat-service)
+          RG_SCOPE="/subscriptions/${SUB_ID}/resourceGroups/${RG}"
+          echo "Checking OpenAI role assignments at: $RG"
+          STALE_OAI=$(az role assignment list \
+            --scope "$RG_SCOPE" \
+            --role "Cognitive Services OpenAI User" \
+            --query "[].id" -o tsv 2>/dev/null || true)
+          if [ -n "$STALE_OAI" ]; then
+            echo "  Deleting $(echo "$STALE_OAI" | wc -l) Cognitive Services OpenAI User assignment(s)..."
+            echo "$STALE_OAI" | while read -r ID; do
+              az role assignment delete --ids "$ID" 2>/dev/null || true
+            done
+            echo "  ✓ Cleaned up"
+          else
+            echo "  No stale OpenAI role assignments found"
+          fi
+
+          echo "✓ Role assignment cleanup complete"
+
       - name: Deploy infrastructure (subscription-scoped)
         id: deploy
         working-directory: ${{ env.BICEP_DIR }}

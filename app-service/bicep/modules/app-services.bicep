@@ -130,6 +130,10 @@ var services = [
 // Convention-based service URL template (replaces per-service URL vars)
 var serviceBaseUrl = 'https://app-{name}-xshopai-${suffix}.azurewebsites.net'
 
+// Built-in RBAC role definition IDs
+var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e0'
+var cognitiveServicesOpenAIUserRoleId = '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
+
 // Per-service URL helper (for non-resolver references like BFF_URL, WEB_UI_BASE_URL, ALLOWED_ORIGINS)
 var serviceUrlPrefix = 'https://app-'
 var serviceUrlSuffix = '-xshopai-${suffix}.azurewebsites.net'
@@ -355,10 +359,10 @@ resource cartServiceKvRef 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 }
 
 resource cartServiceKvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(appServices[4].id, cartServiceKvRef.id, '4633458b-17de-408a-b874-0445c86b69e0')
+  name: guid(appServices[4].id, cartServiceKvRef.id, keyVaultSecretsUserRoleId)
   scope: cartServiceKvRef
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e0') // Key Vault Secrets User
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultSecretsUserRoleId)
     principalId: appServices[4].identity.principalId
     principalType: 'ServicePrincipal'
   }
@@ -406,10 +410,10 @@ resource chatServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
 
 // Grant chat-service Managed Identity access to Azure OpenAI
 resource chatServiceOpenAiRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(appServices[5].id, openaiResourceId, 'CognitiveServicesOpenAIUser')
+  name: guid(appServices[5].id, openaiResourceId, cognitiveServicesOpenAIUserRoleId)
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesOpenAIUserRoleId)
     principalId: appServices[5].identity.principalId
     principalType: 'ServicePrincipal'
   }

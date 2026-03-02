@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "10144285556949308788"
+      "templateHash": "9215750546791608012"
     }
   },
   "parameters": {
@@ -215,7 +215,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "9421223311961894648"
+              "templateHash": "15667876176311395957"
             }
           },
           "parameters": {
@@ -2822,7 +2822,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.39.26.7824",
-                      "templateHash": "17862848305282902758"
+                      "templateHash": "7681656662128688179"
                     }
                   },
                   "parameters": {
@@ -3059,6 +3059,8 @@
                       }
                     ],
                     "serviceBaseUrl": "[format('https://app-{{name}}-xshopai-{0}.azurewebsites.net', variables('suffix'))]",
+                    "keyVaultSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e0",
+                    "cognitiveServicesOpenAIUserRoleId": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd",
                     "serviceUrlPrefix": "https://app-",
                     "serviceUrlSuffix": "[format('-xshopai-{0}.azurewebsites.net', variables('suffix'))]",
                     "rabbitmqUrl": "[format('amqp://{0}:{1}@{2}:5672', parameters('rabbitmqUser'), parameters('rabbitmqPassword'), parameters('rabbitmqHost'))]",
@@ -3272,9 +3274,9 @@
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
                       "scope": "[format('Microsoft.KeyVault/vaults/{0}', parameters('keyVaultName'))]",
-                      "name": "[guid(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}', variables('services')[4].name, variables('suffix'))), resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '4633458b-17de-408a-b874-0445c86b69e0')]",
+                      "name": "[guid(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}', variables('services')[4].name, variables('suffix'))), resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), variables('keyVaultSecretsUserRoleId'))]",
                       "properties": {
-                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e0')]",
+                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('keyVaultSecretsUserRoleId'))]",
                         "principalId": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}', variables('services')[4].name, variables('suffix'))), '2022-09-01', 'full').identity.principalId]",
                         "principalType": "ServicePrincipal"
                       },
@@ -3328,9 +3330,9 @@
                     {
                       "type": "Microsoft.Authorization/roleAssignments",
                       "apiVersion": "2022-04-01",
-                      "name": "[guid(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}', variables('services')[5].name, variables('suffix'))), parameters('openaiResourceId'), 'CognitiveServicesOpenAIUser')]",
+                      "name": "[guid(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}', variables('services')[5].name, variables('suffix'))), parameters('openaiResourceId'), variables('cognitiveServicesOpenAIUserRoleId'))]",
                       "properties": {
-                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')]",
+                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('cognitiveServicesOpenAIUserRoleId'))]",
                         "principalId": "[reference(resourceId('Microsoft.Web/sites', format('app-{0}-xshopai-{1}', variables('services')[5].name, variables('suffix'))), '2022-09-01', 'full').identity.principalId]",
                         "principalType": "ServicePrincipal"
                       },
