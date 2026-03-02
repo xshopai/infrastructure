@@ -466,7 +466,6 @@ resource inventoryServiceConfig 'Microsoft.Web/sites/config@2022-09-01' = {
     JWT_ALGORITHM: jwtAlgorithm
     JWT_ISSUER: jwtIssuer
     JWT_AUDIENCE: jwtAudience
-    SERVICE_BASE_URL: serviceBaseUrl
     PRODUCT_SERVICE_TOKEN: productServiceToken
     ORDER_SERVICE_TOKEN: orderServiceToken
     CART_SERVICE_TOKEN: cartServiceToken
