@@ -355,9 +355,7 @@ resource cartServiceKvRef 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 }
 
 resource cartServiceKvRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  // Include principalId in guid so a regenerated managed identity gets a fresh
-  // assignment name rather than conflicting with the old (immutable) one.
-  name: guid(appServices[4].id, cartServiceKvRef.id, appServices[4].identity.principalId, '4633458b-17de-408a-b874-0445c86b69e0')
+  name: guid(appServices[4].id, cartServiceKvRef.id, '4633458b-17de-408a-b874-0445c86b69e0')
   scope: cartServiceKvRef
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e0') // Key Vault Secrets User
@@ -408,9 +406,7 @@ resource chatServiceStartup 'Microsoft.Web/sites/config@2022-09-01' = {
 
 // Grant chat-service Managed Identity access to Azure OpenAI
 resource chatServiceOpenAiRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  // Include principalId in guid so a regenerated managed identity gets a fresh
-  // assignment name rather than conflicting with the old (immutable) one.
-  name: guid(appServices[5].id, openaiResourceId, appServices[5].identity.principalId, 'CognitiveServicesOpenAIUser')
+  name: guid(appServices[5].id, openaiResourceId, 'CognitiveServicesOpenAIUser')
   scope: resourceGroup()
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
