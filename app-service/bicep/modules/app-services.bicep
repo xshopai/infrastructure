@@ -45,8 +45,6 @@ param rabbitmqPassword string
 
 // Redis
 param redisHost string
-@secure()
-param redisKey string
 
 // PostgreSQL
 param postgresHost string

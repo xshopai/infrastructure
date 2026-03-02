@@ -215,7 +215,6 @@ module keyvault './modules/keyvault.bicep' = {
     rabbitmqHost: rabbitmq.outputs.rabbitmqHost
     // Redis
     redisHost: redis.outputs.redisHost
-    redisKey: redis.outputs.redisPrimaryKey
     // Monitoring
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     appInsightsKey: monitoring.outputs.appInsightsInstrumentationKey

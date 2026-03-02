@@ -319,6 +319,112 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # -------------------------------------------------------------------------
+      # Start stopped database servers before Bicep runs.
+      # Azure rejects any update (SKU, config, passwords) on a stopped flexible
+      # server with UpsertServerManagementOperationUnsupportedForStoppedServer /
+      # OperationNotAllowedForNonSucceededServer.  We must bring them to Ready
+      # state first; otherwise the incremental deployment always fails.
+      # -------------------------------------------------------------------------
+      - name: Start stopped database servers
+        run: |
+          RG="${{ needs.validate.outputs.resource_group }}"
+          SUFFIX="${{ needs.validate.outputs.suffix }}"
+
+          # Only attempt if the resource group already exists
+          if ! az group show --name "$RG" &>/dev/null; then
+            echo "Resource group $RG does not exist yet — skipping server start (first deploy)"
+            exit 0
+          fi
+
+          start_postgres() {
+            local SERVER="psql-xshopai-${SUFFIX}"
+            local STATE
+            STATE=$(az postgres flexible-server show \
+              --name "$SERVER" --resource-group "$RG" \
+              --query "state" -o tsv 2>/dev/null || echo "NotFound")
+
+            echo "PostgreSQL '$SERVER' state: $STATE"
+            if [[ "$STATE" == "Stopped" ]]; then
+              echo "  → Starting PostgreSQL flexible server..."
+              az postgres flexible-server start \
+                --name "$SERVER" --resource-group "$RG" --no-wait
+              echo "  → Start command issued (--no-wait). Will wait below."
+            fi
+          }
+
+          start_mysql() {
+            local SERVER="mysql-xshopai-${SUFFIX}"
+            local STATE
+            STATE=$(az mysql flexible-server show \
+              --name "$SERVER" --resource-group "$RG" \
+              --query "state" -o tsv 2>/dev/null || echo "NotFound")
+
+            echo "MySQL '$SERVER' state: $STATE"
+            if [[ "$STATE" == "Stopped" ]]; then
+              echo "  → Starting MySQL flexible server..."
+              az mysql flexible-server start \
+                --name "$SERVER" --resource-group "$RG" --no-wait
+              echo "  → Start command issued (--no-wait). Will wait below."
+            fi
+          }
+
+          wait_for_server() {
+            local TYPE="$1"   # postgres | mysql
+            local SERVER="$2"
+            local MAX_WAIT=600   # 10 minutes
+            local ELAPSED=0
+            local INTERVAL=20
+
+            echo "Waiting for $TYPE '$SERVER' to reach Ready state..."
+            while true; do
+              if [[ "$TYPE" == "postgres" ]]; then
+                STATE=$(az postgres flexible-server show \
+                  --name "$SERVER" --resource-group "$RG" \
+                  --query "state" -o tsv 2>/dev/null || echo "Unknown")
+              else
+                STATE=$(az mysql flexible-server show \
+                  --name "$SERVER" --resource-group "$RG" \
+                  --query "state" -o tsv 2>/dev/null || echo "Unknown")
+              fi
+
+              echo "  $SERVER — $STATE (${ELAPSED}s elapsed)"
+              if [[ "$STATE" == "Ready" ]]; then
+                echo "  ✓ $SERVER is Ready"
+                return 0
+              fi
+              if [[ $ELAPSED -ge $MAX_WAIT ]]; then
+                echo "::error::Timed out waiting for $SERVER to reach Ready state (last state: $STATE)"
+                return 1
+              fi
+              sleep $INTERVAL
+              ELAPSED=$((ELAPSED + INTERVAL))
+            done
+          }
+
+          # Issue start commands in parallel
+          start_postgres &
+          start_mysql &
+          wait
+
+          # Wait for both to be Ready before Bicep runs
+          PG_SERVER="psql-xshopai-${SUFFIX}"
+          MY_SERVER="mysql-xshopai-${SUFFIX}"
+
+          PG_STATE=$(az postgres flexible-server show \
+            --name "$PG_SERVER" --resource-group "$RG" \
+            --query "state" -o tsv 2>/dev/null || echo "NotFound")
+          MY_STATE=$(az mysql flexible-server show \
+            --name "$MY_SERVER" --resource-group "$RG" \
+            --query "state" -o tsv 2>/dev/null || echo "NotFound")
+
+          [[ "$PG_STATE" != "NotFound" && "$PG_STATE" != "Ready" ]] && \
+            wait_for_server postgres "$PG_SERVER"
+          [[ "$MY_STATE" != "NotFound" && "$MY_STATE" != "Ready" ]] && \
+            wait_for_server mysql "$MY_SERVER"
+
+          echo "✓ All database servers are in Ready state — proceeding with Bicep deployment"
+
       - name: Deploy infrastructure (subscription-scoped)
         id: deploy
         working-directory: ${{ env.BICEP_DIR }}
