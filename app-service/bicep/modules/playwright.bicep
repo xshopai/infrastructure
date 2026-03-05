@@ -100,13 +100,16 @@ resource lifecyclePolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2
 }
 
 // Playwright Workspace (Azure App Testing)
-resource playwrightWorkspace 'Microsoft.LoadTestService/playwrightWorkspaces@2025-09-01' = {
+// Using 2026-01-01-preview for storageUri + reporting support (not in 2025-09-01 GA)
+resource playwrightWorkspace 'Microsoft.LoadTestService/playwrightWorkspaces@2026-01-01-preview' = {
   name: playwrightWorkspaceName
   location: playwrightLocation
   tags: tags
   properties: {
     regionalAffinity: 'Enabled'
     localAuth: 'Disabled'
+    reporting: 'Enabled'
+    storageUri: storageAccount.properties.primaryEndpoints.blob
   }
 }
 
