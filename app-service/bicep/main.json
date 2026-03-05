@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "4552405712548269477"
+      "templateHash": "1729823847249730984"
     }
   },
   "parameters": {
@@ -1707,14 +1707,21 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "10780732713120630904"
+              "templateHash": "16618019392056859163"
             }
           },
           "parameters": {
             "location": {
               "type": "string",
               "metadata": {
-                "description": "Azure region for deployment"
+                "description": "Azure region for storage and default resources"
+              }
+            },
+            "playwrightLocation": {
+              "type": "string",
+              "defaultValue": "westeurope",
+              "metadata": {
+                "description": "Azure region for Playwright Testing workspace (limited availability)"
               }
             },
             "resourcePrefix": {
@@ -1740,7 +1747,7 @@
               "type": "Microsoft.AzurePlaywrightService/accounts",
               "apiVersion": "2024-12-01",
               "name": "[variables('playwrightAccountName')]",
-              "location": "[parameters('location')]",
+              "location": "[parameters('playwrightLocation')]",
               "tags": "[parameters('tags')]",
               "properties": {
                 "regionalAffinity": "Enabled",
@@ -1839,7 +1846,7 @@
             },
             "playwrightServiceUrl": {
               "type": "string",
-              "value": "[format('https://{0}.api.playwright.microsoft.com/accounts/{1}', parameters('location'), last(split(reference(resourceId('Microsoft.AzurePlaywrightService/accounts', variables('playwrightAccountName')), '2024-12-01').dashboardUri, '/')))]"
+              "value": "[format('https://{0}.api.playwright.microsoft.com/accounts/{1}', parameters('playwrightLocation'), last(split(reference(resourceId('Microsoft.AzurePlaywrightService/accounts', variables('playwrightAccountName')), '2024-12-01').dashboardUri, '/')))]"
             },
             "playwrightWorkspaceId": {
               "type": "string",

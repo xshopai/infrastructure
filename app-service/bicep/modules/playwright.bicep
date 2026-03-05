@@ -4,8 +4,11 @@
 
 targetScope = 'resourceGroup'
 
-@description('Azure region for deployment')
+@description('Azure region for storage and default resources')
 param location string
+
+@description('Azure region for Playwright Testing workspace (limited availability)')
+param playwrightLocation string = 'westeurope'
 
 @description('Resource naming prefix (xshopai-{suffix})')
 param resourcePrefix string
@@ -29,7 +32,7 @@ var storageName = length(storageNameRaw) > 24 ? substring(storageNameRaw, 0, 24)
 // Azure Playwright Testing workspace
 resource playwrightAccount 'Microsoft.AzurePlaywrightService/accounts@2024-12-01' = {
   name: playwrightAccountName
-  location: location
+  location: playwrightLocation
   tags: tags
   properties: {
     regionalAffinity: 'Enabled'
@@ -115,7 +118,7 @@ var workspaceGuid = last(split(playwrightAccount.properties.dashboardUri, '/'))
 
 output playwrightAccountName string = playwrightAccount.name
 output playwrightDashboardUrl string = playwrightAccount.properties.dashboardUri
-output playwrightServiceUrl string = 'https://${location}.api.playwright.microsoft.com/accounts/${workspaceGuid}'
+output playwrightServiceUrl string = 'https://${playwrightLocation}.api.playwright.microsoft.com/accounts/${workspaceGuid}'
 output playwrightWorkspaceId string = playwrightAccount.id
 output storageAccountName string = storageAccount.name
 output resultsContainerName string = resultsContainer.name
