@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "1729823847249730984"
+      "templateHash": "2431966255525646844"
     }
   },
   "parameters": {
@@ -1707,7 +1707,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "16618019392056859163"
+              "templateHash": "1518574084715714414"
             }
           },
           "parameters": {
@@ -1738,7 +1738,7 @@
             }
           },
           "variables": {
-            "playwrightAccountName": "[format('pw-{0}', parameters('resourcePrefix'))]",
+            "playwrightAccountName": "[format('pw{0}', replace(parameters('resourcePrefix'), '-', ''))]",
             "storageNameRaw": "[replace(format('stpw{0}', parameters('resourcePrefix')), '-', '')]",
             "storageName": "[if(greater(length(variables('storageNameRaw')), 24), substring(variables('storageNameRaw'), 0, 24), variables('storageNameRaw'))]"
           },

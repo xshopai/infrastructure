@@ -160,7 +160,8 @@ set_org_variable "DEPLOY_SUFFIX_PROD" "production"
 echo ""
 echo -e "  ${BLUE}Checking for Playwright Testing workspace...${NC}"
 for ENV_SUFFIX in "development" "production"; do
-  PW_NAME="pw-xshopai-${ENV_SUFFIX}"
+  # Match Bicep: pw${replace(resourcePrefix, '-', '')} where resourcePrefix = xshopai-${suffix}
+  PW_NAME="pw$(echo "xshopai-${ENV_SUFFIX}" | tr -d '-')"
   RG_NAME="rg-xshopai-${ENV_SUFFIX}"
   PW_RESPONSE=$(az rest --method get \
     --url "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.AzurePlaywrightService/accounts/${PW_NAME}?api-version=2024-12-01" \

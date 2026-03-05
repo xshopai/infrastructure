@@ -20,7 +20,8 @@ param tags object
 // Variables
 // =============================================================================
 
-var playwrightAccountName = 'pw-${resourcePrefix}'
+// Playwright account names: alphanumeric only, 3-64 chars, ^[a-zA-Z][a-zA-Z0-9]{2,63}$
+var playwrightAccountName = 'pw${replace(resourcePrefix, '-', '')}'
 // Storage names: 3-24 chars, lowercase alphanumeric only
 var storageNameRaw = replace('stpw${resourcePrefix}', '-', '')
 var storageName = length(storageNameRaw) > 24 ? substring(storageNameRaw, 0, 24) : storageNameRaw
