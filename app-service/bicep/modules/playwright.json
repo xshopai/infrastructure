@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "7014653663998078447"
+      "templateHash": "16859159489920833945"
     }
   },
   "parameters": {
@@ -122,14 +122,18 @@
     },
     {
       "type": "Microsoft.LoadTestService/playwrightWorkspaces",
-      "apiVersion": "2025-09-01",
+      "apiVersion": "2026-01-01-preview",
       "name": "[variables('playwrightWorkspaceName')]",
       "location": "[parameters('playwrightLocation')]",
       "tags": "[parameters('tags')]",
       "properties": {
         "regionalAffinity": "Enabled",
-        "localAuth": "Disabled"
-      }
+        "localAuth": "Disabled",
+        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
     }
   ],
   "outputs": {
@@ -139,11 +143,11 @@
     },
     "playwrightServiceUrl": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.LoadTestService/playwrightWorkspaces', variables('playwrightWorkspaceName')), '2025-09-01').dataplaneUri]"
+      "value": "[reference(resourceId('Microsoft.LoadTestService/playwrightWorkspaces', variables('playwrightWorkspaceName')), '2026-01-01-preview').dataplaneUri]"
     },
     "playwrightWorkspaceId": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.LoadTestService/playwrightWorkspaces', variables('playwrightWorkspaceName')), '2025-09-01').workspaceId]"
+      "value": "[reference(resourceId('Microsoft.LoadTestService/playwrightWorkspaces', variables('playwrightWorkspaceName')), '2026-01-01-preview').workspaceId]"
     },
     "storageAccountName": {
       "type": "string",
