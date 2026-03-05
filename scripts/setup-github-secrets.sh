@@ -163,16 +163,13 @@ for ENV_SUFFIX in "development" "production"; do
   # Match Bicep: pw-${resourcePrefix} where resourcePrefix = xshopai-${suffix}
   PW_NAME="pw-xshopai-${ENV_SUFFIX}"
   RG_NAME="rg-xshopai-${ENV_SUFFIX}"
-  PW_RESPONSE=$(az rest --method get \
+  PW_URL=$(az rest --method get \
     --url "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.LoadTestService/playwrightWorkspaces/${PW_NAME}?api-version=2025-09-01" \
-    2>/dev/null || echo "")
+    --query "properties.dataplaneUri" -o tsv 2>/dev/null || echo "")
 
-  if [ -n "$PW_RESPONSE" ]; then
-    PW_URL=$(echo "$PW_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['properties']['dataplaneUri'])" 2>/dev/null || echo "")
-    if [ -n "$PW_URL" ]; then
-      if [ "$ENV_SUFFIX" = "development" ]; then
-        set_org_variable "PLAYWRIGHT_SERVICE_URL" "$PW_URL"
-      fi
+  if [ -n "$PW_URL" ]; then
+    if [ "$ENV_SUFFIX" = "development" ]; then
+      set_org_variable "PLAYWRIGHT_SERVICE_URL" "$PW_URL"
     fi
   else
     echo -e "  ${YELLOW}ℹ Playwright workspace '${PW_NAME}' not found (deploy infra first)${NC}"
