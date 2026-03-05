@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "10401801230101227922"
+      "templateHash": "15943097145922480646"
     }
   },
   "parameters": {
@@ -104,6 +104,13 @@
       "defaultValue": "",
       "metadata": {
         "description": "Azure AD Object ID of user/service principal to grant Key Vault access (optional)"
+      }
+    },
+    "githubActionsPrincipalId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Principal ID of GitHub Actions OIDC service principal (for Playwright storage role assignment)"
       }
     }
   },
@@ -206,6 +213,9 @@
           },
           "keyVaultAdminObjectId": {
             "value": "[parameters('keyVaultAdminObjectId')]"
+          },
+          "githubActionsPrincipalId": {
+            "value": "[parameters('githubActionsPrincipalId')]"
           }
         },
         "template": {
@@ -215,7 +225,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "12135693354169826836"
+              "templateHash": "9289326476393436964"
             }
           },
           "parameters": {
@@ -308,6 +318,13 @@
               "defaultValue": "",
               "metadata": {
                 "description": "Azure AD Object ID of user/service principal to grant Key Vault access (optional)"
+              }
+            },
+            "githubActionsPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID of GitHub Actions OIDC service principal (for Playwright storage role assignment)"
               }
             },
             "postgresAdminUser": {
@@ -1885,6 +1902,215 @@
                     "modelVersion": {
                       "type": "string",
                       "value": "[parameters('modelVersion')]"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2025-04-01",
+              "name": "deploy-playwright",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "resourcePrefix": {
+                    "value": "[variables('resourcePrefix')]"
+                  },
+                  "tags": {
+                    "value": "[variables('tags')]"
+                  },
+                  "githubActionsPrincipalId": {
+                    "value": "[parameters('githubActionsPrincipalId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.39.26.7824",
+                      "templateHash": "13706565802562000378"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Azure region for storage and default resources"
+                      }
+                    },
+                    "playwrightLocation": {
+                      "type": "string",
+                      "defaultValue": "westeurope",
+                      "metadata": {
+                        "description": "Azure region for Playwright Workspace (check availability)"
+                      }
+                    },
+                    "resourcePrefix": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Resource naming prefix (xshopai-{suffix})"
+                      }
+                    },
+                    "tags": {
+                      "type": "object",
+                      "metadata": {
+                        "description": "Resource tags"
+                      }
+                    },
+                    "githubActionsPrincipalId": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Principal ID of the GitHub Actions OIDC service principal (for Storage Blob Data Contributor)"
+                      }
+                    }
+                  },
+                  "variables": {
+                    "playwrightWorkspaceName": "[format('pw-{0}', parameters('resourcePrefix'))]",
+                    "storageNameRaw": "[replace(format('stpw{0}', parameters('resourcePrefix')), '-', '')]",
+                    "storageName": "[if(greater(length(variables('storageNameRaw')), 24), substring(variables('storageNameRaw'), 0, 24), variables('storageNameRaw'))]",
+                    "storageBlobDataContributorRoleId": "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Storage/storageAccounts",
+                      "apiVersion": "2023-05-01",
+                      "name": "[variables('storageName')]",
+                      "location": "[parameters('location')]",
+                      "tags": "[parameters('tags')]",
+                      "kind": "StorageV2",
+                      "sku": {
+                        "name": "Standard_LRS"
+                      },
+                      "properties": {
+                        "accessTier": "Hot",
+                        "supportsHttpsTrafficOnly": true,
+                        "minimumTlsVersion": "TLS1_2",
+                        "allowBlobPublicAccess": false,
+                        "allowSharedKeyAccess": true
+                      }
+                    },
+                    {
+                      "type": "Microsoft.Storage/storageAccounts/blobServices",
+                      "apiVersion": "2023-05-01",
+                      "name": "[format('{0}/{1}', variables('storageName'), 'default')]",
+                      "properties": {
+                        "deleteRetentionPolicy": {
+                          "enabled": true,
+                          "days": 30
+                        }
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+                      "apiVersion": "2023-05-01",
+                      "name": "[format('{0}/{1}/{2}', variables('storageName'), 'default', 'playwright-results')]",
+                      "properties": {
+                        "publicAccess": "None"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageName'), 'default')]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Storage/storageAccounts/managementPolicies",
+                      "apiVersion": "2023-05-01",
+                      "name": "[format('{0}/{1}', variables('storageName'), 'default')]",
+                      "properties": {
+                        "policy": {
+                          "rules": [
+                            {
+                              "name": "cleanup-old-results",
+                              "enabled": true,
+                              "type": "Lifecycle",
+                              "definition": {
+                                "filters": {
+                                  "blobTypes": [
+                                    "blockBlob"
+                                  ],
+                                  "prefixMatch": [
+                                    "playwright-results/"
+                                  ]
+                                },
+                                "actions": {
+                                  "baseBlob": {
+                                    "delete": {
+                                      "daysAfterModificationGreaterThan": 90
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.LoadTestService/playwrightWorkspaces",
+                      "apiVersion": "2026-01-01-preview",
+                      "name": "[variables('playwrightWorkspaceName')]",
+                      "location": "[parameters('playwrightLocation')]",
+                      "tags": "[parameters('tags')]",
+                      "properties": {
+                        "regionalAffinity": "Enabled",
+                        "localAuth": "Disabled",
+                        "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob]"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+                      ]
+                    },
+                    {
+                      "condition": "[not(empty(parameters('githubActionsPrincipalId')))]",
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageName'))]",
+                      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), parameters('githubActionsPrincipalId'), variables('storageBlobDataContributorRoleId'))]",
+                      "properties": {
+                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('storageBlobDataContributorRoleId'))]",
+                        "principalId": "[parameters('githubActionsPrincipalId')]",
+                        "principalType": "ServicePrincipal"
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+                      ]
+                    }
+                  ],
+                  "outputs": {
+                    "playwrightWorkspaceName": {
+                      "type": "string",
+                      "value": "[variables('playwrightWorkspaceName')]"
+                    },
+                    "playwrightServiceUrl": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.LoadTestService/playwrightWorkspaces', variables('playwrightWorkspaceName')), '2026-01-01-preview').dataplaneUri]"
+                    },
+                    "playwrightWorkspaceId": {
+                      "type": "string",
+                      "value": "[reference(resourceId('Microsoft.LoadTestService/playwrightWorkspaces', variables('playwrightWorkspaceName')), '2026-01-01-preview').workspaceId]"
+                    },
+                    "storageAccountName": {
+                      "type": "string",
+                      "value": "[variables('storageName')]"
+                    },
+                    "resultsContainerName": {
+                      "type": "string",
+                      "value": "playwright-results"
                     }
                   }
                 }
@@ -3847,6 +4073,22 @@
             "keyVaultName": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-keyvault'), '2025-04-01').outputs.keyVaultName.value]"
+            },
+            "playwrightWorkspaceName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-playwright'), '2025-04-01').outputs.playwrightWorkspaceName.value]"
+            },
+            "playwrightServiceUrl": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-playwright'), '2025-04-01').outputs.playwrightServiceUrl.value]"
+            },
+            "playwrightWorkspaceId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-playwright'), '2025-04-01').outputs.playwrightWorkspaceId.value]"
+            },
+            "playwrightStorageAccountName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', 'deploy-playwright'), '2025-04-01').outputs.storageAccountName.value]"
             }
           }
         }

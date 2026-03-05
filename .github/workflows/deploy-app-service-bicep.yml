@@ -92,6 +92,7 @@ jobs:
       environment: ${{ steps.config.outputs.environment }}
       location: ${{ steps.config.outputs.location }}
       object_id: ${{ steps.get-object-id.outputs.object_id }}
+      github_actions_principal_id: ${{ steps.get-oidc-principal.outputs.principal_id }}
 
     steps:
       - name: Checkout repository
@@ -185,6 +186,18 @@ jobs:
           fi
           echo "object_id=${OBJECT_ID}" >> $GITHUB_OUTPUT
 
+      - name: Get GitHub Actions OIDC service principal ID
+        id: get-oidc-principal
+        run: |
+          # Look up the service principal object ID from the OIDC app registration client ID
+          PRINCIPAL_ID=$(az ad sp show --id "${{ secrets.AZURE_CLIENT_ID }}" --query id -o tsv 2>/dev/null || echo "")
+          if [ -z "$PRINCIPAL_ID" ]; then
+            echo "⚠️  Could not resolve OIDC service principal — Playwright storage role assignment will be skipped"
+          else
+            echo "Using OIDC service principal: ${PRINCIPAL_ID}"
+          fi
+          echo "principal_id=${PRINCIPAL_ID}" >> $GITHUB_OUTPUT
+
       - name: Compile Bicep templates
         working-directory: ${{ env.BICEP_DIR }}
         run: |
@@ -225,6 +238,7 @@ jobs:
             --parameters productServiceToken="${{ secrets.PRODUCT_SERVICE_TOKEN }}" \
             --parameters webBffToken="${{ secrets.WEB_BFF_TOKEN }}" \
             --parameters keyVaultAdminObjectId="${{ steps.get-object-id.outputs.object_id }}" \
+            --parameters githubActionsPrincipalId="${{ steps.get-oidc-principal.outputs.principal_id }}" \
             --output table
           echo "✓ Validation successful"
 
@@ -291,6 +305,7 @@ jobs:
             --parameters productServiceToken="${{ secrets.PRODUCT_SERVICE_TOKEN }}" \
             --parameters webBffToken="${{ secrets.WEB_BFF_TOKEN }}" \
             --parameters keyVaultAdminObjectId="${{ needs.validate.outputs.object_id }}" \
+            --parameters githubActionsPrincipalId="${{ needs.validate.outputs.github_actions_principal_id }}" \
             --output table
 
           echo "✓ What-if analysis complete"
@@ -529,6 +544,7 @@ jobs:
             --parameters productServiceToken="${{ secrets.PRODUCT_SERVICE_TOKEN }}" \
             --parameters webBffToken="${{ secrets.WEB_BFF_TOKEN }}" \
             --parameters keyVaultAdminObjectId="${{ needs.validate.outputs.object_id }}" \
+            --parameters githubActionsPrincipalId="${{ needs.validate.outputs.github_actions_principal_id }}" \
             --output json
 
           echo "deployment_name=${DEPLOYMENT_NAME}" >> $GITHUB_OUTPUT

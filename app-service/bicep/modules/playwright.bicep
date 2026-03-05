@@ -18,6 +18,9 @@ param resourcePrefix string
 @description('Resource tags')
 param tags object
 
+@description('Principal ID of the GitHub Actions OIDC service principal (for Storage Blob Data Contributor)')
+param githubActionsPrincipalId string = ''
+
 // =============================================================================
 // Variables
 // =============================================================================
@@ -27,6 +30,9 @@ var playwrightWorkspaceName = 'pw-${resourcePrefix}'
 // Storage names: 3-24 chars, lowercase alphanumeric only
 var storageNameRaw = replace('stpw${resourcePrefix}', '-', '')
 var storageName = length(storageNameRaw) > 24 ? substring(storageNameRaw, 0, 24) : storageNameRaw
+
+// Storage Blob Data Contributor role definition ID
+var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 
 // =============================================================================
 // Resources
@@ -109,6 +115,18 @@ resource playwrightWorkspace 'Microsoft.LoadTestService/playwrightWorkspaces@202
     regionalAffinity: 'Enabled'
     localAuth: 'Disabled'
     storageUri: storageAccount.properties.primaryEndpoints.blob
+  }
+}
+
+// Storage Blob Data Contributor role for GitHub Actions OIDC identity
+// Required for @azure/playwright reporter to upload test results
+resource storageBlobContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubActionsPrincipalId)) {
+  name: guid(storageAccount.id, githubActionsPrincipalId, storageBlobDataContributorRoleId)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRoleId)
+    principalId: githubActionsPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 

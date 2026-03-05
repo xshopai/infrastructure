@@ -60,6 +60,9 @@ param webBffToken string
 @description('Azure AD Object ID of user/service principal to grant Key Vault access (optional)')
 param keyVaultAdminObjectId string = ''
 
+@description('Principal ID of GitHub Actions OIDC service principal (for Playwright storage role assignment)')
+param githubActionsPrincipalId string = ''
+
 @description('Database usernames')
 param postgresAdminUser string = 'pgadmin'
 param mysqlAdminUser string = 'mysqladmin'
@@ -195,6 +198,7 @@ module playwright './modules/playwright.bicep' = {
     location: location
     resourcePrefix: resourcePrefix
     tags: tags
+    githubActionsPrincipalId: githubActionsPrincipalId
   }
 }
 
