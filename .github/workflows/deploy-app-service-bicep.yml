@@ -21,6 +21,11 @@ name: Deploy App Service Infrastructure (Bicep)
 # - DEPLOY_SUFFIX_DEV: Suffix for dev environment (e.g., 'dev', 'as01')
 # - DEPLOY_SUFFIX_PROD: Suffix for prod environment (e.g., 'prod', 'prod01')
 #
+# OPTIONAL GitHub Organization Secrets:
+# - GH_ORG_ADMIN_TOKEN: Fine-grained PAT with Organization Variables (read/write)
+#   permission — enables auto-sync of PLAYWRIGHT_SERVICE_URL org variable
+#   after deployment. Without it, run setup-github-secrets.sh to sync manually.
+#
 # REQUIRED GitHub Repository Secrets (infrastructure repo only):
 # - POSTGRES_ADMIN_PASSWORD, MYSQL_ADMIN_PASSWORD, SQL_ADMIN_PASSWORD
 # - RABBITMQ_PASSWORD, JWT_SECRET
@@ -528,6 +533,30 @@ jobs:
 
           echo "deployment_name=${DEPLOYMENT_NAME}" >> $GITHUB_OUTPUT
           echo "✓ Deployment complete"
+
+      - name: Sync Playwright Service URL to GitHub org variable
+        if: always() && steps.deploy.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_ADMIN_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ℹ GH_ORG_ADMIN_TOKEN not set — skipping org variable sync"
+            echo "  Run scripts/setup-github-secrets.sh to set PLAYWRIGHT_SERVICE_URL manually"
+            exit 0
+          fi
+
+          DEPLOYMENT="${{ steps.deploy.outputs.deployment_name }}"
+          PW_URL=$(az deployment sub show \
+            --name "$DEPLOYMENT" \
+            --query "properties.outputs.playwrightServiceUrl.value" -o tsv 2>/dev/null || echo "")
+
+          if [ -n "$PW_URL" ]; then
+            gh variable set PLAYWRIGHT_SERVICE_URL \
+              --org xshopai --visibility all --body "$PW_URL"
+            echo "✓ PLAYWRIGHT_SERVICE_URL synced: $PW_URL"
+          else
+            echo "⚠ Could not extract Playwright Service URL from deployment outputs"
+          fi
 
       - name: Generate deployment summary
         run: |

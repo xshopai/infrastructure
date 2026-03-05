@@ -188,7 +188,17 @@ module openai './modules/openai.bicep' = {
   }
 }
 
-// 5. Key Vault (depends on monitoring for diagnostics)
+// 5. Azure Playwright Testing (no dependencies)
+module playwright './modules/playwright.bicep' = {
+  name: 'deploy-playwright'
+  params: {
+    location: location
+    resourcePrefix: resourcePrefix
+    tags: tags
+  }
+}
+
+// 6. Key Vault (depends on monitoring for diagnostics)
 module keyvault './modules/keyvault.bicep' = {
   name: 'deploy-keyvault'
   params: {
@@ -338,3 +348,9 @@ output openaiDeployment string = openai.outputs.deploymentName
 
 // Key Vault
 output keyVaultName string = keyvault.outputs.keyVaultName
+
+// Playwright Testing
+output playwrightAccountName string = playwright.outputs.playwrightAccountName
+output playwrightServiceUrl string = playwright.outputs.playwrightServiceUrl
+output playwrightWorkspaceId string = playwright.outputs.playwrightWorkspaceId
+output playwrightStorageAccountName string = playwright.outputs.storageAccountName

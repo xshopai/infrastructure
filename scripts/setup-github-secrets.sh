@@ -156,8 +156,33 @@ set_org_variable() {
 set_org_variable "DEPLOY_SUFFIX_DEV" "development"
 set_org_variable "DEPLOY_SUFFIX_PROD" "production"
 
+# Playwright Service URL — query Azure if the workspace already exists
 echo ""
-echo -e "  ${GREEN}✓ Deployment suffix variables set for all repositories${NC}"
+echo -e "  ${BLUE}Checking for Playwright Testing workspace...${NC}"
+for ENV_SUFFIX in "development" "production"; do
+  PW_NAME="pw-xshopai-${ENV_SUFFIX}"
+  RG_NAME="rg-xshopai-${ENV_SUFFIX}"
+  PW_RESPONSE=$(az rest --method get \
+    --url "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.AzurePlaywrightService/accounts/${PW_NAME}?api-version=2024-12-01" \
+    2>/dev/null || echo "")
+
+  if [ -n "$PW_RESPONSE" ]; then
+    DASHBOARD_URI=$(echo "$PW_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['properties']['dashboardUri'])" 2>/dev/null || echo "")
+    PW_LOCATION=$(echo "$PW_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['location'])" 2>/dev/null || echo "")
+    if [ -n "$DASHBOARD_URI" ] && [ -n "$PW_LOCATION" ]; then
+      WORKSPACE_GUID=$(echo "$DASHBOARD_URI" | sed 's|.*/workspaces/||')
+      PW_URL="https://${PW_LOCATION}.api.playwright.microsoft.com/accounts/${WORKSPACE_GUID}"
+      if [ "$ENV_SUFFIX" = "development" ]; then
+        set_org_variable "PLAYWRIGHT_SERVICE_URL" "$PW_URL"
+      fi
+    fi
+  else
+    echo -e "  ${YELLOW}ℹ Playwright workspace '${PW_NAME}' not found (deploy infra first)${NC}"
+  fi
+done
+
+echo ""
+echo -e "  ${GREEN}✓ Organization variables set for all repositories${NC}"
 
 # =============================================================================
 # STEP 4: Infrastructure Repo Secrets (Auto-Generated)
@@ -297,7 +322,7 @@ echo -e "${BLUE}Organization Secrets (OIDC):${NC}"
 gh secret list --org "$GITHUB_ORG" 2>/dev/null | grep -E "^AZURE" || echo "  (none)"
 echo ""
 echo -e "${BLUE}Organization Variables (Deployment):${NC}"
-gh variable list --org "$GITHUB_ORG" 2>/dev/null | grep -E "^DEPLOY_SUFFIX" || echo "  (none)"
+gh variable list --org "$GITHUB_ORG" 2>/dev/null | grep -E "^DEPLOY_SUFFIX|^PLAYWRIGHT" || echo "  (none)"
 echo ""
 echo -e "${BLUE}Infrastructure Repo Secrets:${NC}"
 gh secret list --repo "$INFRA_REPO" 2>/dev/null || echo "  (none)"
@@ -308,7 +333,7 @@ echo ""
 echo "  ┌─────────────────────────────────────────────────────────────┐"
 echo "  │                    ORGANIZATION LEVEL                       │"
 echo "  │  Secrets: AZURE_CLIENT_ID + TENANT_ID + SUBSCRIPTION_ID     │"
-echo "  │  Variables: DEPLOY_SUFFIX_DEV, DEPLOY_SUFFIX_PROD          │"
+echo "  │  Variables: DEPLOY_SUFFIX_*, PLAYWRIGHT_SERVICE_URL        │"
 echo "  │                          │                                  │"
 echo "  │           GitHub OIDC Token Exchange (no secrets!)          │"
 echo "  │                          │                                  │"
