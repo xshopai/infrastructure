@@ -108,7 +108,6 @@ resource playwrightWorkspace 'Microsoft.LoadTestService/playwrightWorkspaces@202
   properties: {
     regionalAffinity: 'Enabled'
     localAuth: 'Disabled'
-    reporting: 'Enabled'
     storageUri: storageAccount.properties.primaryEndpoints.blob
   }
 }
