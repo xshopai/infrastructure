@@ -158,21 +158,18 @@ set_org_variable "DEPLOY_SUFFIX_PROD" "production"
 
 # Playwright Service URL — query Azure if the workspace already exists
 echo ""
-echo -e "  ${BLUE}Checking for Playwright Testing workspace...${NC}"
+echo -e "  ${BLUE}Checking for Playwright Workspace...${NC}"
 for ENV_SUFFIX in "development" "production"; do
-  # Match Bicep: pw${replace(resourcePrefix, '-', '')} where resourcePrefix = xshopai-${suffix}
-  PW_NAME="pw$(echo "xshopai-${ENV_SUFFIX}" | tr -d '-')"
+  # Match Bicep: pw-${resourcePrefix} where resourcePrefix = xshopai-${suffix}
+  PW_NAME="pw-xshopai-${ENV_SUFFIX}"
   RG_NAME="rg-xshopai-${ENV_SUFFIX}"
   PW_RESPONSE=$(az rest --method get \
-    --url "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.AzurePlaywrightService/accounts/${PW_NAME}?api-version=2024-12-01" \
+    --url "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}/providers/Microsoft.LoadTestService/playwrightWorkspaces/${PW_NAME}?api-version=2025-09-01" \
     2>/dev/null || echo "")
 
   if [ -n "$PW_RESPONSE" ]; then
-    DASHBOARD_URI=$(echo "$PW_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['properties']['dashboardUri'])" 2>/dev/null || echo "")
-    PW_LOCATION=$(echo "$PW_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['location'])" 2>/dev/null || echo "")
-    if [ -n "$DASHBOARD_URI" ] && [ -n "$PW_LOCATION" ]; then
-      WORKSPACE_GUID=$(echo "$DASHBOARD_URI" | sed 's|.*/workspaces/||')
-      PW_URL="https://${PW_LOCATION}.api.playwright.microsoft.com/accounts/${WORKSPACE_GUID}"
+    PW_URL=$(echo "$PW_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['properties']['dataplaneUri'])" 2>/dev/null || echo "")
+    if [ -n "$PW_URL" ]; then
       if [ "$ENV_SUFFIX" = "development" ]; then
         set_org_variable "PLAYWRIGHT_SERVICE_URL" "$PW_URL"
       fi

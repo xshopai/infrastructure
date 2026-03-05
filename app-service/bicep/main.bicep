@@ -188,7 +188,7 @@ module openai './modules/openai.bicep' = {
   }
 }
 
-// 5. Azure Playwright Testing (no dependencies)
+// 5. Playwright Workspaces — Azure App Testing (no dependencies)
 module playwright './modules/playwright.bicep' = {
   name: 'deploy-playwright'
   params: {
@@ -349,8 +349,8 @@ output openaiDeployment string = openai.outputs.deploymentName
 // Key Vault
 output keyVaultName string = keyvault.outputs.keyVaultName
 
-// Playwright Testing
-output playwrightAccountName string = playwright.outputs.playwrightAccountName
+// Playwright Workspaces (Azure App Testing)
+output playwrightWorkspaceName string = playwright.outputs.playwrightWorkspaceName
 output playwrightServiceUrl string = playwright.outputs.playwrightServiceUrl
 output playwrightWorkspaceId string = playwright.outputs.playwrightWorkspaceId
 output playwrightStorageAccountName string = playwright.outputs.storageAccountName

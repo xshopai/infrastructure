@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "1518574084715714414"
+      "templateHash": "7014653663998078447"
     }
   },
   "parameters": {
@@ -19,7 +19,7 @@
       "type": "string",
       "defaultValue": "westeurope",
       "metadata": {
-        "description": "Azure region for Playwright Testing workspace (limited availability)"
+        "description": "Azure region for Playwright Workspace (check availability)"
       }
     },
     "resourcePrefix": {
@@ -36,23 +36,11 @@
     }
   },
   "variables": {
-    "playwrightAccountName": "[format('pw{0}', replace(parameters('resourcePrefix'), '-', ''))]",
+    "playwrightWorkspaceName": "[format('pw-{0}', parameters('resourcePrefix'))]",
     "storageNameRaw": "[replace(format('stpw{0}', parameters('resourcePrefix')), '-', '')]",
     "storageName": "[if(greater(length(variables('storageNameRaw')), 24), substring(variables('storageNameRaw'), 0, 24), variables('storageNameRaw'))]"
   },
   "resources": [
-    {
-      "type": "Microsoft.AzurePlaywrightService/accounts",
-      "apiVersion": "2024-12-01",
-      "name": "[variables('playwrightAccountName')]",
-      "location": "[parameters('playwrightLocation')]",
-      "tags": "[parameters('tags')]",
-      "properties": {
-        "regionalAffinity": "Enabled",
-        "scalableExecution": "Enabled",
-        "reporting": "Enabled"
-      }
-    },
     {
       "type": "Microsoft.Storage/storageAccounts",
       "apiVersion": "2023-05-01",
@@ -131,24 +119,31 @@
       "dependsOn": [
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
       ]
+    },
+    {
+      "type": "Microsoft.LoadTestService/playwrightWorkspaces",
+      "apiVersion": "2025-09-01",
+      "name": "[variables('playwrightWorkspaceName')]",
+      "location": "[parameters('playwrightLocation')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "regionalAffinity": "Enabled",
+        "localAuth": "Disabled"
+      }
     }
   ],
   "outputs": {
-    "playwrightAccountName": {
+    "playwrightWorkspaceName": {
       "type": "string",
-      "value": "[variables('playwrightAccountName')]"
-    },
-    "playwrightDashboardUrl": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.AzurePlaywrightService/accounts', variables('playwrightAccountName')), '2024-12-01').dashboardUri]"
+      "value": "[variables('playwrightWorkspaceName')]"
     },
     "playwrightServiceUrl": {
       "type": "string",
-      "value": "[format('https://{0}.api.playwright.microsoft.com/accounts/{1}', parameters('playwrightLocation'), last(split(reference(resourceId('Microsoft.AzurePlaywrightService/accounts', variables('playwrightAccountName')), '2024-12-01').dashboardUri, '/')))]"
+      "value": "[reference(resourceId('Microsoft.LoadTestService/playwrightWorkspaces', variables('playwrightWorkspaceName')), '2025-09-01').dataplaneUri]"
     },
     "playwrightWorkspaceId": {
       "type": "string",
-      "value": "[resourceId('Microsoft.AzurePlaywrightService/accounts', variables('playwrightAccountName'))]"
+      "value": "[reference(resourceId('Microsoft.LoadTestService/playwrightWorkspaces', variables('playwrightWorkspaceName')), '2025-09-01').workspaceId]"
     },
     "storageAccountName": {
       "type": "string",

@@ -1,13 +1,15 @@
 // =============================================================================
-// Azure Playwright Testing - Workspace + Storage for Test Results
+// Playwright Workspaces (Azure App Testing) + Storage for Test Results
 // =============================================================================
+// Uses Microsoft.LoadTestService/playwrightWorkspaces (replaces retired
+// Microsoft.AzurePlaywrightService/accounts which was sunset 2026-03-08)
 
 targetScope = 'resourceGroup'
 
 @description('Azure region for storage and default resources')
 param location string
 
-@description('Azure region for Playwright Testing workspace (limited availability)')
+@description('Azure region for Playwright Workspace (check availability)')
 param playwrightLocation string = 'westeurope'
 
 @description('Resource naming prefix (xshopai-{suffix})')
@@ -20,8 +22,8 @@ param tags object
 // Variables
 // =============================================================================
 
-// Playwright account names: alphanumeric only, 3-64 chars, ^[a-zA-Z][a-zA-Z0-9]{2,63}$
-var playwrightAccountName = 'pw${replace(resourcePrefix, '-', '')}'
+// Playwright workspace names: alphanumeric + hyphens, 3-24 chars, ^[a-zA-Z0-9-]{3,24}$
+var playwrightWorkspaceName = 'pw-${resourcePrefix}'
 // Storage names: 3-24 chars, lowercase alphanumeric only
 var storageNameRaw = replace('stpw${resourcePrefix}', '-', '')
 var storageName = length(storageNameRaw) > 24 ? substring(storageNameRaw, 0, 24) : storageNameRaw
@@ -29,18 +31,6 @@ var storageName = length(storageNameRaw) > 24 ? substring(storageNameRaw, 0, 24)
 // =============================================================================
 // Resources
 // =============================================================================
-
-// Azure Playwright Testing workspace
-resource playwrightAccount 'Microsoft.AzurePlaywrightService/accounts@2024-12-01' = {
-  name: playwrightAccountName
-  location: playwrightLocation
-  tags: tags
-  properties: {
-    regionalAffinity: 'Enabled'
-    scalableExecution: 'Enabled'
-    reporting: 'Enabled'
-  }
-}
 
 // Storage Account for Playwright test result artifacts
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
@@ -109,17 +99,23 @@ resource lifecyclePolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2
   }
 }
 
+// Playwright Workspace (Azure App Testing)
+resource playwrightWorkspace 'Microsoft.LoadTestService/playwrightWorkspaces@2025-09-01' = {
+  name: playwrightWorkspaceName
+  location: playwrightLocation
+  tags: tags
+  properties: {
+    regionalAffinity: 'Enabled'
+    localAuth: 'Disabled'
+  }
+}
+
 // =============================================================================
 // Outputs
 // =============================================================================
 
-// Extract workspace GUID from the dashboard URI returned by Azure
-// Format: https://playwright.microsoft.com/workspaces/<guid>
-var workspaceGuid = last(split(playwrightAccount.properties.dashboardUri, '/'))
-
-output playwrightAccountName string = playwrightAccount.name
-output playwrightDashboardUrl string = playwrightAccount.properties.dashboardUri
-output playwrightServiceUrl string = 'https://${playwrightLocation}.api.playwright.microsoft.com/accounts/${workspaceGuid}'
-output playwrightWorkspaceId string = playwrightAccount.id
+output playwrightWorkspaceName string = playwrightWorkspace.name
+output playwrightServiceUrl string = playwrightWorkspace.properties.dataplaneUri
+output playwrightWorkspaceId string = playwrightWorkspace.properties.workspaceId
 output storageAccountName string = storageAccount.name
 output resultsContainerName string = resultsContainer.name
