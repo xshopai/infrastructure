@@ -107,10 +107,15 @@ resource lifecyclePolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2
 
 // Playwright Workspace (Azure App Testing)
 // Using 2026-01-01-preview for storageUri + reporting support (not in 2025-09-01 GA)
+// System-assigned managed identity is required for the workspace to upload
+// test result artifacts to the linked storage account.
 resource playwrightWorkspace 'Microsoft.LoadTestService/playwrightWorkspaces@2026-01-01-preview' = {
   name: playwrightWorkspaceName
   location: playwrightLocation
   tags: tags
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     regionalAffinity: 'Enabled'
     localAuth: 'Disabled'
@@ -118,9 +123,21 @@ resource playwrightWorkspace 'Microsoft.LoadTestService/playwrightWorkspaces@202
   }
 }
 
-// Storage Blob Data Contributor role for GitHub Actions OIDC identity
-// Required for @azure/playwright reporter to upload test results
-resource storageBlobContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubActionsPrincipalId)) {
+// Storage Blob Data Contributor for the Playwright workspace's managed identity
+// The workspace identity uploads test result artifacts to the linked storage account
+resource workspaceStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, playwrightWorkspace.id, storageBlobDataContributorRoleId)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRoleId)
+    principalId: playwrightWorkspace.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Storage Blob Data Contributor for the GitHub Actions OIDC service principal
+// Belt-and-suspenders: the CI runner identity also needs access for direct uploads
+resource ciRunnerStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubActionsPrincipalId)) {
   name: guid(storageAccount.id, githubActionsPrincipalId, storageBlobDataContributorRoleId)
   scope: storageAccount
   properties: {
