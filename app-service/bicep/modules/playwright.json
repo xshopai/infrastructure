@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "16859159489920833945"
+      "templateHash": "6563372639472540857"
     }
   },
   "parameters": {
@@ -33,12 +33,20 @@
       "metadata": {
         "description": "Resource tags"
       }
+    },
+    "githubActionsPrincipalId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Principal ID of the GitHub Actions OIDC service principal (for Storage Blob Data Contributor)"
+      }
     }
   },
   "variables": {
     "playwrightWorkspaceName": "[format('pw-{0}', parameters('resourcePrefix'))]",
     "storageNameRaw": "[replace(format('stpw{0}', parameters('resourcePrefix')), '-', '')]",
-    "storageName": "[if(greater(length(variables('storageNameRaw')), 24), substring(variables('storageNameRaw'), 0, 24), variables('storageNameRaw'))]"
+    "storageName": "[if(greater(length(variables('storageNameRaw')), 24), substring(variables('storageNameRaw'), 0, 24), variables('storageNameRaw'))]",
+    "storageBlobDataContributorRoleId": "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
   },
   "resources": [
     {
@@ -56,7 +64,8 @@
         "supportsHttpsTrafficOnly": true,
         "minimumTlsVersion": "TLS1_2",
         "allowBlobPublicAccess": false,
-        "allowSharedKeyAccess": true
+        "allowSharedKeyAccess": true,
+        "publicNetworkAccess": "Enabled"
       }
     },
     {
@@ -130,6 +139,21 @@
         "regionalAffinity": "Enabled",
         "localAuth": "Disabled",
         "storageUri": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('githubActionsPrincipalId')))]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), parameters('githubActionsPrincipalId'), variables('storageBlobDataContributorRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('storageBlobDataContributorRoleId'))]",
+        "principalId": "[parameters('githubActionsPrincipalId')]",
+        "principalType": "ServicePrincipal"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
