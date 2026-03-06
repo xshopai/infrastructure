@@ -53,6 +53,9 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
     allowSharedKeyAccess: true
+    // Must be Enabled — the @azure/playwright reporter uploads test results
+    // directly from the CI runner (GitHub Actions) over the public internet.
+    publicNetworkAccess: 'Enabled'
   }
 }
 
